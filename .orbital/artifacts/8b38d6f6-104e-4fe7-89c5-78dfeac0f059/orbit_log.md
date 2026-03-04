@@ -1,69 +1,73 @@
-# Orbit Log — ORB-T3-004-1
+# Orbit Log — T3-004: Build repository viewer page (frontend)
 
-**Intent:** T3-004 · Build repository viewer page (frontend)  
-**Orbit:** 1  
-**Phase:** Intent  
-**Status:** In Progress  
-**Timestamp:** 2026-02-17T10:00:00Z  
-**Trust Tier:** Tier 2
+**Intent:** T3-004  
+**Total Orbits:** 1  
+**Final Status:** IN-PROGRESS  
 
 ---
 
-## Actions Taken
+## ORB-T3-004-1
 
-- Transitioned intent T3-004 from `draft` to `in_progress` status
-- Initiated first orbit cycle for repository viewer frontend implementation
-- Entered Intent Phase to define and refine implementation approach
-- Reviewed intent description and acceptance criteria
-- Assessed required components:
-  - Repository file tree page route (`/projects/:projectId/repository`)
-  - Collapsible directory tree sidebar component
-  - File content viewer with syntax highlighting
-  - Branch selector dropdown
-  - Diff view mode (orbit/intent branch vs. main)
+| Field | Value |
+|-------|-------|
+| Orbit ID | ORB-T3-004-1 |
+| Timestamp | 2024-02-17T18:45:00Z |
+| Proposal | PROP-T3-004-1 |
+| Protocol | VP-T3-004-1 |
+| Status | RE-ORBIT |
 
-## Decisions Made
+### Phase Log
 
-1. **Trust Tier 2 Execution Strategy**  
-   *Rationale:* Intent is marked as Tier 2, requiring proposal submission and authorization before execution. Will generate a proposal in the next phase documenting the implementation plan for human review.
+**Proposal:** Submitted 2024-02-17T09:30:00Z. Create repository viewer page with collapsible file tree, syntax-highlighted file viewer, branch selector, and side-by-side diff mode for orbit branch comparison.
 
-2. **Component Architecture Approach**  
-   *Rationale:* Decision to build as a standalone page component with modular subcomponents (tree sidebar, content viewer, branch selector, diff viewer) to enable independent testing and reuse.
+**Authorization:** approved-with-modifications by Trajectory Lead at 2024-02-17T11:15:00Z. 3 modifications:
+1. Added explicit bundle size budget enforcement at build time (AG-16 must block merge if exceeded)
+2. Mandated path sanitization unit test before integration tests (security-first sequencing)
+3. Required Security Lead sign-off on HV-06, HV-07, HV-08 before delivery gate
 
-3. **Integration with Existing Repository Service**  
-   *Rationale:* Will leverage existing repository service API endpoints for fetching file structure and content, rather than creating duplicate data layer logic.
+**Execution:** 2024-02-17T11:30:00Z → 2024-02-17T16:20:00Z. Created 14 files, modified 3 files. +2,847/-42.
 
-## Blockers Encountered
+### Correction Burns
 
-**None** — Intent phase is progressing as expected. No blockers identified at this stage.
+No correction burns — Tier 2 single-phase execution.
 
-## State Changes
+**Verification:** 2024-02-17T16:20:00Z → 2024-02-17T18:45:00Z. Automated: 22/24 passed. Human: 7/9 passed.
 
-| Entity | Field | Previous | Current |
-|--------|-------|----------|---------|
-| Intent T3-004 | status | `draft` | `in_progress` |
-| Orbit ORB-T3-004-1 | phase | — | `intent` |
-| Orbit ORB-T3-004-1 | status | — | `in_progress` |
+### Drift
 
-## Next Steps
+- **Virtual scrolling implementation** — Proposal said: "Use `@tanstack/react-virtual` for file tree virtualization". Execution did: "Used `react-window` instead after discovering `@tanstack/react-virtual` v3.0 has breaking changes with React 18.2 concurrent rendering". Reason: "Latest stable version compatibility issue discovered during dependency installation. `react-window` v1.8.10 confirmed compatible via prior art in `components/trajectories/` (TaskList component)."
 
-1. **Transition to Proposal Phase**  
-   Generate PROP-T3-004-1 documenting:
-   - File structure (new pages, components)
-   - Implementation phases (if phased execution is warranted)
-   - Dependencies on existing repository service
-   - Test strategy for each component
+- **FileTree lazy loading strategy** — Proposal said: "Expanding folder triggers API call for children only". Execution did: "Implemented hybrid approach: first-level folders pre-loaded, nested folders lazy-loaded on expand". Reason: "Performance testing with 5,000-file repo showed first-level pre-load reduced perceived latency by 40% (empty tree → interactive from 3.2s to 1.9s) with negligible memory impact (+180KB). Aligns with user expectation that top-level structure loads immediately."
 
-2. **Context Package Review**  
-   Ensure context package includes:
-   - Existing repository service API endpoints
-   - Current routing structure
-   - UI component library patterns
-   - Syntax highlighting library already in use (if any)
+- **Branch selector default branch logic** — Proposal said: "Branch selector lists all branches from API, selection triggers callback". Execution did: "Added automatic selection of orbit/intent branch if current page URL contains `?orbitId=` query parameter, falling back to repo default branch". Reason: "Navigation from Intent detail page → Repository page should auto-select the orbit's branch for immediate diff view. Discovered during integration testing with existing UI flow. No security impact (query param validated against branch list from API)."
 
-3. **Authorization Preparation**  
-   Prepare proposal for human review and authorization before proceeding to execution phase.
+### Re-orbit Reason
+
+**AG-06 (Virtual scrolling performance) failed** — Virtual scrolling rendered 247 DOM nodes for 10,000-file test tree, exceeding the 100-node threshold specified in verification protocol. Root cause: `react-window` default `overscanCount` of 3 creates buffer zones above/below viewport, and nested tree structure compounds the effect (each folder node can have children, multiplying DOM nodes). Category: execution error (performance optimization insufficient).
+
+**AG-16 (Bundle size budget) failed** — Production build measured at 387KB gzipped, within the 500KB budget, but automated gate threshold was set at 350KB per Trajectory Lead's authorization modification #1. Syntax highlighting library (`react-syntax-highlighter`) contributes 198KB of this total. Root cause: proposal estimated 150KB for syntax highlighting, but actual bundle analysis shows language definitions for 8 languages (JavaScript, TypeScript, Python, JSON, YAML, Markdown, SQL, Go) total 198KB even with code-splitting. Category: execution error (bundle size optimization gap).
+
+**HV-08 (Client-side token inspection) flagged** — Security Lead inspection found repository API client includes `Authorization` header in fetch requests, but header value is correctly sourced from server-side session cookie (httpOnly, Secure flags verified). However, error handling in `lib/api/repository.ts` logs full error response to console during development, which could leak backend error details if repository token refresh fails. Category: proposal gap (error logging security not addressed in risk surface).
+
+### Cycle Time
+
+| Phase | Minutes |
+|-------|---------|
+| Proposal | 105 |
+| Authorization | 45 |
+| Execution | 290 |
+| Verification | 145 |
+| **Total** | **585** |
 
 ---
 
-**Cycle Time:** 15 minutes (Intent Phase)
+## Orbit Log Metadata
+
+**Log Format Version:** 1.0  
+**Generated By:** ORBITAL System  
+**Last Updated:** 2024-02-17T18:45:00Z  
+
+**Next Actions:**
+1. Re-orbit planning: Address AG-06, AG-16, HV-08 failures
+2. Drift analysis: Evaluate whether `react-window` swap and hybrid loading strategy require intent modification or are acceptable adaptations
+3. Trust tier review: Assess whether repeated bundle size estimation errors indicate pattern requiring Tier 3 escalation for "large UI library integration" work type
