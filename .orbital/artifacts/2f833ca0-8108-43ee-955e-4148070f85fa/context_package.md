@@ -26,7 +26,7 @@
 
 ## Architecture
 
-This is a self-contained UI feature that adds a button triggering an existing toast notification system. The button will invoke the toast mechanism with the message "yuh!" without requiring new infrastructure or data persistence. Follows existing UI component patterns.
+This is a self-contained UI feature that adds a button triggering an existing toast notification system. The button will invoke the toast mechanism with the message "Yuh yuh!" without requiring new infrastructure or data persistence. Follows existing UI component patterns.
 
 **Reference docs:**
 - Repository structure documentation (TBD)
