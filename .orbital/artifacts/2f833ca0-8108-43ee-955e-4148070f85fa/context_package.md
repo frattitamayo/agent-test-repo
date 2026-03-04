@@ -1,132 +1,129 @@
-# Context Package — INT-001: Yuh Feature Toast
+# Context Package — Yuh Feature Toast
 
-**Generated:** 2026-03-04
-**Package Type:** intent-specific
-**Intent:** INT-001
-
----
-
-## Codebase
-
-### Primary (will be modified or created)
-- Button component file (location TBD after repository search)
-- Toast/notification trigger implementation (location TBD)
-
-### Secondary (dependencies and interfaces)
-- Existing toast/notification system (assumed to exist per intent constraints)
-- UI component library or framework files
-- Event handling utilities
-
-### Tests
-- Button component tests
-- Toast interaction tests
-- Accessibility tests (ARIA, screen readers)
+**Intent:** Yuh Feature Toast  
+**Orbit:** #1 (Verification Phase)  
+**Generated:** 2025-01-24  
+**Trust Tier:** 2 (Supervised Implementation)
 
 ---
 
-## Architecture
+## Intent Summary
 
-This is a self-contained UI feature that adds a button triggering an existing toast notification system. The button will invoke the toast mechanism with the message "Yuh yuh!" without requiring new infrastructure or data persistence. Follows existing UI component patterns.
-
-**Reference docs:**
-- Repository structure documentation (TBD)
-- UI component guidelines (TBD)
-- Accessibility standards (WCAG 2.1 AA minimum)
+Implement a button component that, when clicked, displays a toast notification with the message "yuh!". This is a Tier 2 intent requiring UI component development with user interaction handling.
 
 ---
 
-## Patterns
+## 1. Relevant Files
 
-### Conventions (follow these)
-- **Button Components**: Follow existing button implementation patterns in the codebase
-- **Toast Notifications**: Use established toast/notification API (assumed to exist)
-- **Event Handlers**: Follow project's event handling conventions (onClick patterns)
-- **Accessibility**: Include ARIA labels, keyboard support, focus management
+### To Be Searched/Identified:
+- **UI Components Directory** — Look for existing button and toast components
+- **Toast/Notification System** — Existing toast notification implementation or library
+- **Event Handlers** — Button click handler patterns
+- **Styling Files** — CSS/styling for buttons and toasts
+- **Test Files** — Unit tests for UI components
 
-### Anti-patterns (avoid these)
-- **Custom Toast Implementation**: Do not build a new toast system; use existing infrastructure
-- **Blocking Interactions**: Toast must not prevent other UI interactions
-- **Memory Leaks**: Ensure proper cleanup of toast instances
-- **Hardcoded Timing**: Use configurable timing constants, not magic numbers
-
----
-
-## Dependencies
-
-### Internal
-- Toast/notification system (assumed to exist in codebase)
-- UI component library or framework
-- Styling system (CSS/styled-components/etc.)
-
-### External
-- None (per intent constraints: no external dependencies required)
+### Likely Creation Points:
+- New button component (if custom implementation needed)
+- Toast notification trigger logic
+- Integration file connecting button to toast system
 
 ---
 
-## Prior Art
+## 2. Architecture Notes
 
-### Completed
-- Existing toast/notification implementations (TBD after repo search)
-- Similar button + action patterns (TBD after repo search)
+### Component Architecture:
+- **UI Layer:** Button component with click event handler
+- **Notification Layer:** Toast notification system (may use existing library like react-toastify, sonner, or custom implementation)
+- **Event Flow:** Button Click → Event Handler → Toast Display → Auto-dismiss
 
-### Known Issues
-- None currently identified
-
----
-
-## Constraints
-
-### Build (must pass)
-- Unit tests for button click behavior
-- Accessibility tests (a11y compliance)
-- Cross-browser compatibility tests
-- Performance: <100ms response time requirement
-- No console errors or warnings
-
-### Guardrails (do not violate)
-- Must not interfere with existing UI elements or navigation
-- Must follow existing component patterns (per intent constraints)
-- No data persistence (per intent constraints)
-- Must maintain accessibility standards
-- Requires human approval before deployment (Trust Tier 2)
+### Integration Points:
+- Button component location (page/view where it will be rendered)
+- Toast notification provider/context (if using React context pattern)
+- State management (if toast state needs coordination)
 
 ---
 
-## Risk Assessment
+## 3. Prior Art & Patterns
 
-### Medium Risk (Trust Tier 2)
-- **UX Impact**: User-facing change requires design review and approval
-- **Accessibility**: Must meet WCAG standards; poor implementation could exclude users
-- **Cross-browser/device**: Must work consistently across platforms
+### Search for Existing Patterns:
+1. **Toast Implementations**
+   - Search terms: `toast`, `notification`, `alert`, `snackbar`
+   - Look for: Library imports, custom toast components, notification managers
 
-### Potential Issues
-- **Performance**: Toast rendering could miss <100ms target on slow devices
-- **Accessibility**: Screen readers may not announce toast properly
-- **Z-index Conflicts**: Toast may render behind other UI elements
-- **Multiple Clicks**: Rapid clicking could spawn many toasts simultaneously
+2. **Button Components**
+   - Search terms: `button`, `onClick`, `handleClick`
+   - Look for: Reusable button components, event handler patterns, button styling
 
-### Mitigations
-- Implement toast queue or debouncing for rapid clicks
-- Use ARIA live regions for screen reader announcements
-- Test toast z-index positioning thoroughly
-- Profile performance on target devices
-- Include keyboard navigation support (Enter/Space to trigger)
-- Respect user's motion preferences (prefers-reduced-motion)
-- Ensure focus management after toast dismissal
+3. **Event Handlers**
+   - Pattern: `onClick={() => showToast('message')}`
+   - Look for: Similar click handlers that trigger notifications
+
+### Common Patterns to Follow:
+- Use existing toast library if present (don't reinvent)
+- Follow project's button component conventions
+- Match existing notification styling and behavior
+- Use consistent event handler naming (e.g., `handleYuhClick`)
 
 ---
 
-## Implementation Notes
+## 4. External References
 
-**Requires Repository Access**: This Context Package needs to be updated after examining:
-1. Existing toast/notification system API and usage patterns
-2. Button component structure and styling approach
-3. Test file locations and testing patterns
-4. Build and deployment configuration
-5. Accessibility testing setup
+### Potential Libraries (if not already implemented):
+- **React:** react-toastify, react-hot-toast, sonner
+- **Vue:** vue-toastification
+- **Vanilla JS:** toastify-js, iziToast
 
-**Human Review Required**: As a Trust Tier 2 (supervised) change, implementation must be reviewed for:
-- UX consistency with existing patterns
-- Accessibility compliance
-- Cross-browser compatibility
-- Performance verification
+### Documentation:
+- Project's component library documentation (if exists)
+- Toast library documentation (once identified)
+- Accessibility guidelines for notifications (WCAG)
+
+---
+
+## 5. Risk Assessment
+
+### Low Risks:
+✓ **Simple functionality** — Single button, single toast message  
+✓ **No data persistence** — No backend integration needed  
+✓ **No complex state** — Self-contained interaction
+
+### Potential Issues & Mitigations:
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| **Toast library not present** | Medium | Search for existing implementation; if none, use lightweight library or custom solution |
+| **Accessibility concerns** | Medium | Ensure toast has proper ARIA labels, keyboard dismissal, screen reader support |
+| **Multiple toast conflicts** | Low | If clicked rapidly, ensure toasts queue/stack properly |
+| **Mobile responsiveness** | Low | Verify toast displays correctly on mobile viewports |
+| **Z-index conflicts** | Low | Ensure toast appears above all other content |
+
+### Testing Requirements:
+- [ ] Button renders correctly
+- [ ] Click handler fires
+- [ ] Toast appears with "yuh!" message
+- [ ] Toast auto-dismisses (if that's the behavior)
+- [ ] Keyboard accessibility (Enter/Space on button)
+- [ ] Screen reader announces toast message
+
+---
+
+## Next Steps
+
+Before implementation:
+1. **Search codebase** for existing toast/notification systems
+2. **Identify** where button should be placed (which view/page)
+3. **Confirm** styling requirements (match existing design system)
+4. **Verify** accessibility requirements with team
+
+---
+
+## Implementation Checklist
+
+- [ ] Locate or create button component
+- [ ] Implement click handler
+- [ ] Integrate with toast notification system
+- [ ] Add "yuh!" message
+- [ ] Style button to match project conventions
+- [ ] Write unit tests
+- [ ] Test accessibility
+- [ ] Test on mobile devices
