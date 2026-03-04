@@ -8,15 +8,17 @@
 
 ## INT-001: Yuh Feature Toast
 
-- **outcome:** User receives immediate visual feedback when clicking a button — a toast notification appears displaying the message "Yuh yuh!"
+- **outcome:** User receives immediate visual feedback when clicking a button — three toast notifications appear sequentially, each displaying the message "Yuh yuh!"
 
-- **constraints:** Must not interfere with existing UI elements or workflows; must use existing toast/notification system (no custom implementation); must follow established UI component patterns; must not persist data or modify application state beyond the transient toast display.
+- **constraints:** Must not interfere with existing UI elements or workflows; must use existing toast/notification system (no custom implementation); must follow established UI component patterns; must not persist data or modify application state beyond the transient toast displays; toasts must not overlap or obscure each other.
 
 - **acceptance:** 
   - Button renders and is clickable in all supported browsers and devices
-  - Toast appears within <100ms of button click `[inferred]`
-  - Toast displays exactly "Yuh yuh!" message
-  - Toast auto-dismisses or provides dismiss control
+  - Exactly 3 toasts appear sequentially after button click
+  - Each toast appears within <100ms of trigger `[inferred]`
+  - Each toast displays exactly "Yuh yuh!" message
+  - Toasts are visually distinguishable (stacked or sequenced appropriately)
+  - Each toast auto-dismisses or provides dismiss control
   - No console errors or warnings on interaction
   - Accessibility score ≥ 95 (Lighthouse) `[inferred]`
   - Button has proper ARIA label and keyboard support (Enter/Space)
@@ -30,6 +32,7 @@
 
 **Assumptions:**
 - Existing toast/notification system is available and functional
+- Toast system supports multiple simultaneous or sequential toasts
 - UI component library or framework is in place
 - No external API or backend changes required
 
