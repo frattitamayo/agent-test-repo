@@ -1,13 +1,24 @@
-I've generated an Intent Document framework for "yuh feature 2", but it requires critical human input to be actionable. 
+# Intent Document — YuH Feature
 
-**Key Issues:**
-- The intent name and missing description don't specify what outcome is desired
-- Cannot define testable acceptance criteria without knowing what the feature should do
-- Trust tier 3 (collaborative) is assigned assuming moderate risk and ambiguity, but should be validated once scope is clear
+**Generated:** 2024
+**Source:** User specification for toast notification feature
+**Intent Count:** 1
 
-**What I need from you:**
-1. What specific capability or change should this feature enable?
-2. What problem does it solve in the GitHub integration testing context?
-3. How will we measure success?
+---
 
-Once you provide this context, I can refine the document with specific, measurable acceptance criteria and accurate constraints.
+## INT-001: YuH Toast Notification
+
+- **outcome:** User receives immediate visual feedback when clicking a button — a toast notification displaying "YuH" appears on screen, confirming the interaction was registered.
+
+- **constraints:** Must not interfere with existing UI workflows; must not block critical user actions; must follow application's existing toast notification patterns if any exist; must be dismissible by user.
+
+- **acceptance:** 
+  - Button click triggers toast within 100ms `[inferred]`
+  - Toast displays exact text "YuH"
+  - Toast auto-dismisses after 3-5 seconds `[inferred]`
+  - Toast can be manually dismissed before auto-dismiss
+  - Multiple rapid clicks do not create overlapping toasts
+  - Keyboard accessible (Enter/Space on focused button triggers toast)
+  - Screen reader announces toast content
+
+- **trust_tier:** 0 — autonomous (Low-risk UI addition, fully reversible, no data or security impact)
