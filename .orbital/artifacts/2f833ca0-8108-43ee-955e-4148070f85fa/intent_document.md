@@ -1,155 +1,62 @@
-# Intent Document Generator
+# Intent Document — Fio Test Repo
 
-## What Is an Intent?
-
-The Intent Document is the **atomic unit of desired outcome** in the ORBITAL system. It is the **single source of truth for what the human wants to achieve** — not how the AI should achieve it. An intent that prescribes implementation is a failed intent.
-
-An intent captures **one discrete outcome** with its constraints, acceptance criteria, and trust tier. It is the starting point of every orbit.
-
-### Where Do Intents Come From?
-
-Intents can be authored by:
-
-- **A human** — directly writing an intent from their own understanding of the desired outcome.
-- **An AI agent** — decomposing a larger goal or conversation into discrete intents for human review.
-- **A prior orbit** — learnings from a completed or failed orbit that surface new outcomes to pursue.
-
-The source doesn't matter. What matters is that the intent passes validation: one outcome, no implementation leakage, testable acceptance, justified trust tier.
+**Generated:** 2024-01-09  
+**Project:** Fio Test Repo  
+**Trajectory:** Testing GitHub Integration  
+**Source:** Entity context from Orbit 1 (verification phase)  
+**Intent Count:** 1
 
 ---
 
-## Intent Schema
+## INT-001: yuh feature 2
 
-Every intent MUST contain exactly these four fields:
+- **outcome:** [UNDEFINED] — The intent description is empty. The human must specify what observable change or measurable result this feature should achieve. Examples: "enables users to X", "reduces Y by Z%", "ensures system can handle N concurrent requests".
 
-```yaml
-intent: "<INT-nnn> <short_title>"
-outcome: >
-  A measurable, observable change in system behavior or user experience.
-  Phrased as a result, never as a task. No implementation details.
-constraints: >
-  Hard boundaries the solution must not violate.
-  Regulatory, contractual, security, compatibility, or performance limits.
-acceptance: >
-  Concrete, testable conditions that prove the outcome was achieved.
-  Quantitative where possible (latency, scores, counts, error rates).
-trust_tier: "<0–4> — <label> (<brief justification>)"
-```
+- **constraints:** [TO BE DEFINED] — No constraints have been specified. The human should clarify:
+  - Regulatory or compliance requirements (e.g., GDPR, PCI-DSS)
+  - Backward compatibility requirements
+  - Performance or resource limits
+  - Security boundaries
+  - Integration constraints with existing systems
 
-### Trust Tiers
+- **acceptance:** [TO BE DEFINED] — No acceptance criteria have been provided. The human must specify concrete, testable conditions such as:
+  - Quantitative thresholds (latency < Xms, error rate < Y%, uptime ≥ Z%)
+  - Functional verification steps (feature works in scenarios A, B, C)
+  - Quality gates (test coverage ≥ X%, accessibility score ≥ Y)
+  - Success metrics and measurement timeline
 
-| Tier | Label | Description | Example |
-|------|-------|-------------|---------|
-| 0 | autonomous | No human review needed; fully reversible, low blast radius | Update copy, toggle feature flag |
-| 1 | informed | Human notified after execution; low-risk but observable | Add a read-only API endpoint |
-| 2 | supervised | Human approves before deploy; touches sensitive flows | Payment, auth, PII handling |
-| 3 | collaborative | Human and AI co-author; high ambiguity or novel domain | New pricing model, ML pipeline |
-| 4 | human-led | Human drives; AI assists with research and drafting only | Legal compliance, org-level policy |
+- **trust_tier:** 3 — collaborative (assigned by human; rationale needed)
+  - **Current Status:** Trust tier 3 has been assigned, indicating high ambiguity or novel domain work requiring human-AI co-authoring.
+  - **Rationale Required:** The human should explain why this feature requires collaborative oversight. Examples: "involves new pricing model with business impact", "introduces ML pipeline with experimental approach", "requires domain expertise in unfamiliar area".
 
 ---
 
-## How to Create Intents
+## Required Actions
 
-### Step 1 — Identify Outcomes
+**This intent cannot proceed to execution until the following information is provided:**
 
-From whatever source material you have — a conversation, a goal statement, a prior orbit's learnings — identify every **discrete, observable outcome**:
+1. **Define the Outcome:** What specific, observable change should this feature produce? What measurable result indicates success?
 
-1. If working from a **document or specification**: Read the entire document. Identify every use case, scenario, feature, and acceptance criterion. Note domain boundaries.
-2. If working from a **conversation or goal**: Ask *"What observable change does the human want?"* and decompose compound goals into independent outcomes.
-3. If working from a **prior orbit**: Review the orbit log. Identify unresolved outcomes or new outcomes discovered during execution.
+2. **Specify Constraints:** What are the hard boundaries this solution must not violate? What is explicitly out of scope?
 
-### Step 2 — Decompose into Atomic Outcomes
+3. **Set Acceptance Criteria:** What concrete tests or measurements will prove this outcome was achieved?
 
-For each identified outcome, ask: *"What observable change does the human want?"*
+4. **Justify Trust Tier 3:** Why does this feature require collaborative (human-AI co-authoring) rather than supervised, informed, or autonomous execution?
 
-- **Split** compound outcomes into separate intents when they have independent results or different trust tiers.
-- **Merge** tightly coupled scenarios that share one outcome (e.g., UC-1.1 through UC-1.5 may be one intent if they all serve "workspace exists and is operational").
-- **Discard** implementation details — architecture diagrams, data models, and tech choices do NOT appear in intents. Those belong in downstream artifacts (context packages, proposals).
-
-### Step 3 — Write Each Intent
-
-For every identified outcome, produce an intent block:
-
-1. **outcome** — Rewrite the feature/use case as a measurable result. Remove any verbs that describe HOW (e.g., "build", "create endpoint", "add table"). Use verbs that describe WHAT changes ("enables", "reduces", "ensures", "prevents").
-2. **constraints** — Extract hard limits: compliance rules, security requirements, backward-compatibility promises, SLAs, and non-negotiable boundaries. If the source is ambiguous, ask the human to confirm.
-3. **acceptance** — Define testable statements that prove the outcome was achieved. Add quantitative thresholds when implied but not stated (e.g., if the source says "fast", propose a latency target). Flag any acceptance criteria you inferred with `[inferred]`.
-4. **trust_tier** — Assign based on blast radius, reversibility, and sensitivity of the outcome.
-
-### Step 4 — Validate
-
-Run these checks on every intent before outputting:
-
-| Check | Fail Condition |
-|-------|---------------|
-| **No implementation leak** | Intent mentions a specific technology, table name, API path, library, or architecture pattern |
-| **Single outcome** | Intent describes two or more unrelated results |
-| **Testable acceptance** | Any acceptance criterion is subjective or unmeasurable |
-| **Constraints are boundaries** | A "constraint" is actually a requirement (move it to acceptance) |
-| **Trust tier justified** | Tier assignment has no rationale |
-
-If an intent fails validation, revise it before including it in the output.
+5. **Identify Dependencies:** Does this intent depend on other intents, external services, data sources, or infrastructure?
 
 ---
 
-## Output Format
+## Next Steps
 
-Output a single markdown file with the following structure:
-
-```markdown
-# Intent Document — <project_name>
-
-**Generated:** <date>
-**Source:** <brief description of where the intents came from>
-**Intent Count:** <N>
+1. **Human:** Review this document and provide the missing information above.
+2. **Human:** If the intent description "yuh feature 2" is a placeholder, replace it with a meaningful title that describes the outcome.
+3. **AI:** Once complete information is provided, validate the intent against the schema rules and proceed to Context Package generation.
 
 ---
 
-## INT-001: <Short Title>
+## Notes
 
-- **outcome:** <outcome text>
-- **constraints:** <constraints text>
-- **acceptance:** <acceptance criteria>
-- **trust_tier:** <tier number> — <label> (<justification>)
-
----
-
-## INT-002: <Short Title>
-
-...
-```
-
-### Numbering
-
-- Intents are numbered sequentially: `INT-001`, `INT-002`, etc.
-- If the source has domain groupings, prefix with the domain: `INT-A-001` (Domain A, intent 1).
-
-### Grouping
-
-- Group intents under their source domain heading when the source uses domain organization.
-- Within each domain, order intents from foundational (must exist first) to dependent.
-
----
-
-## Rules
-
-1. **Never prescribe implementation.** If you catch yourself writing "use X", "create a Y table", or "call Z API" — delete it. The intent says WHAT changes, not HOW.
-2. **One intent = one outcome.** If an intent has "and" connecting two unrelated results, split it.
-3. **Constraints are non-negotiable.** They are walls, not goals. "Must not break PCI compliance" is a constraint. "Supports 3 payment methods" is acceptance.
-4. **Acceptance is binary.** Each criterion is pass/fail. Avoid words like "should", "ideally", "nice to have".
-5. **Trust tier reflects risk, not complexity.** A complex but safe refactor is tier 0. A one-line change to auth logic is tier 2.
-6. **Inferred criteria are marked.** When the source is silent on a measurable threshold and you supply one, tag it `[inferred]`.
-
----
-
-## Example
-
-Given a goal: *"Reduce checkout form from 11 fields to 4 to improve conversion, must remain PCI compliant, cannot remove address for physical goods."*
-
-```markdown
-## INT-001: Streamlined Checkout Form
-
-- **outcome:** Checkout conversion increases by reducing cognitive load at payment step — form fields decrease from 11 to 4.
-- **constraints:** Must not violate PCI-DSS compliance; must retain address collection for physical-goods orders; must not remove any payment method currently supported.
-- **acceptance:** Form renders in <200ms; all existing payment methods functional; accessibility score ≥ 95 (Lighthouse); conversion rate measured and baselined within 7 days of deploy `[inferred]`.
-- **trust_tier:** 2 — supervised (touches payment flow, affects revenue)
-```
+- Current orbit is in **verification phase** with status **in_progress**
+- Orbit summary ("asd") suggests this may be test/experimental work
+- If this is a test intent for GitHub integration validation, consider reducing trust tier to 1 (informed) or 0 (autonomous) depending on blast radius
