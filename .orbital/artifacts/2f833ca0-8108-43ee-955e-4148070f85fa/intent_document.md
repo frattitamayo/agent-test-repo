@@ -1,11 +1,36 @@
-Intent Document generated successfully for "Yuh Feature Toast". 
+# Intent Document — Fio Test Repo
 
-The document defines a single atomic outcome (INT-001) with clear acceptance criteria, constraints, and trust tier justification. The feature is scoped as supervised (tier 2) due to its user-facing nature and accessibility requirements, despite low technical complexity.
+**Generated:** 2024-01-09  
+**Source:** Intent "Yuh Feature Toast" from Trajectory "Testing GitHub Integration"  
+**Intent Count:** 1
 
-Key highlights:
-- **Outcome:** Visual feedback via toast saying "yuh!" when button clicked
-- **Acceptance:** <100ms response time, accessible, no console errors, works cross-browser/device
-- **Constraints:** Must not interfere with other UI, follows existing patterns, no data persistence
-- **Trust Tier:** 2 (supervised) — requires human approval before deploy due to UX impact
+---
 
-No dependencies identified, assuming toast infrastructure exists.
+## INT-001: Yuh Feature Toast
+
+- **outcome:** User receives immediate visual feedback when clicking a button — a toast notification appears displaying the message "Yuh yuh!"
+
+- **constraints:** Must not interfere with existing UI elements or workflows; must use existing toast/notification system (no custom implementation); must follow established UI component patterns; must not persist data or modify application state beyond the transient toast display.
+
+- **acceptance:** 
+  - Button renders and is clickable in all supported browsers and devices
+  - Toast appears within <100ms of button click `[inferred]`
+  - Toast displays exactly "Yuh yuh!" message
+  - Toast auto-dismisses or provides dismiss control
+  - No console errors or warnings on interaction
+  - Accessibility score ≥ 95 (Lighthouse) `[inferred]`
+  - Button has proper ARIA label and keyboard support (Enter/Space)
+  - Works consistently across Chrome, Firefox, Safari, Edge `[inferred]`
+
+- **trust_tier:** 2 — supervised (user-facing UI change that affects user experience; requires human approval before deploy to ensure visual consistency and accessibility compliance)
+
+---
+
+## Dependencies
+
+**Assumptions:**
+- Existing toast/notification system is available and functional
+- UI component library or framework is in place
+- No external API or backend changes required
+
+**Blockers:** None identified
