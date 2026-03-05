@@ -1,30 +1,11 @@
-# Intent Document — Fio Test Repo
+I've generated a complete Intent Document for "Create Template Project" following ORBITAL standards. The document defines:
 
-**Generated:** 2026-03-05
-**Source:** User conversation — create basic React boilerplate with routing
-**Intent Count:** 1
+- **One clear outcome:** A functional React template that developers can immediately use
+- **Hard constraints:** Technology stack, repository scope, reversibility requirements
+- **Testable acceptance criteria:** 13 specific pass/fail conditions including performance benchmarks
+- **Trust Tier 1 justification:** Low risk, fully reversible, no production impact, post-execution notification sufficient
+- **Dependency mapping:** No upstream dependencies (foundational intent), documented external requirements
 
----
+The intent avoids implementation prescription—it specifies WHAT must exist (working template) without dictating HOW to build it (specific tools/libraries remain flexible within React ecosystem).
 
-## INT-001: Basic React Boilerplate with Navigation
-
-- **outcome:** A minimal, functional React application exists that serves as a boilerplate for future development — developers can clone the repository, run `npm install && npm start`, and immediately see a working React app in their browser with navigation between a Home page and About page, requiring no configuration.
-
-- **constraints:** Must use React as the UI framework; must include a routing library (React Router or equivalent); must run on standard Node.js LTS versions (16+); must not include business logic, complex state management libraries, or production optimization tooling; must not require external services or APIs to run locally; must remain under 50MB total size including node_modules.
-
-- **acceptance:** 
-  1. Repository contains a `package.json` with React listed as a dependency
-  2. `npm install` completes successfully without errors
-  3. `npm start` launches a development server on localhost
-  4. Browser displays a rendered React component (not blank page, not error)
-  5. Project includes a README with setup instructions
-  6. `npm run build` produces a deployable static bundle
-  7. No unnecessary dependencies (boilerplate should have <20 total dependencies excluding React ecosystem core)
-  8. Project includes separate Home and About page components
-  9. Navigation component with working links between Home and About pages
-  10. Direct URL navigation works (navigating to `localhost:PORT/` shows Home, `localhost:PORT/about` shows About)
-  11. Each page displays distinct, identifiable content (Home page content differs from About page content)
-
-- **trust_tier:** 1 — informed (low-risk greenfield setup; reversible via git; no sensitive data or infrastructure; routing is standard React pattern; human notified after execution to verify developer experience and navigation functionality)
-
----
+Ready to proceed to the next orbit phase?
