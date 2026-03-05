@@ -1,9 +1,9 @@
 # Intent Document — Fio Test Repo
 
-**Generated:** 2026-03-05  
+**Generated:** 2024-12-19  
 **Project:** Fio Test Repo  
 **Trajectory:** Testing GitHub Integration  
-**Orbit:** 1 (Phase: intent)  
+**Orbit:** 1  
 **Intent ID:** INT-001  
 **Status:** draft  
 
@@ -14,10 +14,13 @@
 ### 1. Objective
 
 **Desired Outcome:**  
-A functional React project template exists in the Fio Test Repo repository, providing a verified foundation that enables immediate feature development without setup friction. Developers can clone, install, and run the application locally to begin building upon a standardized structure.
+A functional React project template exists in the Fio Test Repo that serves as a validated foundation for future development. Developers can immediately clone, install, and run the application locally to begin building features without foundational setup overhead.
 
 **Observable Change:**  
-The repository transitions from empty (or non-React state) to containing a working React application that renders in a browser, includes standard tooling, and is documented for team use.
+Repository transitions from its current state to containing a working React application that:
+- Renders successfully in a web browser
+- Includes standard project structure and tooling
+- Can be operated by any team member following documented steps
 
 ---
 
@@ -25,194 +28,215 @@ The repository transitions from empty (or non-React state) to containing a worki
 
 **Hard Boundaries:**
 
-- **Framework Lock:** Must use React as the primary UI framework (no Vue, Angular, Svelte, or other alternatives)
-- **Node.js Compatibility:** Must support Node.js LTS versions 18.x and 20.x minimum
-- **Repository Boundary:** All project files must reside in the Fio Test Repo GitHub repository
-- **Template Purity:** Must NOT include business logic, domain-specific features, or production application code
-- **Version Control:** All files must be committed to version control with meaningful commit messages
-- **Backward Compatibility:** Must not break existing repository structure or files (if any exist)
+- **Framework Requirement:** Must use React (not Vue, Angular, Svelte, or alternatives)
+- **Node.js Compatibility:** Must support current Node.js LTS versions (18.x and 20.x minimum)
+- **Repository Location:** All files must reside in the Fio Test Repo GitHub repository
+- **Template Scope:** Must NOT include project-specific business logic, domain models, or production features
+- **Version Control:** All project files must be committed with descriptive commit messages
+- **No Breaking Changes:** Must not disrupt existing repository structure or files (if any exist)
 
-**Non-Goals (Out of Scope):**
+**Non-Goals (Explicitly Out of Scope):**
 
-- Production deployment configuration or infrastructure setup
-- Backend API or server implementation
-- Authentication/authorization systems
-- Database schemas, migrations, or ORM setup
-- CI/CD pipeline configuration (unless minimal for validation)
-- Opinionated state management solutions (Redux, MobX, Zustand)
-- Opinionated routing libraries or patterns
-- Custom design systems or component libraries
-- Performance optimization beyond framework defaults
-- Internationalization (i18n) setup
+- Production deployment configuration or hosting setup
+- Backend API, server, or database implementation
+- Authentication, authorization, or user management systems
+- CI/CD pipeline configuration (beyond basic validation needs)
+- Opinionated state management solutions (Redux, Zustand, MobX, etc.)
+- Opinionated routing implementations
+- Custom design systems, component libraries, or UI frameworks
+- Performance optimization beyond React defaults
+- Internationalization (i18n) or localization
+- Analytics, monitoring, or observability tooling
 
 ---
 
 ### 3. Acceptance Criteria
 
-**Installation & Execution:**
+**All criteria must pass for intent completion:**
 
-✓ Repository can be cloned via `git clone` without errors  
-✓ `npm install` (or `yarn install`) completes without errors or peer dependency warnings  
-✓ Installation completes in < 5 minutes on standard developer machine `[inferred]`  
-✓ `npm start` (or equivalent command) launches development server without errors  
-✓ Development server accessible at documented port (e.g., `http://localhost:3000`)  
-✓ Browser displays default React application (welcome screen or starter content) with zero console errors  
-✓ Hot module replacement (HMR) functional — code changes reflect in browser within 2 seconds `[inferred]`  
+#### Installation & Setup
+- [ ] Repository successfully clones via `git clone` command
+- [ ] `npm install` or `yarn install` completes without errors
+- [ ] No peer dependency warnings during installation
+- [ ] Installation completes in ≤ 5 minutes on standard developer hardware `[inferred]`
 
-**Build & Production:**
+#### Development Experience
+- [ ] `npm start` (or documented equivalent) launches development server without errors
+- [ ] Application accessible at documented localhost port (e.g., `http://localhost:3000`)
+- [ ] Browser displays React application with zero console errors
+- [ ] Default welcome/starter content renders correctly
+- [ ] Hot Module Replacement (HMR) functional — changes reflect in ≤ 3 seconds `[inferred]`
 
-✓ `npm run build` (or equivalent) produces production bundle without errors  
-✓ Production build completes in < 3 minutes `[inferred]`  
-✓ Build output directory (e.g., `build/` or `dist/`) contains minified/optimized assets  
-✓ Production build can be served locally and renders correctly  
+#### Production Build
+- [ ] `npm run build` (or equivalent) completes without errors
+- [ ] Build process finishes in ≤ 3 minutes `[inferred]`
+- [ ] Output directory contains minified, optimized production assets
+- [ ] Production build serves correctly when hosted locally
 
-**Code Quality & Structure:**
+#### Code Quality & Structure
+- [ ] Standard React project structure present (`src/`, `public/`, `package.json`)
+- [ ] `.gitignore` excludes `node_modules/`, build artifacts, IDE files, OS files
+- [ ] ESLint configuration present and passes with zero errors
+- [ ] All dependencies use stable versions (no alpha, beta, RC, or canary releases)
+- [ ] No deprecated packages in dependency tree
+- [ ] Lock file committed (`package-lock.json` or `yarn.lock`)
 
-✓ Standard React project structure present: `src/`, `public/`, `package.json`, configuration files  
-✓ `.gitignore` configured to exclude `node_modules/`, build artifacts, OS files, and IDE configs  
-✓ ESLint configuration present with zero errors on initial codebase  
-✓ All npm packages use stable versions (no alpha, beta, or release candidate tags)  
-✓ No packages flagged as deprecated in dependency tree  
-✓ Package lock file (`package-lock.json` or `yarn.lock`) committed to repository  
-
-**Documentation:**
-
-✓ `README.md` exists at repository root with:
-  - Prerequisites (Node.js version, package manager requirements)
-  - Step-by-step installation instructions
-  - Development server start command and port
+#### Documentation
+- [ ] `README.md` exists at repository root containing:
+  - Prerequisites (Node.js version, package manager)
+  - Installation instructions (step-by-step)
+  - Development server command and expected port
   - Production build command
-  - Project structure overview (directory purposes)
-  - Link to React documentation or relevant resources  
-✓ At least one other developer can follow README to run project successfully in < 10 minutes `[inferred]`  
+  - Project structure overview with directory explanations
+  - Troubleshooting section `[inferred]`
+- [ ] Documentation enables independent setup by another developer in ≤ 10 minutes `[inferred]`
 
-**Validation:**
-
-✓ Another team member independently clones and runs the project successfully (peer validation)  
-✓ Project runs on both macOS and Linux/Windows environments `[inferred]`  
+#### Validation
+- [ ] Peer validation: Another team member successfully clones and runs the project
+- [ ] Cross-platform validation: Project runs on at least two OS types (macOS, Linux, Windows) `[inferred]`
 
 ---
 
 ### 4. Trust Tier Rationale
 
-**Assigned Trust Tier:** 1 — informed  
+**Assigned Trust Tier:** 1 — informed
 
-**Tier Definition:** Human notified after execution; low-risk but observable changes.
+**Tier Definition:**  
+Human notified after execution; low-risk changes with observable outcomes but no pre-approval required.
 
-**Justification:**
+**Risk Assessment:**
 
-| Risk Factor | Assessment | Tier Impact |
-|-------------|------------|-------------|
-| **Blast Radius** | Limited to development environment; no production systems | ↓ Lower tier |
-| **Reversibility** | Fully reversible via Git revert; no destructive operations | ↓ Lower tier |
-| **User Impact** | Zero end-user impact; internal tooling only | ↓ Lower tier |
-| **Data Sensitivity** | No PII, credentials, or sensitive data involved | ↓ Lower tier |
-| **Security Surface** | No authentication, authorization, or data access patterns | ↓ Lower tier |
-| **Compliance** | No regulatory requirements (GDPR, HIPAA, PCI-DSS, SOC2) | ↓ Lower tier |
-| **Dependency on Standards** | Establishes patterns/conventions for future development | ↑ Requires notification |
-| **Team Coordination** | Multiple developers will build on this foundation | ↑ Requires awareness |
+| Factor | Evaluation | Impact |
+|--------|------------|--------|
+| **Blast Radius** | Confined to development environment; no production systems affected | Low risk → supports Tier 1 |
+| **Reversibility** | Fully reversible via Git history; no destructive operations | Low risk → supports Tier 1 |
+| **User Impact** | Zero end-user exposure; internal tooling only | Low risk → supports Tier 1 |
+| **Data Sensitivity** | No PII, credentials, secrets, or sensitive data involved | Low risk → supports Tier 1 |
+| **Security Surface** | No authentication, authorization, or security-critical paths | Low risk → supports Tier 1 |
+| **Regulatory Compliance** | No GDPR, HIPAA, PCI-DSS, SOC2, or compliance requirements | Low risk → supports Tier 1 |
+| **Architectural Foundation** | Establishes conventions and patterns for downstream work | Moderate importance → requires notification |
+| **Team Coordination** | Multiple developers will depend on this foundation | Moderate importance → requires awareness |
 
-**Why Tier 1 (informed) vs Tier 0 (autonomous)?**  
-While the technical risk is minimal, this template establishes conventions (directory structure, tooling choices, configuration patterns) that downstream development will inherit. Human notification ensures alignment with team preferences and provides opportunity to course-correct before significant work builds upon it.
+**Why Tier 1 vs. Tier 0 (autonomous)?**  
+While technically low-risk and reversible, this template establishes foundational patterns (directory structure, naming conventions, tooling configuration) that future development will inherit. Human notification post-execution ensures team alignment and provides opportunity for course correction before substantial work builds upon it.
 
 **Why Not Tier 2 (supervised)?**  
-No pre-approval needed because:
-- Changes are fully contained to development environment
-- No production deployment or user-facing functionality
-- Fully reversible without data loss or service disruption
-- No sensitive systems or compliance requirements touched
+Pre-approval unnecessary because:
+- No production deployment or user-facing changes
+- No sensitive systems, data, or compliance boundaries touched
+- Fully contained within development environment
+- Completely reversible without data loss or service disruption
 
 ---
 
 ### 5. Dependencies
 
-#### **Upstream Dependencies** (Required Before This Intent)
+#### Upstream Dependencies (Required Before Execution)
 
-**Environment & Access:**
+**Environment & Tools:**
+- Git version control system (v2.30 or newer)
+- Node.js LTS installed (v18.x or v20.x)
+- npm (v8+) or Yarn (v1.22+ or v3+) package manager
+- Text editor or IDE (VSCode, WebStorm, etc.)
+
+**Access & Permissions:**
 - GitHub repository "Fio Test Repo" exists and is accessible
-- Write/push permissions to repository for executing agent/developer
-- Git installed and configured locally (version 2.30+)
-- Node.js LTS version installed locally (18.x or 20.x)
-- npm (v8+) or Yarn (v1.22+ or v3+) installed locally
+- Write/push permissions to the repository
+- SSH keys or authentication configured for Git operations
 
 **Network & Services:**
 - Internet connectivity for package downloads
-- npm registry (registry.npmjs.org) accessible
-- GitHub.com accessible for repository operations
+- Access to npm registry (registry.npmjs.org)
+- Access to GitHub.com for repository operations
 
-**Knowledge:**
-- No prior intents required (this is foundational)
+**Prerequisites:**
+- No prior ORBITAL intents required (this is the foundational intent)
 
-#### **Downstream Dependencies** (Blocked Until This Intent Completes)
+#### Downstream Dependencies (Blocked Until Completion)
 
 **Immediate Blockers:**
-- All feature development work in "Testing GitHub Integration" trajectory
-- Any intent requiring a React component or application structure
+- All feature development in "Testing GitHub Integration" trajectory
+- Any work requiring React components or application structure
 
-**Future Intent Examples:**
-- Routing implementation (React Router, TanStack Router)
-- State management integration (Context API, external libraries)
-- UI component library adoption (Material-UI, Chakra, Tailwind)
-- Testing framework setup (Jest, Vitest, React Testing Library)
-- API integration patterns and service layers
-- Form handling and validation
-- Data fetching strategies
+**Future Intent Categories:**
+- Component development intents
+- Routing and navigation intents
+- State management integration intents
+- UI library adoption intents
+- Testing framework setup intents
+- API integration pattern intents
+- Form handling and validation intents
+- Data fetching strategy intents
 
-#### **External Dependencies**
+#### External Dependencies
 
 **Package Ecosystem:**
-- React package availability on npm (currently stable at 18.x)
+- React package availability on npm (currently v18.x stable)
 - React DOM package availability
-- Build tool availability (Create React App, Vite, or manual webpack/rollup)
-- Development tooling packages (ESLint, etc.)
+- Build tooling (Create React App, Vite, or equivalent) availability
+- ESLint and related plugins availability
 
-**No Cross-Intent Dependencies:**
-- This intent is independent; no parallel intents in scope
+**Infrastructure:**
+- npm registry uptime and availability
+- GitHub service availability
+
+**No Cross-Intent Dependencies:**  
+This intent operates independently; no parallel intents currently exist that would conflict or depend on each other.
 
 ---
 
 ## Metadata
 
-**Intent Attributes:**
+**Classification:**
 - **Type:** Infrastructure / Scaffolding
-- **Domain:** Development Environment
-- **Priority:** P0 (Foundational — blocks all downstream work)
-- **Estimated Effort:** 1-2 hours `[inferred]`
-- **Risk Level:** Low
+- **Domain:** Development Environment Setup
+- **Priority:** P0 — Foundational (blocks all downstream work)
+- **Complexity:** Low to Medium
+- **Estimated Duration:** 1-3 hours `[inferred]`
 
-**Validation Checklist:**
-- ✓ No implementation details prescribed (no "use Vite", "choose TypeScript", etc.)
-- ✓ Single discrete outcome defined (working React template)
-- ✓ All acceptance criteria testable and measurable
-- ✓ Constraints define boundaries, not requirements
-- ✓ Trust tier justified with specific risk factors
-- ✓ Inferred criteria marked with `[inferred]` tag
+**Validation Status:**
+- ✅ No implementation details prescribed (framework-agnostic on tooling choices)
+- ✅ Single discrete outcome defined
+- ✅ All acceptance criteria are testable and measurable
+- ✅ Constraints define boundaries, not moved requirements
+- ✅ Trust tier justified with specific risk analysis
+- ✅ Inferred criteria tagged with `[inferred]`
 
-**Open Questions for Human Review:**
-1. TypeScript preference? (affects tooling and configuration)
-2. Preferred build tool? (Create React App vs Vite vs manual setup)
-3. Linting strictness level? (standard vs strict vs custom rules)
-4. Testing framework inclusion in template? (or defer to separate intent)
+**Open Questions for Human Stakeholder:**
 
----
-
-## Next Steps
-
-**Upon Approval:**
-1. Transition to **Proposal Phase** to evaluate implementation approaches
-2. Generate proposals for:
-   - Build tool selection (CRA vs Vite vs manual)
-   - Language choice (TypeScript vs JavaScript)
-   - Minimal tooling configuration
-3. Execute approved proposal
-4. Validate against acceptance criteria
-5. Notify human stakeholder of completion (per Tier 1 protocol)
-
-**Transition Criteria:**
-- Human reviews and approves this intent document
-- No blocking questions remain unanswered
-- Orbit status advances to "proposal" phase
+1. **TypeScript Preference:** JavaScript or TypeScript for the template?
+2. **Build Tool Preference:** Create React App, Vite, or manual configuration?
+3. **Linting Strictness:** Standard, strict, or custom ESLint ruleset?
+4. **Testing Inclusion:** Should testing framework be part of template or separate intent?
+5. **Package Manager:** npm or Yarn as the standard?
 
 ---
 
-**Document End**
+## Transition Plan
+
+**Current State:** Intent phase — draft status  
+**Next Phase:** Proposal phase
+
+**Upon Intent Approval:**
+1. Generate implementation proposals evaluating:
+   - Build tool options (CRA vs. Vite vs. manual webpack/rollup)
+   - Language choice (TypeScript vs. JavaScript)
+   - Tooling configuration approaches
+   - Testing framework options (if in scope)
+2. Human reviews and selects preferred proposal
+3. Execute selected proposal
+4. Validate against all acceptance criteria
+5. Notify human stakeholder of completion (Tier 1 protocol)
+6. Update orbit status to "completed"
+
+**Success Criteria for Phase Transition:**
+- All open questions answered by human stakeholder
+- Intent document approved without modification requests
+- No blocking dependencies identified
+- Orbit advances to "proposal" phase
+
+---
+
+**Document Version:** 1.0  
+**Last Updated:** 2024-12-19  
+**Author:** Intent Agent (ORBITAL System)
