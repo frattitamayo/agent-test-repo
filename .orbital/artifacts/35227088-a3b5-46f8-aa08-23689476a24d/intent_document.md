@@ -10,57 +10,67 @@
 
 ## Outcome
 
-A functional React project template exists in the repository that enables developers to immediately start building features without additional scaffolding or configuration.
+The repository contains a working React application skeleton that any developer can clone and immediately use to build features, with zero additional setup required beyond standard Node.js tooling.
 
-**What Changes:**
-- Developers can clone the repository and begin React development within minutes
-- Project structure provides clear conventions for component organization, styling, and testing
-- Basic development workflows (local dev server, build, test) are operational out-of-the-box
-
-**What Does NOT Change:**
-- No features or business logic are implemented — infrastructure only
-- No deployment pipelines or production configurations
-- No external services or API integrations
+**Observable Result:**
+- A developer clones the repository, runs `npm install && npm run dev`, and sees a rendered React application in their browser within 2 minutes
+- The project includes example components, basic routing structure, and a passing test suite
+- Documentation clearly explains folder structure, available commands, and development conventions
 
 ---
 
 ## Constraints
 
-- **React ecosystem only** — Must use React as core framework; no alternative UI libraries
-- **Repository scope** — Template exists within "Fio Test Repo" repository structure
-- **Development only** — Template is for development/testing; production readiness is out of scope
-- **Fully reversible** — All changes can be removed without data loss or breaking existing work
-- **Browser compatibility** — Must support Chrome, Firefox, Safari, Edge (latest 2 versions)
-- **Node.js compatibility** — Must support Node.js LTS versions 18.x and 20.x
-- **No feature implementation** — Authentication, data management, or business logic explicitly excluded
-- **No infrastructure provisioning** — CI/CD, hosting, or cloud resources not included
-- **No design system** — Component libraries or design tokens deferred to future intents
+**Hard Boundaries:**
+- Must use React (no Vue, Angular, Svelte, or other frameworks)
+- Must work with Node.js 18.x or 20.x LTS (current LTS versions as of 2026)
+- Must support latest 2 versions of Chrome, Firefox, Safari, and Edge
+- Cannot include production deployment infrastructure (CI/CD, hosting configs, cloud resources)
+- Cannot include business logic, authentication systems, or data persistence layers
+- All changes must be fully reversible via Git revert or directory deletion
+
+**Scope Limitations:**
+- This is scaffolding only — no features, no integrations, no design system
+- Development and testing environment only — production readiness explicitly excluded
+- Confined to "Fio Test Repo" repository structure
 
 ---
 
 ## Acceptance Criteria
 
-### Functional
-1. Repository contains React project with `package.json`, source files, and configuration
-2. `npm install` completes without errors
-3. Development server starts with `npm run dev` (or equivalent)
-4. Browser displays working React application at localhost with no console errors
-5. `npm run build` completes successfully
-6. Build output generated in predictable directory (`/dist` or `/build`)
-7. At least one example React component exists and renders correctly
-8. Basic test setup exists with at least one passing test
+**Setup & Installation:**
+1. Repository contains `package.json` with all dependencies declared
+2. Running `npm install` (or yarn/pnpm equivalent) completes without errors in < 60 seconds
+3. No manual configuration steps required after installation
 
-### Documentation
-9. README.md exists with setup instructions, available commands, and project structure
-10. README includes prerequisites (Node version, package manager)
-11. README documents all available npm scripts
-12. Folder structure is documented or self-evident
+**Development Workflow:**
+4. Command `npm run dev` (or equivalent) starts a local development server in < 10 seconds
+5. Browser at `http://localhost:[PORT]` displays a functioning React application with no console errors
+6. Hot module replacement works — editing a component triggers automatic browser refresh
+7. Development server serves assets correctly (CSS, images, fonts if present)
 
-### Quality & Performance
-13. Code follows consistent style (linting configuration present and passes)
-14. Development server starts in < 10 seconds
-15. Production build completes in < 60 seconds
-16. Initial page load (development mode) renders in < 2 seconds
+**Build & Production Output:**
+8. Command `npm run build` (or equivalent) completes successfully in < 60 seconds
+9. Build creates output directory (`dist/`, `build/`, or similar) with optimized bundles
+10. Built application loads in browser with initial render < 2 seconds [inferred threshold]
+
+**Code Quality:**
+11. At least one example React component exists in `src/` directory and renders visible content
+12. Component follows modern React patterns (functional components, hooks if applicable)
+13. Linting configuration present (ESLint or equivalent) and `npm run lint` passes
+14. Code formatting is consistent (Prettier or equivalent configured)
+
+**Testing:**
+15. Test framework configured (Jest, Vitest, or similar)
+16. At least one test file exists (e.g., `App.test.js`) with a passing test
+17. Command `npm run test` executes test suite and reports success
+
+**Documentation:**
+18. `README.md` exists in repository root
+19. README documents prerequisites (Node version, package manager)
+20. README lists all available npm scripts with descriptions
+21. README explains project folder structure or structure is self-evident via naming
+22. `.gitignore` properly excludes `node_modules/`, build artifacts, and editor configs
 
 ---
 
@@ -68,32 +78,51 @@ A functional React project template exists in the repository that enables develo
 
 **Tier 1 — Informed**
 
-**Rationale:** Low blast radius (isolated template directory, no user impact), fully reversible (delete files, Git rollback), observable but low risk (developers may need boilerplate adjustments). Human notification required because template structure influences future development patterns and technology choices have long-term implications. Does not touch payments, auth, sensitive data, or user-facing features.
+**Justification:**
+
+This intent creates new infrastructure without touching existing systems. Changes are:
+
+- **Isolated:** Template resides in its own directory or repository root with no dependencies on other code
+- **Reversible:** Entire template can be deleted with `rm -rf` or `git revert` with zero data loss
+- **Low Risk:** Worst-case outcome is developers need to adjust boilerplate — no user impact, no service disruption
+
+**Why Tier 1 (not Tier 0):**
+- Template structure establishes conventions that influence future development patterns
+- Technology choices (bundler, testing library, state management approach) have long-term implications
+- Human should validate that conventions align with team preferences before widespread adoption
+
+**Why Tier 1 (not Tier 2):**
+- Does not touch payment flows, authentication, or PII
+- Does not affect production systems or end users
+- Does not create compliance obligations or contractual commitments
 
 ---
 
 ## Dependencies
 
-**Upstream:** None (foundational intent)
+**Upstream Dependencies:** None (this is a foundational intent)
 
-**External:**
-- Node.js runtime (18.x or 20.x LTS)
-- Package manager (npm, yarn, or pnpm)
-- Git repository access ("Fio Test Repo")
-- React library (latest stable version)
+**External Dependencies:**
+- Node.js runtime environment (18.x or 20.x LTS)
+- npm, yarn, or pnpm package manager
+- Git repository access with write permissions
+- Internet connectivity for package installation
+- React library (latest stable version at implementation time)
 
-**Downstream (Potential):**
-- Authentication/authorization
-- State management solutions
-- Component library/design system
-- CI/CD pipelines
-- API integration patterns
+**Downstream Enablement:**
+This template unblocks future intents such as:
+- Feature development (authentication, data fetching, business logic)
+- State management integration (Redux, Zustand, Context API patterns)
+- Component library adoption (Material-UI, Ant Design, custom design system)
+- API integration patterns and service layers
+- CI/CD pipeline configuration
+- Deployment automation
 
 **Assumptions:**
-- Repository write access available
-- Development environment has internet access
-- No existing React project conflicts
+- Developer has repository write access
+- No conflicting React project exists in target directory
+- Standard development machine specs (4GB+ RAM, modern CPU)
 
 ---
 
-**Next Phase:** Context — Gather technical context and design proposal for implementation.
+**Next Phase:** Context → Proposal → Execution
