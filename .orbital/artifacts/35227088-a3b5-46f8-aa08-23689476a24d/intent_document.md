@@ -50,16 +50,42 @@ The AI can scaffold the project, verify it works locally, and commit the initial
 
 ## Dependencies
 
-**External:**
-- Node.js runtime environment (v16+ recommended)
-- npm/yarn/pnpm package manager
-- Git version control system
+**External — Required:**
+- Node.js v18 LTS or v20 LTS (minimum: v18.0.0)
+- npm v9+ (bundled with Node.js) as the package manager
+- Git v2.30+
+- Modern web browser (Chrome 90+, Firefox 88+, Safari 14+, or Edge 90+)
+- Internet access to npm registry (registry.npmjs.org)
 
-**Internal:**
-- Fio Test Repo repository access and write permissions
-- No dependencies on other intents (this is the foundational orbit)
+**External — Environment:**
+- Operating System: macOS, Linux, or Windows 10+ with WSL2
+- RAM: 8GB minimum (4GB may work but builds will be slow)
+- Disk Space: 1GB free (for node_modules and build artifacts)
+- Terminal/shell access for running commands
+
+**Internal — Repository:**
+- Write access to `fio-test-repo` repository
+- Target branch: `main` (direct commit authority for Tier 1 autonomous execution)
+- **Pre-execution verification required:** Confirm no existing `/src` directory or root-level `package.json` that would conflict with template scaffolding
+- No branch protection rules that prevent automated commits
+- No required CI/CD checks that must pass before merge (or agent has authority to override)
+
+**Internal — Tooling Decisions:**
+- Build tool: Vite 5.x (fast, modern, convention-over-configuration)
+- Package manager: npm (for maximum compatibility and standard lockfile format)
+- TypeScript: Yes (strict mode enabled for type safety)
+- Code quality: ESLint + Prettier with React-specific rulesets
 
 **Assumptions:**
-- Development machine has internet access to download npm packages
-- Repository allows direct commits to main branch OR agent has authority to create/merge PRs
-- No existing project structure conflicts with template creation
+- Executor has terminal/CLI access and can run shell commands
+- No corporate firewall or proxy blocking npm registry access
+- Repository is in a clean state with no uncommitted changes that would conflict
+- No existing project structure or configuration files at repository root
+- Development environment has standard shell utilities (bash/zsh/cmd)
+
+**Blockers to Resolve Before Execution:**
+- Verify current repository contents (empty vs. existing files)
+- Confirm npm registry accessibility from execution environment
+- Validate Node.js version meets minimum requirement (v18+)
+
+---
