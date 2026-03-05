@@ -1,167 +1,169 @@
-# Context Package — Create Template Project (Orbit #1)
+# Context Package — Create Template Project
 
 **Generated:** 2025-01-21  
 **Package Type:** intent-specific  
 **Intent:** Create Template Project  
-**Trust Tier:** 1 (Standard - Requires Review)
+**Orbit:** #1  
+**Trust Tier:** 1 (Requires Review)
 
 ---
 
-## Executive Summary
+## Codebase
 
-This intent establishes the foundational React project structure for "Fio Test Repo". As a Tier 1 intent creating a new project template, this requires human review before implementation. The outcome will provide the base framework for future development work.
+### Primary (will be created)
+- `package.json` — Dependencies and npm scripts
+- `vite.config.js` — Build tool configuration
+- `index.html` — Application shell
+- `src/main.jsx` — React application entry point
+- `src/App.jsx` — Root component
+- `src/App.css` — Root component styles
+- `src/index.css` — Global styles
+- `.gitignore` — Version control exclusions
+- `README.md` — Setup and usage documentation
 
----
+### Secondary (supporting files)
+- `.eslintrc.cjs` — Code linting rules
+- `.prettierrc` — Code formatting configuration
+- `public/` — Static asset directory
+- `.env.example` — Environment variable template
 
-## Codebase Context
-
-### Current State
-This appears to be a **greenfield project initialization**. No existing React project structure detected.
-
-### Primary Surfaces (will be created)
-- `/package.json` — Project dependencies and scripts
-- `/tsconfig.json` or `/jsconfig.json` — TypeScript/JavaScript configuration
-- `/src/` — Source code directory
-  - `/src/App.jsx` or `/src/App.tsx` — Main application component
-  - `/src/index.jsx` or `/src/index.tsx` — Application entry point
-  - `/src/index.css` — Base styles
-- `/public/` — Static assets directory
-  - `/public/index.html` — HTML template
-- `/.gitignore` — Git ignore patterns
-- `/README.md` — Project documentation
-
-### Secondary Dependencies
-- Build tooling configuration (Vite, Create React App, or similar)
-- Testing framework setup (Jest, Vitest, React Testing Library)
-- Linting configuration (ESLint)
-- Formatting configuration (Prettier)
+### Tests
+- `src/App.test.jsx` — Initial component test file
+- `vitest.config.js` — Test runner configuration
 
 ---
 
-## Architecture Considerations
+## Architecture
 
-### Recommended Approach
-- **Build Tool:** Modern React projects favor **Vite** for speed and developer experience
-- **Language:** Consider TypeScript for type safety in larger applications
-- **Structure:** Component-based architecture with clear separation of concerns
-- **State Management:** Start with React hooks; add Redux/Zustand if complexity grows
+This intent establishes a React single-page application using Vite for build tooling. The project follows modern React patterns with functional components, hooks-based state management, and a component-driven architecture where UI is composed from reusable pieces organized in `src/`.
 
-### Folder Structure Pattern
-```
-project-root/
-├── public/           # Static assets
-├── src/
-│   ├── components/   # Reusable UI components
-│   ├── pages/        # Page-level components
-│   ├── hooks/        # Custom React hooks
-│   ├── utils/        # Helper functions
-│   ├── styles/       # Global styles
-│   └── App.jsx       # Root component
-├── tests/            # Test files
-└── package.json
-```
+**Reference docs:**
+- [React Documentation](https://react.dev/)
+- [Vite Configuration](https://vitejs.dev/config/)
 
 ---
 
-## Implementation Patterns
+## Patterns
 
-### Modern React Best Practices (2024-2025)
-1. **Functional Components** — Use function components with hooks (not class components)
-2. **Component Composition** — Build complex UIs from simple, reusable components
-3. **Hooks First** — useState, useEffect, useContext for state and side effects
-4. **Prop Validation** — Use PropTypes or TypeScript interfaces
-5. **CSS Modules or Styled Components** — Scoped styling to prevent conflicts
-6. **Environment Variables** — Use `.env` files for configuration
+### Conventions (follow these)
+- **Vite Project Structure**: See official [template-react](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react) — minimal setup with fast HMR
+- **Functional Components**: Use arrow functions with hooks, not class components
+- **CSS Modules**: Scoped styles with `.module.css` suffix for component-specific styling
+- **Named Exports**: Export components by name for better tree-shaking and debugging
 
-### Anti-Patterns to Avoid
-- ❌ **Inline styles everywhere** — Creates maintenance issues
-- ❌ **Deeply nested components** — Flatten component hierarchies
-- ❌ **Direct DOM manipulation** — Let React manage the DOM
-- ❌ **Props drilling** — Use Context API or state management for deep data passing
+### Anti-patterns (avoid these)
+- **Class Components**: Deprecated approach; use functional components with hooks
+- **Direct DOM Manipulation**: Never use `document.querySelector()` or similar; let React manage the DOM
+- **Prop Drilling**: For deep component trees, use Context API instead of passing props through intermediaries
+- **Inline Styles Everywhere**: Reserve for dynamic values only; use CSS modules or external stylesheets for static styles
 
 ---
 
-## External References & Dependencies
+## Dependencies
 
-### Core Dependencies
-- **react** (^18.x) — Core React library
-- **react-dom** (^18.x) — DOM rendering
-- **vite** (^5.x) OR **create-react-app** — Build tooling
+### Internal
+None — this is a greenfield initialization with no existing codebase.
 
-### Development Dependencies
-- **@vitejs/plugin-react** — Vite React plugin
-- **eslint** — Code linting
+### External
+- **react** (^18.2.0) — Core React library
+- **react-dom** (^18.2.0) — DOM rendering
+- **vite** (^5.0.0) — Build tool and dev server
+- **@vitejs/plugin-react** — Vite React integration
+- **eslint** — Code quality enforcement
 - **prettier** — Code formatting
-- **@testing-library/react** — Component testing
-- **vitest** — Fast unit test runner (if using Vite)
+- **vitest** — Fast unit test runner
+- **@testing-library/react** — Component testing utilities
 
-### Recommended Starter Command
+---
+
+## Prior Art
+
+### Completed
+None — this is the initial project setup.
+
+### Known Issues
+None — no existing technical debt for a new project.
+
+### Reference Implementations
+- [Vite React Template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react) — Official minimal starter
+- [React Beta Docs Examples](https://react.dev/learn) — Modern React patterns and best practices
+
+---
+
+## External References
+
+### Critical Documentation
+- **React 18 Docs**: https://react.dev/ — Hooks, components, event handling
+- **Vite Guide**: https://vitejs.dev/guide/ — Configuration, plugins, build optimization
+- **ESLint React Plugin**: https://github.com/jsx-eslint/eslint-plugin-react — Linting rules for React
+
+### Setup Command
 ```bash
 npm create vite@latest fio-test-repo -- --template react
-# or with TypeScript
-npm create vite@latest fio-test-repo -- --template react-ts
+cd fio-test-repo
+npm install
 ```
 
-### Official Documentation
-- [React Docs](https://react.dev/) — Official React documentation
-- [Vite Guide](https://vitejs.dev/guide/) — Vite build tool
-- [React Patterns](https://reactpatterns.com/) — Community patterns
+### Key Decisions Required
+1. **TypeScript vs JavaScript** — JavaScript for faster setup; TypeScript for type safety
+2. **Styling Solution** — CSS Modules (built-in), Tailwind, or styled-components
+3. **Testing Library** — Vitest (recommended with Vite) or Jest
 
 ---
 
 ## Risk Assessment
 
-### Potential Risks
-
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| **Build tool choice** | High — Affects DX and build speed | Use Vite for modern projects; CRA for legacy compatibility needs |
-| **TypeScript vs JavaScript** | Medium — Later migration is costly | Decide early based on team familiarity and project scale |
-| **Over-engineering** | Medium — Adds unnecessary complexity | Start minimal; add complexity only when needed |
-| **Package version conflicts** | Low — Dependency resolution issues | Pin major versions; use package-lock.json |
-| **Missing linting/formatting** | Low — Code quality drift | Configure ESLint + Prettier from start |
+| **Dependency vulnerabilities** | Medium | Run `npm audit` post-setup; update regularly |
+| **Build configuration complexity** | Low | Use Vite defaults; customize only as needed |
+| **Missing development tooling** | Medium | Include ESLint + Prettier from start |
+| **No testing infrastructure** | Medium | Configure Vitest and Testing Library initially |
+| **Unclear project structure** | Low | Document folder conventions in README |
+| **Port conflicts (5173)** | Low | Vite auto-increments port if occupied |
 
-### Success Criteria (Acceptance Tests)
-- [ ] Project initializes and runs locally (`npm run dev`)
-- [ ] Default React page renders without errors
-- [ ] Hot module replacement (HMR) works during development
-- [ ] Production build completes successfully (`npm run build`)
-- [ ] ESLint runs without errors
-- [ ] Basic component renders in tests
-
----
-
-## Prior Art & Conventions
-
-### Industry Standards
-- **React 18** introduced concurrent features — ensure compatibility
-- **ES6+ syntax** is standard (arrow functions, destructuring, modules)
-- **Semantic versioning** for dependencies
-- **MIT or Apache 2.0** common licenses for open source
-
-### Project-Specific Decisions Needed
-- [ ] TypeScript or JavaScript?
-- [ ] Vite or alternative build tool?
-- [ ] CSS approach (modules, styled-components, Tailwind)?
-- [ ] Testing strategy (unit, integration, e2e)?
-- [ ] State management needs (start with hooks)?
+### Mitigations Applied
+- Use official Vite template to minimize setup errors
+- Lock dependency versions in `package-lock.json`
+- Include comprehensive `.gitignore` from template
+- Document all npm scripts in README
 
 ---
 
-## Next Steps (Post-Approval)
+## Constraints
 
-1. **Initialize project** with chosen build tool
-2. **Configure tooling** (ESLint, Prettier, Git hooks)
-3. **Create basic structure** (folders, sample components)
-4. **Document setup** in README
-5. **Commit initial structure** with clear message
-6. **Tag as v0.1.0** for template baseline
+### Build (must pass)
+- `npm run dev` — Dev server starts without errors
+- `npm run build` — Production build succeeds
+- `npm run lint` — ESLint passes with zero errors
+- `npm run test` — All tests pass (minimum 1 smoke test)
+
+### Guardrails (do not violate)
+- No secrets or credentials in source code — use `.env` files
+- No modifications to `node_modules/` — all changes via `package.json`
+- Project must work on Node.js 18+ LTS versions
+- Bundle size for initial load must be < 500KB (uncompressed)
 
 ---
 
-## Notes
+## Success Criteria
 
-- This is a **foundational intent** — future development will build on this structure
-- Keep initial setup minimal; avoid premature optimization
-- Consider team familiarity with tools when making architectural choices
-- Document decisions in ADRs (Architecture Decision Records) for future reference
+✅ Project initializes with `npm create vite`  
+✅ All dependencies install without errors  
+✅ `npm run dev` starts development server  
+✅ Browser displays default React welcome screen  
+✅ Hot Module Replacement (HMR) works  
+✅ `npm run build` produces optimized production bundle  
+✅ ESLint configuration in place  
+✅ At least one passing test  
+✅ README documents setup and available commands  
+✅ `.gitignore` configured for Node.js/React  
+
+---
+
+## Implementation Notes
+
+- This is a **Tier 1 intent** requiring human review before merge
+- Start with minimal configuration; extend as requirements emerge
+- Consider using TypeScript template (`--template react-ts`) for larger projects
+- Tag initial commit as `v0.1.0` for baseline reference
