@@ -1,128 +1,85 @@
-# Intent Document — INT-001: Create Template Project
+# Intent Document — Fio Test Repo
 
+**Generated:** 2024-01-XX  
 **Project:** Fio Test Repo  
 **Trajectory:** Testing GitHub Integration  
-**Orbit:** 1  
-**Generated:** 2026-03-05  
-**Status:** Draft  
+**Orbit:** #1  
+**Intent Count:** 1
 
 ---
 
-## Outcome
+## INT-001: React Project Foundation Established
 
-The repository contains a working React application skeleton that any developer can clone and immediately use to build features, with zero additional setup required beyond standard Node.js tooling.
+### Objective
 
-**Observable Result:**
-- A developer clones the repository, runs `npm install && npm run dev`, and sees a rendered React application in their browser within 2 minutes
-- The project includes example components, basic routing structure, and a passing test suite
-- Documentation clearly explains folder structure, available commands, and development conventions
+A functional React project template exists that serves as the foundation for future development work. The project is initialized, runs locally without errors, and provides a minimal but complete starting point for building features.
 
----
+### Outcome
 
-## Constraints
+- **outcome:** A React application scaffold exists with working development server, build pipeline, and basic project structure that enables immediate feature development.
 
-**Hard Boundaries:**
-- Must use React (no Vue, Angular, Svelte, or other frameworks)
-- Must work with Node.js 18.x or 20.x LTS (current LTS versions as of 2026)
-- Must support latest 2 versions of Chrome, Firefox, Safari, and Edge
-- Cannot include production deployment infrastructure (CI/CD, hosting configs, cloud resources)
-- Cannot include business logic, authentication systems, or data persistence layers
-- All changes must be fully reversible via Git revert or directory deletion
+### Constraints
 
-**Scope Limitations:**
-- This is scaffolding only — no features, no integrations, no design system
-- Development and testing environment only — production readiness explicitly excluded
-- Confined to "Fio Test Repo" repository structure
+- **constraints:** 
+  - Must use React as the core framework (specified in intent description)
+  - Must not include implementation-specific features beyond minimal scaffold
+  - Must remain framework-standard without custom architecture decisions that limit future flexibility
+  - Must be compatible with standard Node.js LTS versions
+  - Must not introduce dependencies that conflict with GitHub integration trajectory
 
----
+### Acceptance Criteria
 
-## Acceptance Criteria
+- **acceptance:**
+  1. Project initializes successfully using standard React tooling
+  2. Development server starts and renders default application view at localhost
+  3. Build command executes without errors and produces deployable artifacts
+  4. Project includes package.json with declared dependencies
+  5. Basic project structure follows React community conventions (src/, public/, package.json)
+  6. README exists with setup and run instructions
+  7. Git repository initialized with initial commit `[inferred]`
+  8. All default tests (if any) pass `[inferred]`
 
-**Setup & Installation:**
-1. Repository contains `package.json` with all dependencies declared
-2. Running `npm install` (or yarn/pnpm equivalent) completes without errors in < 60 seconds
-3. No manual configuration steps required after installation
+### Trust Tier
 
-**Development Workflow:**
-4. Command `npm run dev` (or equivalent) starts a local development server in < 10 seconds
-5. Browser at `http://localhost:[PORT]` displays a functioning React application with no console errors
-6. Hot module replacement works — editing a component triggers automatic browser refresh
-7. Development server serves assets correctly (CSS, images, fonts if present)
+- **trust_tier:** 1 — informed (Low-risk scaffolding operation; creates new project structure without modifying existing systems; fully reversible via git reset; establishes foundation for supervised tier 2+ work)
 
-**Build & Production Output:**
-8. Command `npm run build` (or equivalent) completes successfully in < 60 seconds
-9. Build creates output directory (`dist/`, `build/`, or similar) with optimized bundles
-10. Built application loads in browser with initial render < 2 seconds [inferred threshold]
+### Trust Tier Rationale
 
-**Code Quality:**
-11. At least one example React component exists in `src/` directory and renders visible content
-12. Component follows modern React patterns (functional components, hooks if applicable)
-13. Linting configuration present (ESLint or equivalent) and `npm run lint` passes
-14. Code formatting is consistent (Prettier or equivalent configured)
+Tier 1 (informed) is appropriate because:
+- **Low blast radius:** Creates new isolated project structure; no integration with production systems
+- **Fully reversible:** Entire operation can be undone via git operations or directory deletion
+- **Standard operation:** Uses well-established React initialization patterns with minimal decision-making
+- **No sensitive touchpoints:** Does not interact with authentication, payments, data storage, or external services
+- **Human awareness sufficient:** Developer should be notified of project creation but approval before execution not required
+- **Foundation for higher tiers:** Subsequent feature work will require tier 2+ (supervised/collaborative)
 
-**Testing:**
-15. Test framework configured (Jest, Vitest, or similar)
-16. At least one test file exists (e.g., `App.test.js`) with a passing test
-17. Command `npm run test` executes test suite and reports success
+### Dependencies
 
-**Documentation:**
-18. `README.md` exists in repository root
-19. README documents prerequisites (Node version, package manager)
-20. README lists all available npm scripts with descriptions
-21. README explains project folder structure or structure is self-evident via naming
-22. `.gitignore` properly excludes `node_modules/`, build artifacts, and editor configs
+**Upstream Dependencies:**
+- None (this is a foundational intent)
 
----
-
-## Trust Tier
-
-**Tier 1 — Informed**
-
-**Justification:**
-
-This intent creates new infrastructure without touching existing systems. Changes are:
-
-- **Isolated:** Template resides in its own directory or repository root with no dependencies on other code
-- **Reversible:** Entire template can be deleted with `rm -rf` or `git revert` with zero data loss
-- **Low Risk:** Worst-case outcome is developers need to adjust boilerplate — no user impact, no service disruption
-
-**Why Tier 1 (not Tier 0):**
-- Template structure establishes conventions that influence future development patterns
-- Technology choices (bundler, testing library, state management approach) have long-term implications
-- Human should validate that conventions align with team preferences before widespread adoption
-
-**Why Tier 1 (not Tier 2):**
-- Does not touch payment flows, authentication, or PII
-- Does not affect production systems or end users
-- Does not create compliance obligations or contractual commitments
-
----
-
-## Dependencies
-
-**Upstream Dependencies:** None (this is a foundational intent)
+**Downstream Dependents:**
+- Any future feature intents in this trajectory will depend on this project foundation existing
 
 **External Dependencies:**
-- Node.js runtime environment (18.x or 20.x LTS)
-- npm, yarn, or pnpm package manager
-- Git repository access with write permissions
-- Internet connectivity for package installation
-- React library (latest stable version at implementation time)
+- Node.js runtime (version TBD based on tooling choice)
+- npm or yarn package manager
+- Git version control
+- GitHub repository (implied by trajectory name)
 
-**Downstream Enablement:**
-This template unblocks future intents such as:
-- Feature development (authentication, data fetching, business logic)
-- State management integration (Redux, Zustand, Context API patterns)
-- Component library adoption (Material-UI, Ant Design, custom design system)
-- API integration patterns and service layers
-- CI/CD pipeline configuration
-- Deployment automation
-
-**Assumptions:**
-- Developer has repository write access
-- No conflicting React project exists in target directory
-- Standard development machine specs (4GB+ RAM, modern CPU)
+**Assumed Context:**
+- Development environment has internet access for package installation
+- Local development machine meets minimum Node.js system requirements
 
 ---
 
-**Next Phase:** Context → Proposal → Execution
+## Next Steps
+
+After this intent is validated and executed in the INTENT phase:
+
+1. **Context Agent** will gather technical decisions (React version, tooling choice: Create React App vs. Vite vs. Next.js)
+2. **Proposal Agent** will design specific implementation approach
+3. **Execution Agent** will initialize the project
+4. **Review Agent** will verify acceptance criteria are met
+
+The intent document itself makes NO implementation choices — those decisions occur in downstream phases.
