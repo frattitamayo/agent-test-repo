@@ -1,11 +1,11 @@
-Verification Protocol generated for Intent "Create Template Project". The protocol defines:
+Generated Verification Protocol **VP-INT-001-1** for "Create Template Project" intent.
 
-- **6 automated gates** covering project structure, build, dependencies, and code quality
-- **2 integration tests** for end-to-end workflows
-- **4 human verification points** for best practices and developer experience
-- **4 edge cases** including environment compatibility and port conflicts
-- **3 regression checks** ensuring React ecosystem compatibility
+The protocol defines:
+- **7 Automated Gates** covering React installation, dependency management, build process, dev server, and code quality
+- **4 Human Verification Points** for structure assessment, extensibility, and production-readiness
+- **Complete traceability** mapping all checks to acceptance criteria (no orphans, full coverage)
+- **7 Escape criteria** defining re-orbit actions for common failure modes
+- **5 Edge cases** for boundary condition testing
+- **Manual verification checklist** with 7 step-by-step validation procedures
 
-All checks trace back to core acceptance criteria: proper React project structure, successful builds, working dev server, code quality, extensibility, and documentation. Escape criteria are defined for common failure modes with clear ownership and actions.
-
-Execute all automated gates first, then manual verification, before marking the orbit complete.
+All automated gates are blocking. Human verification points require System Architect or Verification Engineer review before orbit closure.
