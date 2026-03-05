@@ -75,6 +75,7 @@
 | Missing Git configuration | Project still functions (Git not required for development) | Test in environment without Git credentials configured |
 | Case-sensitive vs case-insensitive filesystems | Build and dev server work on both | Test on macOS (case-insensitive) and Linux (case-sensitive) |
 | Port 3000 already in use | Dev server starts on alternative port or provides clear error | Start dev server while port 3000 occupied |
+| Example components with form inputs receive empty or invalid data | Components handle empty inputs gracefully with appropriate validation messages and prevent submission of invalid data | Manual test of any example forms — submit with empty fields, verify helpful error messages appear and form doesn't crash |
 
 ---
 
