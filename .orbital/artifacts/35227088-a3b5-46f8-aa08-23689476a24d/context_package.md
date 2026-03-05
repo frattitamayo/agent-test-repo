@@ -1,79 +1,79 @@
-# Context Package — ORB-1: Create Template Project
+# Context Package — Create Template Project (React)
 
-**Generated:** 2025-01-24  
-**Package Type:** intent-specific  
-**Intent:** Create Template Project (Tier 1)  
-**Orbit:** ORB-1
+**Generated:** 2025-01-24
+**Package Type:** intent-specific
+**Intent:** Create Template Project
+**Orbit:** #1
+**Trust Tier:** tier_1
 
 ---
 
 ## Codebase
 
 ### Primary (will be modified or created)
-- `package.json` — Project dependencies and scripts
-- `src/` — Source code directory structure
-- `src/index.js` or `src/index.tsx` — Application entry point
-- `src/App.js` or `src/App.tsx` — Main application component
+- `package.json` — React project dependencies and scripts
+- `src/` — Main application source directory
 - `public/` — Static assets and HTML template
-- `public/index.html` — Root HTML file
+- `src/index.js` or `src/index.tsx` — Application entry point
+- `src/App.js` or `src/App.tsx` — Root component
 - `.gitignore` — Git exclusions
 - `README.md` — Project documentation
 
-### Secondary (dependencies and interfaces)
-- Build configuration files (webpack/vite config if custom setup)
-- `tsconfig.json` — If using TypeScript
-- Environment configuration files
+### Secondary (dependencies and configuration)
+- Build configuration (webpack, vite, or CRA defaults)
+- `tsconfig.json` (if TypeScript is used)
+- `.eslintrc` / `.prettierrc` (code quality tools)
 
 ### Tests
-- `src/App.test.js` — Basic component tests (to be created)
-- Test setup files
+- `src/App.test.js` or equivalent — Basic component tests
+- Test setup configuration
 
 ---
 
 ## Architecture
 
-This is a foundational React project setup following modern React conventions. The template establishes the base application structure with a component hierarchy, routing foundation, and build pipeline. This will serve as the starting framework for future feature development.
+This is a foundational setup creating a standard React single-page application structure. The template will establish the base folder organization, dependency management, and build tooling that all future development will build upon. It follows React community conventions with a modular component architecture.
 
 **Reference docs:**
-- React Official Documentation: https://react.dev/
-- Create React App: https://create-react-app.dev/ (if applicable)
+- React official documentation: https://react.dev/
+- Create React App (if used): https://create-react-app.dev/
 
 ---
 
 ## Patterns
 
 ### Conventions (follow these)
-- **Component Structure**: Functional components with hooks (modern React pattern)
-- **File Organization**: Feature-based folder structure under `src/`
-- **Naming**: PascalCase for components, camelCase for utilities
-- **State Management**: React hooks (useState, useEffect) for basic state
+- **React Component Structure**: Functional components with hooks are the modern standard
+- **File Organization**: Components in `src/components/`, pages in `src/pages/`, utilities in `src/utils/`
+- **Naming Conventions**: PascalCase for components, camelCase for utilities
+- **Module Exports**: Named exports preferred for non-default exports
 
 ### Anti-patterns (avoid these)
-- **Class Components**: Avoid legacy class-based components
-- **Global State Without Context**: Don't use raw global variables
-- **Inline Styles Everywhere**: Establish a consistent styling approach (CSS Modules or styled-components)
+- **Class Components**: Unless specifically required, use functional components with hooks
+- **Prop Drilling**: Avoid passing props through multiple layers; consider context or state management early
+- **Inline Styles**: Prefer CSS modules, styled-components, or Tailwind over inline styles
+- **Monolithic Components**: Keep components small and focused on single responsibilities
 
 ---
 
 ## Dependencies
 
 ### Internal
-- Core application structure (to be established)
-- Component library (future)
+- None initially — this is the foundational structure
 
 ### External
-- **React** (v18+) — UI library
-- **React-DOM** — DOM rendering
-- **Testing Library** — Component testing (@testing-library/react)
-- **Build Tool** — Vite, Create React App, or custom Webpack setup
-- **TypeScript** (optional) — Type safety
+- **React** (v18+) — Core library
+- **React DOM** — DOM rendering
+- **Build Tool** — Create React App, Vite, or Next.js (to be determined)
+- **Testing Library** — @testing-library/react for component testing
+- **Development Tools** — ESLint, Prettier for code quality
 
 ---
 
 ## Prior Art
 
 ### Completed
-- This is the initial project setup; no prior implementations
+- None — this is the initial project setup
 
 ### Known Issues
 - None currently tracked
@@ -83,57 +83,45 @@ This is a foundational React project setup following modern React conventions. T
 ## Constraints
 
 ### Build (must pass)
-- `npm install` or `yarn install` — Dependencies must install successfully
-- `npm start` or `yarn start` — Development server must run
-- `npm test` — Tests must pass
-- `npm run build` — Production build must complete
+- `npm run build` or equivalent — production build must succeed
+- `npm test` — basic test suite must pass
+- `npm start` — development server must launch
 
 ### Guardrails (do not violate)
-- Use official React tooling (CRA, Vite, or Next.js)
-- Follow React 18+ best practices
-- Include proper .gitignore for node_modules and build artifacts
-- Ensure cross-platform compatibility (Windows, Mac, Linux)
+- Must use modern React practices (hooks, functional components)
+- Must include basic testing infrastructure
+- Must follow standard React project structure conventions
+- Dependencies must be pinned to specific versions for reproducibility
 
 ---
 
 ## Risk Assessment
 
-### High Risk
-- **Build Tool Selection**: Choosing between CRA (being phased out), Vite (modern), or custom Webpack
-  - *Mitigation*: Default to Vite for modern performance unless specific CRA compatibility needed
+### Potential Risks
 
-### Medium Risk
-- **TypeScript vs JavaScript**: Decision affects all future development
-  - *Mitigation*: Consider team experience; TypeScript recommended for larger projects
-  
-- **Styling Approach**: CSS Modules, styled-components, Tailwind, or plain CSS
-  - *Mitigation*: Choose based on team preference; ensure consistency
+1. **Build Tool Selection** 
+   - **Risk**: Choosing an outdated or inappropriate build tool
+   - **Mitigation**: Use Vite for modern fast development or CRA for stability
 
-### Low Risk
-- **Directory Structure**: Initial structure may need refactoring as project grows
-  - *Mitigation*: Start simple, iterate as patterns emerge
+2. **Dependency Bloat**
+   - **Risk**: Including unnecessary dependencies from the start
+   - **Mitigation**: Start minimal, add dependencies only when needed
 
-### Dependencies
-- **Package Manager**: npm vs yarn vs pnpm
-  - *Mitigation*: Document choice, use lock files
+3. **Configuration Complexity**
+   - **Risk**: Over-engineering the initial setup
+   - **Mitigation**: Use defaults, customize only when necessary
 
----
-
-## External References
-
-- [React Documentation](https://react.dev/)
-- [Vite Guide](https://vitejs.dev/guide/)
-- [React Testing Library](https://testing-library.com/react)
-- [TypeScript + React](https://www.typescriptlang.org/docs/handbook/react.html)
+4. **TypeScript Decision**
+   - **Risk**: Adding TypeScript complexity if not needed, or missing type safety if required
+   - **Mitigation**: Clarify requirements; TypeScript recommended for scalability
 
 ---
 
-## Implementation Notes
+## Execution Guidance
 
-This Tier 1 intent requires human oversight for architectural decisions:
-- Build tool selection
-- TypeScript adoption
-- Styling framework choice
-- Testing strategy
-
-Recommended approach: Use `npm create vite@latest` for modern React setup with minimal configuration.
+1. **Choose React scaffolding tool** (Vite recommended for modern projects)
+2. **Initialize project structure** with standard folders
+3. **Set up development tooling** (ESLint, Prettier)
+4. **Create basic routing** if multi-page (React Router)
+5. **Add testing infrastructure** (@testing-library/react)
+6. **Document setup and scripts** in README.md
