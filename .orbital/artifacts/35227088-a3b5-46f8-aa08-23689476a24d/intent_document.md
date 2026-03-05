@@ -2,90 +2,85 @@
 
 ## Desired Outcome
 
-A functional React project template exists that serves as the foundation for future development work. Developers can immediately clone and run the project locally with a single command, seeing a working React application in their browser. The template establishes consistent project structure, tooling configuration, and development workflows that all subsequent work will build upon.
+A functional React project template exists in the Fio Test Repo that enables immediate development work. Any developer can clone the repository, run a single setup command, and see a working React application running locally within 2 minutes. The template establishes the architectural foundation and development patterns that all subsequent work in this repository will follow, eliminating "blank canvas" delays and ensuring consistency across future features.
 
 ## Constraints
 
-- **Framework Lock:** Must use React (no alternative frameworks like Vue, Svelte, Angular)
-- **No Custom Webpack Config:** Avoid custom build tooling configurations that create maintenance burden; prefer convention-over-configuration approaches
-- **Standard Project Structure:** Follow React community conventions for folder organization to minimize onboarding friction
-- **Minimal Dependencies:** Include only essential dependencies to reduce attack surface and maintenance overhead
-- **Version Control Ready:** Must be git-initialized and ready for immediate commits
-- **No Backend Services:** Template scope limited to frontend; no database, API servers, or authentication systems
+- **Framework Mandate:** Must use React as the frontend framework—no substitutions
+- **No Over-Engineering:** Template must remain minimal; avoid premature optimization, complex state management libraries, or architectural patterns not immediately needed
+- **Standard Tooling Only:** Use widely-adopted, actively-maintained tools from the React ecosystem; no experimental or niche dependencies
+- **Zero External Services:** Template must run entirely locally without requiring API keys, database connections, or third-party service accounts
+- **Git-Native:** All configuration and code must be version-controlled; no manual setup steps that leave the repository in an incomplete state
+- **No Proprietary Licenses:** All dependencies must use permissive open-source licenses (MIT, Apache 2.0, BSD)
+- **Backward Compatibility:** Must support Node.js LTS versions (currently 18.x and 20.x)
 
 ## Acceptance Boundaries
 
-**Minimum Viable:**
-- Project initializes without errors using standard React tooling
-- Development server starts successfully on localhost
-- Browser renders default React application without console errors
-- README exists with setup instructions
+**Minimum Viable (Tier 1 - Must Have):**
+- Repository contains a valid `package.json` with project metadata and dependency declarations
+- Command sequence `npm install && npm start` executes without errors
+- Development server launches and serves application on `http://localhost:3000` (or documented alternative port)
+- Browser displays rendered React application without JavaScript console errors
+- Project includes `.gitignore` covering `node_modules/`, build artifacts, and common IDE files
+- `README.md` exists with setup instructions and project description
 
-**Target:**
-- Project includes package.json with clearly defined dependencies and scripts
-- `npm install` (or yarn/pnpm equivalent) completes in <60 seconds on standard hardware
-- `npm start` launches dev server in <10 seconds
-- Hot module replacement works when editing component files
-- Project includes .gitignore for node_modules and build artifacts
-- ESLint/Prettier configuration present for code consistency
-- At least one example component demonstrates project structure
+**Target (Tier 2 - Should Have):**
+- Full dependency installation completes in under 90 seconds on standard broadband connection
+- Development server starts in under 15 seconds from command execution
+- Hot Module Replacement (HMR) triggers within 2 seconds of file save
+- ESLint configuration present with React-specific rules enabled
+- Prettier configuration present for consistent code formatting
+- At least one example React component demonstrates recommended project structure
+- Package scripts include `build`, `test`, and `lint` commands
+- Build output generates optimized production bundle under 500KB (uncompressed)
 
-**Stretch:**
-- Testing framework configured (Jest/React Testing Library) with sample test
-- TypeScript configured with proper React types
-- CI/CD configuration file present (GitHub Actions, CircleCI, etc.)
-- Component documentation approach established (Storybook, Docz, or inline JSDoc)
+**Stretch (Tier 3 - Nice to Have):**
+- TypeScript configured with strict mode and React type definitions
+- Jest and React Testing Library configured with at least one passing example test
+- Component library or design system foundation established (e.g., basic CSS modules or styled-components setup)
+- Husky pre-commit hooks configured to run linting and formatting checks
+- GitHub Actions workflow file for CI pipeline (lint, test, build verification)
+- Storybook or similar component documentation tool configured
+- Environment variable handling pattern established (.env.example file present)
 
 ## Trust Tier Assignment
 
-**Tier 1: Autonomous** — This intent qualifies for autonomous execution because:
+**Tier 1: Autonomous**
 
-1. **Low Blast Radius:** Creating a new template project is isolated work with no impact on existing systems, users, or production environments
-2. **Fully Reversible:** The entire project can be deleted or recreated without consequence
-3. **Well-Defined Scope:** React project templates are standardized with clear community conventions and tooling (Create React App, Vite, Next.js)
-4. **No Sensitive Operations:** No access to credentials, user data, payment systems, or security-critical infrastructure
-5. **Observable Outcome:** Success is immediately verifiable through running the dev server and seeing the application render
+This intent qualifies for autonomous execution with notification-only human oversight because:
 
-The AI can scaffold the project, verify it works locally, and commit the initial structure without human intervention.
+1. **Isolated Blast Radius:** Creating a new project template in a test repository has zero impact on production systems, existing user-facing applications, or critical infrastructure. The worst-case failure scenario is a non-functional template that can be deleted and recreated.
+
+2. **Fully Reversible:** Every action is version-controlled and can be undone through git revert. No databases are modified, no external APIs are called, and no irreversible file system operations occur beyond git commits.
+
+3. **Low Ambiguity:** React project scaffolding is a well-solved problem with established conventions. Tools like Create React App, Vite, and Next.js provide canonical approaches that minimize decision-making uncertainty.
+
+4. **No Security Surface:** The template involves no authentication, authorization, data handling, or network operations beyond local development server functionality. No secrets, API keys, or sensitive configuration are involved.
+
+5. **Immediate Verification:** Success is objectively measurable—either the dev server starts and renders the application, or it doesn't. Acceptance criteria are testable through automated checks.
+
+6. **Standard Tooling:** The React ecosystem provides mature, audited tooling that reduces implementation risk compared to custom-built solutions.
+
+Human oversight remains valuable for confirming alignment with team preferences (e.g., Vite vs. CRA, TypeScript vs. JavaScript), but these choices don't carry sufficient risk to warrant blocking autonomous execution.
 
 ## Dependencies
 
-**External — Required:**
-- Node.js v18 LTS or v20 LTS (minimum: v18.0.0)
-- npm v9+ (bundled with Node.js) as the package manager
-- Git v2.30+
-- Modern web browser (Chrome 90+, Firefox 88+, Safari 14+, or Edge 90+)
-- Internet access to npm registry (registry.npmjs.org)
+**External Dependencies:**
+- **Node.js Runtime:** Version 18.x or 20.x (LTS releases) must be installed on the development machine
+- **Package Manager:** npm (bundled with Node.js), yarn, or pnpm for dependency installation
+- **Git:** Version 2.x or higher for repository operations
+- **Internet Access:** Required for downloading npm packages from public registries during initial setup
 
-**External — Environment:**
-- Operating System: macOS, Linux, or Windows 10+ with WSL2
-- RAM: 8GB minimum (4GB may work but builds will be slow)
-- Disk Space: 1GB free (for node_modules and build artifacts)
-- Terminal/shell access for running commands
+**Repository Dependencies:**
+- **Write Access:** Agent must have permissions to create files and commit to the Fio Test Repo
+- **Branch Strategy:** Clarification needed on whether to commit directly to `main` or create a feature branch for review
+- **Existing Content:** Assumption that repository is empty or that template creation won't conflict with existing files
 
-**Internal — Repository:**
-- Write access to `fio-test-repo` repository
-- Target branch: `main` (direct commit authority for Tier 1 autonomous execution)
-- **Pre-execution verification required:** Confirm no existing `/src` directory or root-level `package.json` that would conflict with template scaffolding
-- No branch protection rules that prevent automated commits
-- No required CI/CD checks that must pass before merge (or agent has authority to override)
+**No Internal Dependencies:**
+- This is the foundational orbit (Orbit 1) with no dependencies on prior intents or completed work
+- No other services, APIs, or internal systems required
 
-**Internal — Tooling Decisions:**
-- Build tool: Vite 5.x (fast, modern, convention-over-configuration)
-- Package manager: npm (for maximum compatibility and standard lockfile format)
-- TypeScript: Yes (strict mode enabled for type safety)
-- Code quality: ESLint + Prettier with React-specific rulesets
-
-**Assumptions:**
-- Executor has terminal/CLI access and can run shell commands
-- No corporate firewall or proxy blocking npm registry access
-- Repository is in a clean state with no uncommitted changes that would conflict
-- No existing project structure or configuration files at repository root
-- Development environment has standard shell utilities (bash/zsh/cmd)
-
-**Blockers to Resolve Before Execution:**
-- Verify current repository contents (empty vs. existing files)
-- Confirm npm registry accessibility from execution environment
-- Validate Node.js version meets minimum requirement (v18+)
-
----
+**Assumptions to Validate:**
+- Repository is initialized as a git repository (`.git` directory exists)
+- No existing `package.json` conflicts with template creation
+- Standard npm registry (registry.npmjs.org) is accessible from development environment
