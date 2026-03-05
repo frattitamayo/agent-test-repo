@@ -11,94 +11,91 @@
 ## Codebase
 
 ### Primary (will be created)
-- `package.json` — Project manifest with dependencies and scripts
-- `index.html` — Root HTML template
-- `vite.config.js` — Vite build configuration
-- `src/main.jsx` — Application entry point
-- `src/App.jsx` — Root React component
+- `package.json` — Project dependencies, scripts, and metadata
+- `index.html` — Application entry HTML
+- `vite.config.js` — Build tool configuration
+- `src/main.jsx` — React application bootstrap
+- `src/App.jsx` — Root component
 - `src/App.css` — Root component styles
-- `src/index.css` — Global application styles
-- `.gitignore` — Git exclusions
-- `README.md` — Project documentation
+- `src/index.css` — Global styles
+- `.gitignore` — Version control exclusions
+- `README.md` — Setup and usage documentation
 
-### Secondary (configuration/tooling)
-- `.eslintrc.cjs` — Linting configuration
+### Secondary (configuration)
+- `.eslintrc.cjs` — Code linting rules
 - `public/` — Static assets directory
-- `.env.example` — Environment variables template
+- `.env.example` — Environment variable template
 
 ### Tests
 - `src/App.test.jsx` — Initial component test
-- `vitest.config.js` — Test runner configuration
+- `vitest.config.js` — Test framework configuration
 
 ---
 
 ## Architecture
 
-Modern React SPA using Vite for build tooling and development server. Follows component-based architecture with functional components and hooks. No backend — purely client-side rendering for now.
+React SPA with Vite build tooling. Component-based UI architecture using functional components and React hooks. Client-side only (no backend integration in this phase).
 
 **Reference docs:**
-- [React 18 Documentation](https://react.dev/)
-- [Vite Configuration Reference](https://vitejs.dev/config/)
+- [React 18 Docs](https://react.dev/)
+- [Vite Guide](https://vitejs.dev/guide/)
 
 ---
 
 ## Patterns
 
 ### Conventions (follow these)
-- **Vite Standard Setup**: Official `create-vite` React template structure
-- **Functional Components**: Arrow functions with hooks (see [React docs](https://react.dev/learn))
-- **File naming**: PascalCase for components (`App.jsx`), camelCase for utilities
-- **Import organization**: React first, third-party libraries, local imports last
+- **Vite React Template**: Standard `create-vite` structure
+- **Functional Components**: Hooks-based, no class components
+- **CSS Modules**: Component-scoped styling (`.module.css`)
+- **Named Exports**: Better tree-shaking and refactoring
 
 ### Anti-patterns (avoid these)
-- **Class components**: Use functional components with hooks instead
-- **Direct DOM manipulation**: Never bypass React's rendering (no `document.getElementById`)
-- **Massive components**: Keep components focused; split when > 200 lines
+- **Class Components**: Use functional components with hooks
+- **Direct DOM Access**: Let React manage the DOM
+- **Deep Prop Drilling**: Use Context API for deeply nested data
 
 ---
 
 ## Dependencies
 
 ### Internal
-None — greenfield project
+None (greenfield project)
 
 ### External
-- **react** (^18.2) — UI library
+- **react** (^18.2) — Core library
 - **react-dom** (^18.2) — DOM rendering
-- **vite** (^5.0) — Build tool and dev server
-- **@vitejs/plugin-react** — React Fast Refresh support
-- **eslint** — Code linting
-- **vitest** — Unit testing framework
-- **@testing-library/react** — Component testing utilities
+- **vite** (^5.0) — Build tool
+- **@vitejs/plugin-react** — React Fast Refresh
+- **eslint** — Code quality
+- **vitest** — Testing framework
 
 ---
 
 ## Prior Art
 
 ### Completed
-None — this is the initial project setup
+None (initial setup)
 
 ### Known Issues
 None
 
-### Reference Templates
-- [Vite React Template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react) — Official minimal React + Vite starter
+### Reference
+- [Vite React Template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react)
 
 ---
 
 ## External References
 
-**Quick Start:**
+**Setup:**
 ```bash
 npm create vite@latest . -- --template react
 npm install
-npm run dev
 ```
 
-**Key Documentation:**
-- React Hooks: https://react.dev/reference/react
-- Vite Guide: https://vitejs.dev/guide/
-- ESLint React Rules: https://github.com/jsx-eslint/eslint-plugin-react
+**Docs:**
+- React: https://react.dev/
+- Vite: https://vitejs.dev/
 
 ---
 
@@ -106,27 +103,26 @@ npm run dev
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| **Wrong Node version** | High | Require Node.js 18+ in README |
-| **Dependency vulnerabilities** | Medium | Run `npm audit` after initialization |
-| **No test coverage** | Medium | Include vitest config from start |
-| **Inconsistent code style** | Low | Configure ESLint + Prettier |
-| **Port 5173 occupied** | Low | Vite auto-assigns alternative port |
+| Node version mismatch | High | Document Node 18+ requirement |
+| Security vulnerabilities | Medium | Run `npm audit` post-setup |
+| No testing | Medium | Include vitest from start |
+| Code inconsistency | Low | Configure ESLint/Prettier |
 
 ---
 
 ## Constraints
 
 ### Build (must pass)
-- `npm run dev` — Development server starts
-- `npm run build` — Production build succeeds
-- `npm run lint` — Zero ESLint errors
+- `npm run dev` — Starts successfully
+- `npm run build` — Completes without errors
+- `npm run lint` — Zero errors
 
-### Guardrails (do not violate)
-- No hardcoded secrets in source files
-- Must include `.gitignore` for `node_modules/` and `dist/`
-- Package-lock.json must be committed for reproducible builds
-- Minimum Node.js version: 18.0.0
+### Guardrails
+- No secrets in source code
+- Include `.gitignore` for `node_modules/`
+- Commit `package-lock.json`
+- Node.js ≥18.0.0
 
 ---
 
-**Success Criteria:** Project initializes, dev server runs, default page renders, production build succeeds.
+**Success Criteria:** Dev server runs, default page renders, production build succeeds, tests pass.
