@@ -78,6 +78,35 @@ No existing code to regress — this is greenfield scaffolding. Future risk: cha
 - **Build size**: Development bundle unoptimized, production `npm run build` creates optimized chunks <200KB total (React + Router + app code)
 - **No performance bottlenecks**: This is static scaffolding with no data fetching, computation, or heavy dependencies
 
+### Rollback Strategy
+Since this is greenfield scaffolding with no existing code or dependencies, rollback is straightforward:
+
+**Immediate Rollback (within same session):**
+1. `git reset --hard HEAD~1` — Reverts the commit containing all template files
+2. `rm -rf node_modules package-lock.json` — Removes installed dependencies
+3. Repository returns to empty state
+
+**Post-Merge Rollback (after PR merge):**
+1. `git revert <commit-hash>` — Creates a new commit removing all template files
+2. `git push origin main` — Pushes the revert
+3. Developers pull and run `rm -rf node_modules package-lock.json`
+
+**Partial Rollback (selective file removal):**
+- Individual files can be removed via `git rm <file>` and committed
+- Safe to remove any file except `.gitignore` (which should remain)
+- No database migrations, API contracts, or shared state to coordinate
+
+**Rollback Validation:**
+- After rollback, `ls -la` should show only `.git/` directory
+- No `node_modules/`, no `src/`, no configuration files
+- Clean working directory confirmed by `git status`
+
+**No External State:**
+- No databases to roll back
+- No cloud resources to delete
+- No API versions to deprecate
+- All changes are local filesystem only
+
 ---
 
 ## Scope Estimate
