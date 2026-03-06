@@ -2,65 +2,72 @@
 
 ## Desired Outcome
 
-A functional React project scaffolding exists in the repository that enables developers to immediately begin building features without spending time on initial setup. The template includes all necessary configuration files, folder structure, and basic dependencies in a working state that can be verified through a successful build and local development server launch.
+A modern React project framework exists with industry-standard tooling, directory structure, and developer workflow automation, enabling immediate feature development without additional scaffolding effort. The project reduces time-to-first-commit for new features from hours to minutes by providing pre-configured build pipeline, testing infrastructure, and code quality gates.
 
 ## Constraints
 
-- **Framework specificity:** Must use React as the primary UI library; no alternative frameworks (Vue, Angular, Svelte) permitted
-- **Repository integrity:** Must not overwrite or modify any existing files outside the designated project directory
-- **Dependency stability:** All npm packages must be from stable release channels (no alpha/beta versions) to ensure production readiness
-- **Zero runtime errors:** Initial template must compile and run without errors in a clean Node.js LTS environment
-- **Non-goals:** Does not include routing configuration, state management setup, API integration patterns, or deployment pipelines — these are future orbit concerns
+- **Framework Lock-in:** Must use React as the UI library; no alternative frameworks permitted for this intent
+- **Node Version:** Must support Node.js LTS versions (currently 18.x and 20.x)
+- **Build Performance:** Initial build must complete in under 60 seconds on standard development hardware
+- **Zero Breaking Changes:** Cannot introduce dependencies with known critical vulnerabilities (npm audit critical = 0)
+- **Browser Support:** Must support evergreen browsers (Chrome, Firefox, Safari, Edge) - last 2 versions minimum
+- **Non-Goal:** This intent does NOT include backend services, API integration, state management beyond React basics, or deployment configuration
 
 ## Acceptance Boundaries
 
-**Minimal Viable Template (Baseline):**
-- `package.json` present with React and ReactDOM dependencies
-- At least one `.jsx` or `.tsx` file renders a component
-- `npm install` completes successfully
-- `npm start` launches a development server without errors
+### Minimal Viable (Tier 1)
+- Project initializes with `npm install` and `npm start` without errors
+- Hot module replacement functional in development mode
+- Basic component renders in browser at localhost
+- README contains setup and run instructions
 
-**Expected Standard (Target):**
-- Project created using official tooling (Create React App, Vite, or Next.js)
-- Build configuration functional (`npm run build` produces output)
-- Development server runs on localhost with hot module replacement
-- Basic folder structure present: `src/`, `public/`, configuration files
-- README with setup instructions included
+### Target State (Tier 2)
+- **Development Experience:** 
+  - Dev server starts in <5 seconds
+  - HMR updates reflect in <1 second
+  - TypeScript or JSX support functional
+- **Code Quality:**
+  - Linting configuration present (ESLint or equivalent)
+  - Basic test runner configured (Jest, Vitest, or React Testing Library)
+  - At least one passing example test
+- **Project Structure:**
+  - Separated source (`src/`) and public assets (`public/`)
+  - Component organization pattern established
+  - Configuration files documented in README
 
-**High-Quality Outcome (Stretch):**
-- ESLint and Prettier configuration included for code consistency
-- TypeScript support enabled
-- Basic test setup with at least one passing test
-- Git ignore file configured appropriately for Node.js/React projects
+### Exceptional (Tier 3)
+- Pre-commit hooks enforce linting and tests
+- CI/CD workflow template included (GitHub Actions, GitLab CI, or similar)
+- Accessibility testing baseline configured
+- Bundle size analysis tooling integrated
+- Development vs production build optimization demonstrated
 
 ## Trust Tier Assignment
 
-**Tier 1 — Autonomous**
+**Tier 1: Autonomous**
 
-This intent qualifies for autonomous execution because:
+**Rationale:**
+- **Fully Reversible:** Scaffolding a new project has no impact on existing systems; can be deleted and regenerated without consequence
+- **Low Blast Radius:** Contained to a single repository directory with no external dependencies or integrations
+- **Standard Tooling:** Uses well-established React ecosystem tools (Create React App, Vite, or Next.js) with minimal customization risk
+- **No Data Sensitivity:** Contains only boilerplate code, no user data, secrets, or production configurations
+- **Self-Contained Validation:** Success criteria are locally verifiable (build, run, test) without deployment or user impact
 
-1. **Blast radius is contained:** Creating new files in a designated directory has no impact on existing systems or data
-2. **Fully reversible:** The entire project scaffolding can be deleted with no side effects beyond file system cleanup
-3. **Industry-standard operation:** React project initialization is a solved problem with established tooling (Create React App, Vite) that have predictable outcomes
-4. **Low risk surface:** No external API calls, database modifications, authentication changes, or financial transactions involved
-5. **Verifiable success:** Acceptance criteria are objective and can be validated programmatically (build success, server launch)
-
-The human should be notified after completion but does not need to review the specific file contents before the template is committed.
+This intent represents foundational scaffolding work appropriate for autonomous execution with post-hoc human review of the generated structure.
 
 ## Dependencies
 
-**External:**
-- Node.js LTS version installed in development environment (v18.x or v20.x recommended)
-- npm or yarn package manager available
-- Git installed for version control operations
+### External Dependencies
+- **Node.js Runtime:** Version 18.x or 20.x LTS must be available in the development environment
+- **Package Registry Access:** npm or yarn registry must be accessible for dependency installation
+- **Git:** Version control system must be initialized for the repository
 
-**Repository:**
-- Write access to the Fio Test Repo repository
-- No conflicting files at the target project path
+### Internal Dependencies
+None. This is the foundational intent for the trajectory with no upstream dependencies.
 
-**Prior Orbits:**
-- None — this is the foundational orbit for the Testing GitHub Integration trajectory
-
-**Downstream Impacts:**
-- Future orbits in this trajectory will build upon this template structure
-- File locations and naming conventions established here will set patterns for subsequent development work
+### Downstream Consumers
+Future intents in this trajectory will build upon this template, including:
+- Component library development
+- Feature implementation
+- Testing strategy expansion
+- Deployment pipeline configuration
