@@ -2,129 +2,166 @@
 
 ## Codebase References
 
-### Files to Create
-- `/package.json` — Project manifest with React dependencies
-- `/src/index.js` or `/src/index.jsx` — Application entry point
-- `/src/App.js` or `/src/App.jsx` — Root component
-- `/public/index.html` — HTML template for React mounting
-- `/.gitignore` — Node.js/React standard exclusions
-- `/README.md` — Setup and usage instructions
+### Current State
+This is a **greenfield project**. No existing codebase exists at this time. The repository structure will be created from scratch as part of this intent.
 
-### Configuration Files (if using standard tooling)
-- Vite: `/vite.config.js`
-- Create React App: inherits configuration, no explicit file needed
-- TypeScript (stretch goal): `/tsconfig.json`
-- ESLint/Prettier (stretch goal): `/.eslintrc.js`, `/.prettierrc`
+### Expected Artifacts Post-Execution
+```
+/
+├── package.json           # Project manifest and dependency declarations
+├── package-lock.json      # Locked dependency versions
+├── README.md             # Setup and usage documentation
+├── .gitignore            # Git exclusions (node_modules, build artifacts)
+├── public/               # Static assets served directly
+│   └── index.html        # HTML entry point
+├── src/                  # Source code directory
+│   ├── index.js|tsx      # Application entry point
+│   ├── App.js|tsx        # Root component
+│   └── components/       # React component organization
+├── .eslintrc.*           # Linting configuration (if Tier 2+)
+├── jest.config.*         # Test runner configuration (if Tier 2+)
+└── [build config]        # vite.config, webpack.config, or CRA defaults
+```
 
-### No Existing Files to Modify
-This is a greenfield implementation in a test repository. No existing codebase surfaces require integration or modification.
+### Technology Stack Decision Points
+- **Build Tool:** Vite (recommended for speed), Create React App (established standard), or Next.js (if routing needed)
+- **Language:** JavaScript with JSX or TypeScript with TSX
+- **Package Manager:** npm (default) or yarn
 
 ## Architecture Context
 
-### Project Type
-Standalone React single-page application (SPA) template intended for future feature development within the Fio Test Repo.
+### System Positioning
+This project represents the **initial foundation layer** for the "Testing GitHub Integration" trajectory. It establishes the client-side application structure that future intents will build upon.
 
-### Tooling Decision Space
-Three standard approaches available:
+**Architectural Layer:** Presentation/UI Layer (no backend components in scope)
 
-1. **Create React App** — Established, zero-config tooling with Webpack under the hood
-2. **Vite** — Modern, faster development server with native ESM support
-3. **Next.js** — Full-featured React framework (likely over-engineered for template needs)
+**Data Flow (Post-Implementation):**
+```
+Browser → Dev Server (HMR) → React Components → DOM
+```
 
-Recommended: **Vite** for modern development experience and faster iteration cycles, or **Create React App** if maximum compatibility/familiarity is prioritized.
+### Infrastructure Constraints
+- **Local Development Only:** No deployment infrastructure configured in this intent
+- **Single-Page Application:** Client-side routing and rendering model
+- **Development Server:** Hot Module Replacement for rapid iteration
+- **No State Management:** Global state solutions (Redux, Zustand, etc.) deferred to future intents
 
-### Data Flow
-- Static template with no backend integration
-- No external API calls in baseline implementation
-- Client-side only; runs entirely in browser via development server
-
-### Deployment Context
-This template is not intended for production deployment. It serves as scaffolding for the "Testing GitHub Integration" trajectory. Future orbits may add deployment configuration.
+### Technology Boundaries
+- **Frontend Only:** No API servers, databases, or backend services
+- **Modern Browsers:** ES6+ JavaScript, no legacy IE support required
+- **Node Ecosystem:** Relies on npm/yarn package ecosystem exclusively
 
 ## Pattern Library
 
-### React Component Structure
-**Standard functional components:**
-```jsx
-function ComponentName() {
-  return <div>Content</div>;
-}
-export default ComponentName;
+### Established Patterns (Pre-Execution)
+**None.** This is the first intent in the trajectory. Patterns will be established by this scaffolding effort.
+
+### Expected Patterns (Post-Execution)
+
+#### Component Organization
+```
+src/components/
+  ComponentName/
+    ComponentName.jsx|tsx     # Component implementation
+    ComponentName.test.js|tsx # Co-located tests (Tier 2+)
+    index.js                  # Re-export for clean imports
 ```
 
-**With hooks (if needed):**
-```jsx
-import { useState } from 'react';
+#### Naming Conventions
+- **Components:** PascalCase (e.g., `UserProfile.jsx`)
+- **Utilities:** camelCase (e.g., `formatDate.js`)
+- **Constants:** UPPER_SNAKE_CASE (e.g., `API_BASE_URL`)
+- **Files:** Match exported entity name
 
-function ComponentName() {
-  const [state, setState] = useState(initialValue);
-  return <div>{state}</div>;
-}
-```
+#### Testing Philosophy (Tier 2+)
+- Component tests focus on user-facing behavior, not implementation details
+- Use React Testing Library query priorities: getByRole > getByLabelText > getByText
+- Mock external dependencies, test component logic
 
-### File Naming Conventions
-- Component files: PascalCase (`App.jsx`, `Button.jsx`)
-- Utility files: camelCase (`helpers.js`, `apiClient.js`)
-- Test files: `*.test.js` or `*.spec.js` suffix
-
-### Folder Structure (Expected Standard)
-```
-/
-├── public/           # Static assets
-├── src/              # Source code
-│   ├── components/   # React components (if multiple exist)
-│   ├── App.jsx       # Root component
-│   └── index.jsx     # Entry point
-├── package.json
-└── README.md
-```
-
-### Dependency Version Pinning
-Use caret (`^`) ranges for minor/patch flexibility: `"react": "^18.2.0"`
+#### Code Quality Gates (Tier 3)
+- Pre-commit: Linting + tests must pass
+- CI/CD: Build + test + audit on every push
 
 ## Prior Orbit References
 
-**None.** This is Orbit 1 — the foundational orbit for the Testing GitHub Integration trajectory. No previous work exists in this trajectory.
+### Orbit History
+**This is Orbit #1.** No prior orbits exist in this trajectory.
 
-### Lessons from Standard React Templates
-- Official React documentation recommends Vite for new projects (as of 2024)
-- Create React App is in maintenance mode but still widely used
-- TypeScript adoption is increasing but adds complexity to initial setup
+### Lessons from Similar Projects (General Knowledge)
+- **Create React App:** Solid choice for beginners but slow build times and ejection complexity
+- **Vite:** Faster development experience, modern bundling, but smaller ecosystem than CRA
+- **TypeScript Adoption:** Easier to introduce at project start than migrate later
+- **Testing Setup:** Configuring tests after-the-fact is harder than including from day one
 
 ## Risk Assessment
 
-### Risk: Tooling Choice Creates Lock-in
-**Likelihood:** Medium  
-**Impact:** Low  
-**Description:** Choosing Create React App vs Vite affects future migration effort if tooling needs change.  
-**Mitigation:** Both tools use standard React patterns. Application code remains portable. Configuration is isolated to build files.
+### Technical Risks
 
-### Risk: Dependency Vulnerabilities
-**Likelihood:** Low (initially), Medium (over time)  
-**Impact:** Low (test repository context)  
-**Description:** npm packages may have security vulnerabilities that emerge post-installation.  
-**Mitigation:** Run `npm audit` after installation. This is a test repository with no production exposure. Future orbits should establish dependency update patterns.
+#### Risk: Dependency Vulnerability Introduction
+**Likelihood:** Medium | **Impact:** High  
+**Description:** Scaffolding tools may pull in dependencies with known CVEs  
+**Mitigation:**
+- Run `npm audit` immediately after initialization
+- Pin dependency versions in `package-lock.json`
+- Document any acceptable vulnerabilities (dev-only, low severity) in README
+- Acceptance criteria explicitly requires zero critical vulnerabilities
 
-### Risk: Node Version Mismatch
-**Likelihood:** Low  
-**Impact:** Medium  
-**Description:** Template may not build if developer's Node.js version differs from tooling requirements.  
-**Mitigation:** Document required Node.js version in README. Consider adding `.nvmrc` file for version managers. Both Vite and CRA support Node 18+ LTS.
+#### Risk: Build Performance Below Target
+**Likelihood:** Low | **Impact:** Medium  
+**Description:** Initial build may exceed 60-second constraint on slow hardware  
+**Mitigation:**
+- Prefer Vite over CRA for build speed
+- Document build times in README for reference hardware spec
+- Optimize production build separately from dev experience
 
-### Risk: Accidental File Overwrites
-**Likelihood:** Very Low  
-**Impact:** Low  
-**Description:** Template generation could conflict with existing files if repository is not empty at target path.  
-**Mitigation:** Verify target directory is empty before initialization. Since this is a test repository and orbit 1, collision risk is minimal.
+#### Risk: Tool Version Mismatch
+**Likelihood:** Medium | **Impact:** Low  
+**Description:** Generated code may not work on Node 18.x or 20.x LTS  
+**Mitigation:**
+- Specify `engines` field in `package.json`
+- Test on both Node 18.x and 20.x before completion
+- Document tested Node version in README
 
-### Risk: Build Failure Due to Network Issues
-**Likelihood:** Low  
-**Impact:** Low  
-**Description:** `npm install` may fail due to network connectivity or registry availability.  
-**Mitigation:** Template generation should fail gracefully with clear error message. Retry is straightforward as operation is idempotent.
+### Process Risks
 
-### Risk: Hot Module Replacement (HMR) Issues
-**Likelihood:** Low  
-**Impact:** Low  
-**Description:** Development server may not properly reload changes in specific edge cases.  
-**Mitigation:** Standard tooling (Vite/CRA) handles HMR reliably for basic React components. Document full server restart as fallback in README.
+#### Risk: Over-Engineering the Template
+**Likelihood:** Medium | **Impact:** Medium  
+**Description:** Autonomous agent may add unnecessary abstractions or premature optimization  
+**Mitigation:**
+- Constraints explicitly define non-goals (no state management, no backend, no deployment)
+- Acceptance tiers clearly bound scope
+- Human review focuses on simplicity verification
+
+#### Risk: Incomplete Documentation
+**Likelihood:** Low | **Impact:** High  
+**Description:** Missing setup instructions prevent future developers from running the project  
+**Mitigation:**
+- Tier 1 acceptance explicitly requires README with setup and run instructions
+- Include prerequisites (Node version, package manager)
+- Provide troubleshooting section for common issues
+
+### Security Considerations
+
+#### Concern: Secrets in Configuration
+**Risk Level:** Low (no secrets exist yet)  
+**Mitigation:**
+- Include `.env.example` pattern in README for future use
+- Add `.env` to `.gitignore` by default
+- Document environment variable best practices
+
+#### Concern: Supply Chain Attack via Dependencies
+**Risk Level:** Medium  
+**Mitigation:**
+- Use well-established packages from verified publishers
+- Lock dependencies with integrity hashes (automatic with package-lock.json)
+- Regular `npm audit` as part of CI/CD (Tier 3)
+
+### Operational Risks
+
+#### Risk: Incompatible with Team Workflows
+**Likelihood:** Low | **Impact:** Medium  
+**Description:** Generated structure may not align with organizational standards (if any exist)  
+**Mitigation:**
+- This is a test repository with no existing standards
+- Structure follows React community best practices
+- Human review gate allows course correction before adoption
