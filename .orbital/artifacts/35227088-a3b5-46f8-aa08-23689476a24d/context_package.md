@@ -1,136 +1,194 @@
-# Context Package: Create Template Project
+# Context Package: INT-001 — React Template Project Scaffolding
+
+**Generated:** 2026-03-06  
+**Package Type:** intent-specific  
+**Intent:** INT-001
 
 ## Codebase References
 
-**Primary Files to Create:**
-- `/package.json` - Project dependencies and scripts
-- `/src/index.js` or `/src/index.tsx` - Application entry point
-- `/src/App.js` or `/src/App.tsx` - Root React component
-- `/public/index.html` - HTML template
-- `/.gitignore` - Git exclusions for node_modules, build artifacts
-- `/README.md` - Project documentation
-- `/vite.config.js` or `/webpack.config.js` - Build configuration (depending on tooling choice)
+### Primary (will be created)
+- `/` — Root directory for React project initialization
+- `/package.json` — Project manifest and dependency declarations
+- `/src/` — Source code directory containing all React components and application logic
+- `/src/index.js` or `/src/main.jsx` — Application entry point
+- `/src/App.jsx` — Root React component
+- `/public/` — Static assets directory (HTML template, favicon)
+- `/public/index.html` — HTML shell for React application
+- `/.gitignore` — Git exclusion patterns for node_modules and build artifacts
+- `/README.md` — Project documentation with setup instructions
 
-**Configuration Files:**
-- `/tsconfig.json` - TypeScript configuration (if using TypeScript)
-- `/eslint.config.js` or `/.eslintrc` - Linting rules
-- `/.prettierrc` - Code formatting rules
+### Secondary (configuration and tooling)
+- `/vite.config.js` or `/webpack.config.js` — Build tool configuration (if using Vite or custom webpack)
+- `/tsconfig.json` — TypeScript configuration (if TypeScript is chosen)
+- `/.eslintrc.js` or `/.eslintrc.json` — ESLint configuration (target tier)
+- `/.prettierrc` — Prettier configuration (target tier)
+- `/jest.config.js` or `/vitest.config.js` — Testing framework configuration (exceptional tier)
+- `/.github/workflows/` — CI/CD pipeline definitions (exceptional tier)
 
-**Directory Structure:**
-- `/src/` - Source code directory
-- `/src/components/` - Reusable React components
-- `/src/styles/` - CSS/styling files
-- `/public/` - Static assets
-- `/tests/` or `/__tests__/` - Test files
+### Tests (exceptional tier)
+- `/src/__tests__/` or `/src/**/*.test.jsx` — Test files following framework conventions
 
 ## Architecture Context
 
-**System Position:**
-This intent establishes the foundational structure for a React-based frontend application. As the initial template, it defines the architectural baseline for all subsequent development within this trajectory.
+This intent establishes a **greenfield React single-page application (SPA)** template with no existing system constraints. The architecture follows modern React ecosystem conventions:
 
-**Technology Stack:**
-- **Framework:** React 18+ (functional components with hooks)
-- **Build Tool:** Vite (recommended for modern React) or Create React App
-- **Package Manager:** npm or yarn (to be determined)
-- **Language:** JavaScript (ES6+) with potential TypeScript adoption path
+**Build Tool:** Create React App (CRA) provides zero-configuration setup, or Vite for faster build times and modern tooling. Both are standard choices with broad community support.
 
-**Design Patterns:**
-- Component-based architecture with separation of concerns
-- Functional components over class components
-- React Hooks for state management and side effects
-- Modular CSS or CSS-in-JS approach (to be established)
+**Project Structure:**
+- `/src` contains all application source code
+- `/public` contains static assets served without processing
+- `/node_modules` (ignored by git) contains installed dependencies
+- `/build` or `/dist` (ignored by git) contains production build output
 
-**Integration Points:**
-- No external API integrations at template stage
-- Development server for local testing
-- Build pipeline for production deployment
-- Future extension points for state management (Context API, Redux, or Zustand)
+**Data Flow:** Standard React unidirectional data flow. No state management library (Redux, Zustand) required at template level — components will use local state and props.
+
+**No Backend:** This template is frontend-only. No API integration, authentication, or data persistence required. Development server runs entirely locally.
+
+**No Prior Architecture:** This is the first component being added to the Fio Test Repo. No existing conventions to follow or conflicts to avoid.
 
 ## Pattern Library
 
-**Component Standards:**
-- Use functional components with React Hooks
-- One component per file with matching filename and component name
-- Props destructuring in function parameters
-- PropTypes or TypeScript interfaces for prop validation
+### React Project Structure Conventions
 
-**File Naming:**
-- Components: PascalCase (e.g., `Button.jsx`, `UserProfile.jsx`)
-- Utilities: camelCase (e.g., `formatDate.js`, `apiClient.js`)
-- Styles: Match component name (e.g., `Button.module.css`)
-
-**Code Organization:**
+**Standard CRA/Vite Structure:**
 ```
 /src
-  /components
-    /Button
-      Button.jsx
-      Button.module.css
-      Button.test.js
-  /utils
-  /hooks
-  /styles
-  App.jsx
-  index.jsx
+  /components   - Reusable UI components (target tier)
+  /pages        - Page-level components (target tier)
+  /assets       - Images, fonts, static files (target tier)
+  /utils        - Helper functions (optional)
+  /hooks        - Custom React hooks (optional)
+  App.jsx       - Root component
+  index.jsx     - Entry point
 ```
 
-**Import Conventions:**
-- React imports first
-- Third-party library imports second
-- Internal module imports third
-- Relative imports last
+### Component Patterns
 
-**Testing Standards:**
-- Jest + React Testing Library (recommended)
-- Test files co-located with components or in `__tests__` directory
-- Unit tests for components and utilities
-- Integration tests for critical user flows
+**Functional Components (Modern Standard):**
+```jsx
+// Preferred: Arrow function components with named exports
+export const MyComponent = () => {
+  return <div>Content</div>;
+};
+```
+
+**Avoid:**
+- Class components (legacy pattern)
+- Default exports for components (named exports improve refactoring)
+- Mixing business logic with rendering (separate concerns)
+
+### File Naming Conventions
+
+**Files:**
+- Components: `PascalCase.jsx` (e.g., `UserProfile.jsx`)
+- Utilities: `camelCase.js` (e.g., `formatDate.js`)
+- Tests: `ComponentName.test.jsx` (exceptional tier)
+
+**Directories:**
+- `camelCase` for utility folders (`utils/`, `hooks/`)
+- `PascalCase` for component folders if nesting (e.g., `components/UserProfile/`)
+
+### Dependency Management
+
+**Use `npm` or `yarn` consistently:**
+- Lock file (package-lock.json or yarn.lock) must be committed
+- Use exact versions or caret ranges (^) for production stability
+- Keep devDependencies separate from dependencies
+
+### Build and Development Commands (Standard)
+
+```json
+{
+  "scripts": {
+    "dev": "vite" or "react-scripts start",
+    "build": "vite build" or "react-scripts build",
+    "preview": "vite preview" (if using Vite),
+    "test": "jest" or "vitest" (exceptional tier),
+    "lint": "eslint src/" (target tier)
+  }
+}
+```
+
+### .gitignore Patterns (Required)
+
+```
+node_modules/
+build/
+dist/
+.DS_Store
+.env.local
+*.log
+```
 
 ## Prior Orbit References
 
-**Orbit 1 (Current):**
-- **Phase:** Intent
-- **Status:** In Progress
-- **Context:** This is the initial orbit establishing the template foundation. No prior orbits exist for comparison.
+### Completed
+**None.** This is Orbit #1 in the Fio Test Repo. No prior intents have been executed.
 
-**Related Work:**
-- No previous template projects exist in this repository
-- This orbit sets the precedent for future React development
-- Decisions made here will influence all subsequent frontend work in the "Testing GitHub Integration" trajectory
+### Known Issues
+**None.** This is a greenfield repository with no existing technical debt or open issues.
 
-**Learning from External Sources:**
-- Industry standard: Vite for faster development experience vs. CRA
-- Modern React best practices emphasize functional components and hooks
-- TypeScript adoption provides type safety but increases initial complexity
+### Context from Intent Document
+- **Trust Tier:** Tier 1 (Autonomous) — minimal blast radius, isolated scope, reversible changes
+- **Acceptance Boundary Target:** Development server <5s startup, HMR functional, README included, TypeScript or PropTypes configured
+- **Exceptional Tier Goals:** Testing framework, linting/formatting tools, CI/CD pipeline, component library integration
 
 ## Risk Assessment
 
-**Risk: Tool Selection Lock-in**
-- **Impact:** Medium - Switching build tools later requires significant refactoring
-- **Mitigation:** Choose Vite for modern development, but structure code to minimize build-tool-specific dependencies
-- **Validation:** Document rationale for tool choices in README.md
+### Risk: Dependency Vulnerabilities
+**Impact:** Medium — npm packages may contain known security vulnerabilities  
+**Likelihood:** Medium — React ecosystem moves quickly; new CVEs are common  
+**Mitigation:**
+- Run `npm audit` after installation
+- Use only packages with recent maintenance activity (last 6 months)
+- Pin major versions to avoid breaking changes
+- Document any audit warnings in README
 
-**Risk: Over-engineering at Template Stage**
-- **Impact:** Low - Adding unnecessary complexity delays actual feature development
-- **Mitigation:** Start minimal (React + Vite + basic structure), add tools incrementally as needs arise
-- **Validation:** Template should enable first feature implementation within one additional orbit
+### Risk: Build Tool Misconfiguration
+**Impact:** Low — Development server fails to start or HMR doesn't work  
+**Likelihood:** Low — CRA/Vite provide sensible defaults  
+**Mitigation:**
+- Use official React scaffolding tools (CRA or `npm create vite@latest`)
+- Test `npm install` and `npm run dev` before marking complete
+- Include troubleshooting section in README for common Node.js version issues
 
-**Risk: Inconsistent Code Style**
-- **Impact:** Low - Future code contributions may not follow patterns
-- **Mitigation:** Configure ESLint and Prettier from start, document conventions in README
-- **Validation:** Automated linting in pre-commit hooks
+### Risk: License Compliance Violation
+**Impact:** High — Legal risk if non-permissive licenses are included  
+**Likelihood:** Low — Most React ecosystem uses MIT/Apache 2.0  
+**Mitigation:**
+- Check package.json "license" field for all dependencies
+- Use `npm-license-checker` or similar tool (exceptional tier)
+- Exclude GPL/AGPL licensed packages
 
-**Risk: Missing Development Tooling**
-- **Impact:** Low - Developer experience degraded without proper dev tools
-- **Mitigation:** Include React Developer Tools recommendation, configure source maps, enable hot module replacement
-- **Validation:** Smooth local development workflow from `npm install` to `npm run dev`
+### Risk: Large Repository Size
+**Impact:** Low — Slow clones and unnecessary storage usage  
+**Likelihood:** Medium — Easy to accidentally commit node_modules or build artifacts  
+**Mitigation:**
+- **Critical:** Verify .gitignore is in place BEFORE running `npm install`
+- Test that `node_modules/` is ignored: run `git status` after install
+- Add `.gitignore` as first commit, installation commands as second
 
-**Risk: Dependency Vulnerabilities**
-- **Impact:** Medium - Outdated or vulnerable dependencies introduce security risks
-- **Mitigation:** Use latest stable versions, configure Dependabot or Renovate for automated updates
-- **Validation:** Regular `npm audit` checks, security scanning in CI pipeline
+### Risk: Incompatible Node.js Version
+**Impact:** Medium — Installation or build fails on contributor machines  
+**Likelihood:** Medium — Node.js has multiple active LTS versions  
+**Mitigation:**
+- Document required Node.js version in README (18.x+ per constraints)
+- Add `"engines"` field to package.json: `"node": ">=18.0.0"`
+- Consider adding `.nvmrc` file for nvm users (exceptional tier)
 
-**Risk: Lack of Documentation**
-- **Impact:** Medium - Future developers cannot understand setup or extend template
-- **Mitigation:** Comprehensive README with setup instructions, architectural decisions, and extension guidelines
-- **Validation:** Another developer can clone and run project following README alone
+### Risk: Unclear Setup Instructions
+**Impact:** Low — Developer confusion, support burden  
+**Likelihood:** Medium — README may be overlooked or incomplete  
+**Mitigation:**
+- Include explicit step-by-step setup in README
+- List all available npm scripts and their purposes
+- Provide example of expected output when server starts successfully
+- Document common errors (port conflicts, permission issues)
+
+### Risk: No Rollback Path
+**Impact:** Low — Changes are isolated to new files  
+**Likelihood:** Low — Intent is fully reversible  
+**Mitigation:**
+- All changes are additions, not modifications to existing code
+- Complete rollback possible by deleting created files
+- No database migrations or infrastructure changes involved
