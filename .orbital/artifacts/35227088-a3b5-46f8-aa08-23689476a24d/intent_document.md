@@ -2,62 +2,63 @@
 
 ## Desired Outcome
 
-A functional React-based project template exists in the Fio Test Repo that serves as a foundation for future development work. Developers can clone or reference this template to bootstrap new React applications with a consistent, working structure. The template demonstrates that the GitHub integration is operational and can support standard React development workflows.
+A foundational React project structure exists that enables rapid feature development without setup friction. Developers can clone, install dependencies, and begin building features within minutes. The template establishes consistent patterns for component architecture, state management, and build tooling that subsequent development orbits will extend.
 
 ## Constraints
 
-- **Technology Stack:** Must use React as the primary framework (no alternative frameworks)
-- **Repository Scope:** Must reside within the "Fio Test Repo" — not create a separate repository
-- **Simplicity:** Template must remain minimal and unopinionated — avoid excessive dependencies, complex configurations, or opinionated architectural patterns that would constrain future use cases
-- **Standard Tooling:** Must use widely-adopted, stable tooling (npm/yarn, standard build tools) — no experimental or bleeding-edge tools that would create maintenance burden
-- **No Breaking Changes:** Must not interfere with any existing content or structure in the Fio Test Repo
-- **Documentation:** Must include minimal setup instructions that a developer unfamiliar with the repo can follow
+- **Framework Lock:** Must use React 18+ as the core UI library; no alternative frameworks (Vue, Angular, Svelte)
+- **Build Tool:** Must support modern JavaScript/TypeScript with fast refresh capability
+- **Browser Compatibility:** Must support evergreen browsers (Chrome, Firefox, Safari, Edge) from the last 2 major versions
+- **No Backend Logic:** Template contains only frontend code; no server-side rendering, API routes, or backend services
+- **Dependency Hygiene:** Maximum 20 direct dependencies in package.json to minimize supply chain risk and maintenance burden
+- **License Compatibility:** All dependencies must use MIT, Apache 2.0, or BSD licenses compatible with commercial use
+- **No Opinionated State Management:** Do not prescribe Redux, MobX, Zustand, or any specific state library — leave state architecture decisions to future orbits
 
 ## Acceptance Boundaries
 
-**Minimum Viable:**
-- A React application initializes and runs locally with `npm install && npm start` (or equivalent)
-- At least one React component renders successfully in a browser
-- Project includes a package.json with core dependencies explicitly defined
-- README or equivalent documentation explains setup in ≤5 steps
+### Minimal Viable Template
+- Project initializes with `npm install` or equivalent in <60 seconds on standard development hardware
+- Development server starts with single command and hot-reloads on file changes
+- Contains at least one example component demonstrating React hooks usage
+- Includes basic folder structure: components/, assets/, and entry point clearly identifiable
+- README with setup instructions (install, dev server, build) is present and accurate
 
-**Target:**
-- Application builds for production without errors (`npm run build` or equivalent)
-- Standard development tooling works: hot reload, error reporting, basic debugging
-- Template includes 2-3 example components demonstrating React fundamentals (props, state, basic hooks)
-- Documentation includes one example of how to extend the template
-- Git commit history shows clean, logical progression of template creation
+### Production Readiness
+- `npm run build` produces optimized static assets suitable for CDN deployment
+- Build output includes source maps for debugging
+- Production build size <500KB (uncompressed JavaScript) for initial bundle
+- No console errors or warnings in browser when running development build
+- Linting and formatting tooling configured (ESLint/Prettier or equivalent) with runnable commands
 
-**Stretch:**
-- Includes basic testing setup with at least one passing test
-- TypeScript support configured (optional, based on project conventions)
-- Basic linting/formatting configuration (ESLint, Prettier) present
-- Deployment instructions or configuration included for at least one common platform
+### Code Quality Baseline
+- TypeScript configured with strict mode enabled, or JavaScript with JSDoc type hints
+- At least 1 unit test file demonstrating testing setup and runner functionality
+- Git repository initialized with .gitignore excluding node_modules/, build artifacts, and IDE files
+- Package.json contains valid metadata: name, version, description, scripts for dev/build/test
 
 ## Trust Tier Assignment
 
-**Tier 1 — Autonomous**
+**Tier 1: Autonomous**
 
-**Rationale:**
-- **Low Blast Radius:** Creates new code in a testing repository with no production dependencies or user-facing systems
-- **Fully Reversible:** Changes can be reverted via Git without data loss or service impact
-- **Well-Defined Scope:** React project initialization is a standard, well-documented procedure with established best practices
-- **No Sensitive Systems:** Does not touch authentication, data storage, external APIs, or compliance-sensitive areas
-- **Observable Outcomes:** Success is immediately verifiable (does it run? do components render?)
+This intent carries minimal blast radius and is fully reversible:
 
-The human can be notified after completion. If the template has issues, they can be addressed in a subsequent orbit without risk.
+- **Low Risk Domain:** Project scaffolding affects only development environment, not production systems or user data
+- **Reversibility:** Git repository allows complete rollback; no persistent state or external integrations to unwind
+- **Standard Practice:** React project templates are well-established patterns with abundant reference implementations
+- **Isolated Scope:** Changes are confined to a single repository with no dependencies on other systems or services
+- **Validation Speed:** Developer can verify functionality in <5 minutes by running dev server and viewing example component
+
+The autonomous tier is appropriate because template generation errors are immediately visible, easily corrected, and have no downstream impact until the template is actively used for feature development.
 
 ## Dependencies
 
-**External Dependencies:**
-- Node.js and npm (or yarn) available in the development environment
-- Git repository access to "Fio Test Repo" with write permissions
-- Modern web browser for verification
+### External Dependencies
+- **Node.js Runtime:** Requires Node.js v18+ and npm/yarn package manager installed on development machine
+- **Git:** Repository initialization requires Git CLI available in execution environment
 
-**Internal Dependencies:**
-- None — this is the foundational orbit for the "Testing GitHub Integration" trajectory
+### Ecosystem Assumptions
+- **Package Registry Access:** npm registry (registry.npmjs.org) must be accessible for dependency installation
+- **React Ecosystem Stability:** Assumes React 18.x stable release and compatible tooling ecosystem (Vite, Create React App, or equivalent)
 
-**Assumptions:**
-- The Fio Test Repo is initialized and accessible
-- Standard GitHub workflows (commit, push) are functional
-- No existing React project conflicts with this template in the repo structure
+### No Internal Dependencies
+This is a foundational intent with no dependencies on other ORBITAL intents or prior orbits. It represents the starting point for the "Testing GitHub Integration" trajectory.
