@@ -1,5 +1,7 @@
 # INT-001: React Template Project Scaffolding
 
+**Generated at:** 2025-01-24
+
 ## Desired Outcome
 
 A functional React project template exists in the repository that serves as the foundation for future development work. Developers can clone, install dependencies, and run a development server without manual configuration. The project demonstrates a working React application with a clear entry point and basic component structure.
