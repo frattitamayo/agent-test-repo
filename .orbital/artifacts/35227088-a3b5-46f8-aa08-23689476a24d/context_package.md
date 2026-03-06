@@ -1,170 +1,154 @@
 # Context Package: Create Template Project
 
+**Generated:** 2025-02-17  
+**Package Type:** intent-specific  
+**Intent:** Create Template Project  
+**Trust Tier:** Tier 1 (Autonomous)
+
 ## Codebase References
 
-### Files to Create
-- `/react-template/` — Root directory for the React template project
-- `/react-template/package.json` — Project manifest defining dependencies and scripts
-- `/react-template/public/index.html` — HTML entry point
-- `/react-template/src/index.js` or `/react-template/src/index.tsx` — Application entry point
-- `/react-template/src/App.js` or `/react-template/src/App.tsx` — Root component
-- `/react-template/src/components/` — Directory for example components
-- `/react-template/README.md` — Setup and usage documentation
-- `/react-template/.gitignore` — Node and build artifact exclusions
+### Primary (will be created)
+- `/package.json` — project manifest with dependencies, scripts, and metadata
+- `/README.md` — setup and usage documentation
+- `/src/` — source code directory
+- `/src/index.jsx` or `/src/main.jsx` — application entry point
+- `/src/App.jsx` — root application component
+- `/src/components/` — component directory with example component
+- `/public/` — static assets directory
+- `/public/index.html` — HTML entry point
+- `/.gitignore` — Git exclusions (node_modules, build artifacts, IDE files)
+- `/tsconfig.json` or `/jsconfig.json` — TypeScript/JavaScript configuration
+- `/.eslintrc.json` — ESLint configuration
+- `/.prettierrc` — Prettier configuration
+- `/vite.config.js` or equivalent — build tool configuration
 
-### Optional Files (Target/Stretch Goals)
-- `/react-template/src/App.test.js` — Basic test example
-- `/react-template/.eslintrc.json` — Linting configuration
-- `/react-template/.prettierrc` — Code formatting rules
-- `/react-template/tsconfig.json` — TypeScript configuration (if TypeScript is included)
+### Secondary (dependencies and patterns)
+- Node.js v18+ runtime environment
+- npm or yarn package manager
+- React 18.x from npm registry
+- Build tooling (Vite recommended for fast refresh, or Create React App)
+- Testing library (Jest, Vitest, or React Testing Library)
 
-### Repository Root Impact
-- No modifications to existing files at repository root
-- New top-level directory `/react-template/` contains all template content
-- Repository `.gitignore` may need verification to ensure no template build artifacts leak to root
+### Tests
+- `/src/__tests__/` or `/src/components/__tests__/` — test directory
+- At least one `.test.jsx` or `.spec.jsx` file demonstrating test setup
 
 ## Architecture Context
 
-### Repository Structure
-This is a testing repository with no established architecture or existing React projects. The template will:
-- Live in a self-contained directory (`/react-template/`)
-- Function as a standalone, copyable unit
-- Avoid coupling to any other potential projects in the repo
+This intent establishes the **foundational layer** for the "Testing GitHub Integration" trajectory. No prior architecture exists — this creates it.
 
-### Template Architecture Pattern
-Standard Create React App or Vite structure:
-- **Public directory:** Static assets, HTML entry point
-- **Source directory:** JavaScript/TypeScript components and application logic
-- **Component-based architecture:** React functional components with hooks
-- **Build toolchain:** Webpack (CRA) or Vite for bundling and development server
+**Architectural Pattern:** Single-page application (SPA) with client-side rendering only. No server-side rendering, API routes, or backend services. The template follows React's component-based architecture with unidirectional data flow through props and hooks.
 
-### Data Flow
-- No external data sources or APIs required
-- Component state managed locally via React hooks (useState, useEffect)
-- Props flow unidirectionally from parent to child components
+**Build Architecture:** Static site generation pattern where source code is transpiled and bundled into optimized JavaScript/CSS assets suitable for CDN deployment. Development mode uses hot module replacement for fast feedback.
 
-### Service Boundaries
-- No backend services
-- No database connections
-- No authentication or authorization
-- Pure frontend template with local development server
-
-## Pattern Library
-
-### React Component Patterns
-Since this is a new template in a testing repository, establish these conventions:
-
-**Functional Components with Hooks:**
-```javascript
-function ExampleComponent({ propName }) {
-  const [state, setState] = useState(initialValue);
-  
-  return (
-    <div>
-      {/* JSX content */}
-    </div>
-  );
-}
+**Folder Structure Convention:**
 ```
-
-**File Naming:**
-- Components: PascalCase (e.g., `App.js`, `ExampleComponent.js`)
-- Utilities: camelCase (e.g., `helpers.js`)
-- Tests: `ComponentName.test.js` pattern
-
-**Project Structure Convention:**
-```
-react-template/
-├── public/
-│   └── index.html
-├── src/
-│   ├── components/
-│   │   └── ExampleComponent.js
-│   ├── App.js
-│   └── index.js
+/
+├── public/          # Static assets (HTML, images, fonts)
+├── src/             # Source code
+│   ├── components/  # React components
+│   ├── assets/      # JavaScript-imported assets
+│   └── index.jsx    # Entry point
 ├── package.json
 └── README.md
 ```
 
-**Dependency Management:**
-- Pin major versions but allow minor/patch updates (e.g., `"react": "^18.0.0"`)
-- Keep dependencies minimal — only include what's necessary for core functionality
-- Document any non-obvious dependencies in README
+**Data Flow:** No external data sources in template. Example component demonstrates local state management with React hooks (useState, useEffect). Future orbits will add state management solutions as needed.
 
-**Documentation Standards:**
-- README must include: Prerequisites, Installation, Running Locally, Building for Production
-- Use numbered lists for step-by-step instructions
-- Include one troubleshooting section for common issues
+**Browser Target:** Modern evergreen browsers with ES2020+ JavaScript support. No IE11 polyfills required.
+
+## Pattern Library
+
+### Conventions (establish these)
+
+Since this is a greenfield template, the following patterns should be established as the baseline:
+
+- **Component Structure**: Functional components using React hooks (no class components). One component per file with matching filename (e.g., `Button.jsx` exports `Button`).
+
+- **File Naming**: PascalCase for component files (`ExampleComponent.jsx`), camelCase for utility files (`formatDate.js`), lowercase with hyphens for config files (`vite.config.js`).
+
+- **Import Organization**: Third-party imports first, then internal imports, then relative imports. Group by type (React, libraries, components, utilities, styles).
+
+- **Testing Pattern**: Co-locate tests with components or use `__tests__` directory. Test files named `ComponentName.test.jsx`. Use React Testing Library patterns for component testing.
+
+- **TypeScript/JSDoc**: If TypeScript: strict mode enabled with `strict: true` in tsconfig. If JavaScript: JSDoc type hints on function parameters and returns.
+
+- **Code Quality Gates**: ESLint with React plugin for linting, Prettier for formatting. Both runnable via npm scripts (`npm run lint`, `npm run format`).
+
+### Anti-patterns (avoid these)
+
+- **No Inline Styles**: Avoid style objects in JSX. Use CSS modules, CSS-in-JS library, or external stylesheets.
+  
+- **No Hard-coded Configuration**: Environment-specific values (API URLs, feature flags) should not be committed. Use environment variables or config files with defaults.
+
+- **No Circular Dependencies**: Component imports must form a directed acyclic graph. Components should not import their parents.
+
+- **No Prop Drilling Beyond 2 Levels**: If passing props through more than 2 component levels, consider component composition or context (but don't prescribe specific state management library).
+
+- **No Console Statements in Production**: Development logging is acceptable, but production builds must not ship with console.log/warn/error.
 
 ## Prior Orbit References
 
-### Trajectory Context
-This is **Orbit #1** in the "Testing GitHub Integration" trajectory. No prior orbits exist for reference.
+### Completed
+None. This is Orbit 1, the first orbit in the "Testing GitHub Integration" trajectory. No prior work exists in this repository.
 
-### Trajectory Intent
-The trajectory's purpose is to validate that GitHub integration works correctly. This template serves as proof that:
-- Code can be committed and pushed to the repository
-- Standard development workflows (install, run, build) function as expected
-- The repository can host working projects
+### Known Issues
+None. This is a clean slate with no inherited technical debt or known problems.
 
-### Learning from Orbit #1
-Future orbits in this trajectory should reference:
-- Whether the template creation process revealed any GitHub workflow issues
-- What tooling choices worked well and should be reused
-- Any repository structure decisions that should be maintained or revised
+### Ecosystem Context
+- React 18.x is stable and widely adopted (released March 2022)
+- Vite has become the preferred build tool for React projects due to fast startup and HMR performance
+- Create React App (CRA) is in maintenance mode but still valid for simple templates
+- TypeScript adoption is >70% in React projects but JavaScript with JSDoc remains viable
 
 ## Risk Assessment
 
-### Low-Risk Factors
-- **Isolated scope:** Template exists in dedicated directory with no dependencies on other code
-- **Testing environment:** Repository is explicitly for testing, not production
-- **Reversible:** Git allows complete rollback if template is problematic
-- **No user impact:** No end users depend on this repository
-- **No sensitive data:** Template contains only boilerplate code
+### Risk: Dependency Version Lock-in
+**Impact:** Medium  
+**Description:** Choosing specific versions of React, build tools, and dependencies creates maintenance burden as ecosystem evolves.  
+**Mitigation:** Use caret (^) or tilde (~) version ranges in package.json for minor/patch updates. Document major version update strategy in README. Pin only dependencies with known security issues or breaking changes.
 
-### Potential Issues and Mitigations
+### Risk: Build Tool Obsolescence
+**Impact:** Low  
+**Description:** If using Create React App, future migrations to Vite or other tools may be required due to CRA's maintenance status.  
+**Mitigation:** If selecting CRA, document that it's a simple template suitable for migration. Prefer Vite for longer-term viability. Ensure no CRA-specific patterns that impede migration.
 
-**Issue: Tooling version conflicts**
-- *Risk:* Node.js or npm version mismatches cause installation failures
-- *Mitigation:* Document required versions in README (e.g., "Node 18.x or higher"), use `engines` field in package.json
-- *Severity:* Low — easy to diagnose and fix
+### Risk: Excessive Dependencies
+**Impact:** Medium  
+**Description:** Including too many dependencies increases supply chain risk, bundle size, and update burden.  
+**Mitigation:** Enforce 20-dependency maximum from constraints. Every dependency must have clear justification. Prefer standard library solutions over npm packages where feasible.
 
-**Issue: Bloated dependencies**
-- *Risk:* Including unnecessary packages increases template complexity and maintenance burden
-- *Mitigation:* Start with minimal dependencies (react, react-dom, react-scripts OR vite), add only what's needed for target goals
-- *Severity:* Low — can be pruned in subsequent orbits
+### Risk: TypeScript Configuration Drift
+**Impact:** Low  
+**Description:** If using TypeScript, overly permissive configuration (non-strict mode) leads to gradual type safety erosion.  
+**Mitigation:** Enable strict mode from day one. Configure `noImplicitAny`, `strictNullChecks`, and `strictFunctionTypes`. Include type coverage tooling in CI.
 
-**Issue: Non-portable configuration**
-- *Risk:* Development environment specifics (file paths, OS-specific commands) prevent template from working on other machines
-- *Mitigation:* Use cross-platform npm scripts, relative paths, standard conventions
-- *Severity:* Low — testing on a second machine during orbit validates portability
+### Risk: Testing Setup Incomplete
+**Impact:** Medium  
+**Description:** Insufficient testing configuration makes it difficult for future orbits to add test coverage.  
+**Mitigation:** Include working test file with assertions. Configure test runner (Jest/Vitest) with React component testing support. Add `npm test` script that runs successfully on clean install.
 
-**Issue: Incomplete documentation**
-- *Risk:* Developers cannot use template because setup steps are unclear or missing
-- *Mitigation:* Follow the 5-step maximum documentation constraint, test instructions by following them literally
-- *Severity:* Low — can be improved through feedback
+### Risk: Build Output Size Bloat
+**Impact:** Low  
+**Description:** Initial bundle exceeds 500KB constraint, failing acceptance criteria.  
+**Mitigation:** Use production build mode with minification. Enable tree-shaking. Verify bundle size with `npm run build` before completion. Remove unnecessary dependencies if size exceeds threshold.
 
-**Issue: Build output polluting repository**
-- *Risk:* Build artifacts (`/build`, `/dist`, `/node_modules`) accidentally committed to Git
-- *Mitigation:* Ensure `.gitignore` includes standard React build and dependency directories
-- *Severity:* Low — easily fixed with `.gitignore` update and history cleanup if needed
+### Risk: Browser Compatibility Gaps
+**Impact:** Low  
+**Description:** Modern JavaScript features or CSS properties may not work in target browsers (last 2 major versions of evergreen browsers).  
+**Mitigation:** Configure Babel/SWC with browserslist targeting last 2 versions. Test in actual browser versions, not just dev tools emulation. Include polyfills only for confirmed gaps.
 
-### Security Considerations
-- **Dependency vulnerabilities:** Run `npm audit` before finalizing template to check for known CVEs
-- **No secrets:** Template must not include API keys, tokens, or credentials (even dummy ones)
-- **Public repository assumption:** Treat all template code as public-facing
+### Risk: Git Configuration Omissions
+**Impact:** Low  
+**Description:** Missing .gitignore entries lead to committing node_modules, build artifacts, or IDE files.  
+**Mitigation:** Use comprehensive .gitignore template from gitignore.io or GitHub templates. Verify clean `git status` after build and after IDE usage.
 
-### Performance Considerations
-- **Development server startup:** Should complete in <10 seconds on standard hardware
-- **Hot reload:** Changes should reflect in browser within 1-2 seconds
-- **Production build:** Should complete without errors; build size is not critical for a template but should be <5MB for basic app
+### Risk: README Inaccuracy
+**Impact:** Medium  
+**Description:** Outdated or incorrect README instructions prevent developers from running the project.  
+**Mitigation:** Test README instructions in clean environment (fresh clone, no prior setup). Document every prerequisite (Node version, package manager). Include troubleshooting section for common issues.
 
-### Validation Checkpoints
-Before considering orbit complete:
-1. `npm install` runs without errors
-2. `npm start` launches development server successfully
-3. Application renders in browser at `http://localhost:3000` (or configured port)
-4. `npm run build` creates production bundle without errors
-5. README instructions can be followed by someone unfamiliar with the template
-6. `.gitignore` prevents build artifacts from being staged
-7. Commit history is clean (no "fix typo" or "oops forgot file" commits — squash if needed)
+### Risk: No Rollback Strategy
+**Impact:** Very Low  
+**Description:** Template errors are discovered after initial commit.  
+**Mitigation:** Risk already mitigated by Git version control. Any issues can be fixed with subsequent commits or branch reset. Template changes are fully reversible.
