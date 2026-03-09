@@ -2,77 +2,79 @@
 
 ## Desired Outcome
 
-A functional React project template exists that serves as the foundation for future development in the Fio Test Repo. Developers can immediately begin building features without spending time on initial project scaffolding. The template includes modern React best practices, essential tooling configuration, and a clear project structure that supports scalable development.
+A production-ready React project structure exists with modern tooling and best practices configured, enabling immediate feature development without setup friction. Developers can clone, install dependencies, and begin building features within 5 minutes. The template establishes consistent patterns for component structure, styling, state management, and testing that subsequent development will follow.
 
 ## Constraints
 
-- Must use React as the primary framework (no alternative frameworks)
-- Must be compatible with modern Node.js LTS versions (18.x or higher)
-- Must not include opinionated business logic or domain-specific features
-- Must not prescribe specific state management libraries or routing solutions in the initial template
-- Project structure must follow React community conventions for maintainability
-- Must not include unnecessary dependencies that bloat the initial bundle size
-- Configuration files must be minimal and well-documented for future modification
+- Must use React 18+ with current stable versions of all dependencies
+- Must not include opinionated state management libraries (Redux, MobX, etc.) — leave architectural choices to feature implementation
+- Must not prescribe backend integration patterns or API client configuration
+- Build output must be deployable to standard static hosting (Vercel, Netlify, S3+CloudFront)
+- Must maintain <3s initial page load on 3G network conditions
+- Must not include UI component libraries (Material-UI, Ant Design) — preserve design system flexibility
+- Repository structure must support monorepo evolution (future micro-frontends or shared packages)
+- Must not include authentication/authorization scaffolding — security patterns are feature-specific
 
 ## Acceptance Boundaries
 
-**Minimum Acceptable:**
-- Project initializes without errors using `npm install` or `yarn install`
-- Development server starts successfully with `npm start` or equivalent command
-- A single "Hello World" or placeholder component renders in the browser
-- Basic package.json with scripts for start, build, and test exists
-- README.md with setup instructions is present
-- Initial page load completes in under 3 seconds on standard broadband connection
+### Functional Requirements
+- `npm install && npm start` successfully launches development server on first clone
+- `npm run build` produces optimized production bundle with source maps
+- `npm test` executes test suite with >0 passing tests (minimum smoke test included)
+- Hot module replacement (HMR) functional in development mode
+- Environment variable configuration working (`.env` support with at least one example variable)
+- ESLint and Prettier configured with zero errors on initial commit
 
-**Target Acceptable:**
-- Hot module replacement works during development with updates reflecting in under 2 seconds
-- Production build completes successfully and generates optimized bundles
-- Production bundle size is ≤250KB gzipped for initial load
-- ESLint or similar linting configuration is present with sensible defaults
-- Project includes basic TypeScript or PropTypes for type safety [if applicable based on React setup tool used]
-- Git repository initialized with appropriate .gitignore for Node/React projects
-- Initial test setup (Jest, Vitest, or React Testing Library) is configured and at least one sample test passes
+### Performance Thresholds
+- Production bundle size <250KB gzipped (initial load, excluding async chunks)
+- Lighthouse performance score ≥90 on production build
+- First Contentful Paint <1.5s on Fast 3G throttling
+- Development server cold start <10s on average developer machine
 
-**Exceptional:**
-- CI/CD configuration template (GitHub Actions workflow) included for automated testing
-- Pre-commit hooks configured for linting and formatting
-- Component folder structure demonstrates scalable patterns (e.g., components/, pages/, utils/)
-- Development environment documentation includes common troubleshooting steps
-- Prettier or similar code formatting configured and integrated with editor support
-- Lighthouse performance score ≥90 for the initial template page
-- Production build completes in under 30 seconds on standard CI/CD runners
+### Developer Experience
+- README includes setup instructions, available scripts, and project structure overview
+- Git hooks configured (pre-commit linting at minimum)
+- TypeScript configured with strict mode enabled
+- At least one example component with corresponding test demonstrating testing patterns
+- VS Code workspace settings included for consistent editor experience
+
+### Quality Gates
+- All npm dependencies have zero high/critical security vulnerabilities (`npm audit`)
+- Build process produces no warnings
+- Test coverage reporting configured (threshold: >80% on example components)
+- Accessibility: example components meet WCAG 2.1 Level AA standards
 
 ## Trust Tier Assignment
 
-**Tier 1 — Autonomous**
+**Tier 1: Autonomous**
 
-This intent qualifies for autonomous execution because:
+**Rationale:** Project scaffolding is low-risk with high reversibility. The work involves:
+- Zero user-facing impact (no production system exists yet)
+- Fully contained within repository boundaries with no external service dependencies
+- Industry-standard tooling (Create React App, Vite, or Next.js) with well-documented patterns
+- Complete rollback capability via Git history
+- No data persistence or state to migrate
+- No security-sensitive operations (auth, PII, payments)
 
-1. **Low Blast Radius:** Creating a template project is an additive operation with no impact on existing systems, users, or production environments. It exists in isolation within the repository.
+The blast radius is limited to developer experience. Even poor initial choices (e.g., suboptimal bundler configuration) can be refactored incrementally without breaking existing features. The template establishes conventions but doesn't lock architectural decisions that affect business logic.
 
-2. **Fully Reversible:** The entire operation can be reversed with a simple `git reset` or branch deletion. No persistent state, database changes, or external integrations are affected.
-
-3. **Established Patterns:** React project initialization follows well-documented, standardized procedures (Create React App, Vite, Next.js starter, etc.) with minimal ambiguity or novel decision-making required.
-
-4. **No Sensitive Domains:** Does not touch authentication, payment processing, PII handling, or regulatory-controlled areas.
-
-5. **Observable Output:** Success or failure is immediately verifiable through standard development commands (install, start, build) without requiring specialized domain knowledge to validate.
-
-The human will be notified after execution with evidence of the working template (repository structure, successful build output, running development server screenshot or logs).
+Escalation trigger: If template setup requires custom build tooling or deviates significantly from community-standard React project structures, elevate to Tier 2 for human review of the architectural trade-offs.
 
 ## Dependencies
 
-**External Dependencies:**
-- Node.js runtime environment (v18.x or higher) must be available in development environment
-- Package manager (npm, yarn, or pnpm) must be installed
-- Git must be available for repository initialization
+### External Dependencies
+- **Node.js runtime:** Version 18.x or higher (LTS) required for package installation and build tooling
+- **npm or yarn:** Package manager must be available in development environment
+- **Git:** Version control for repository initialization and hook configuration
 
-**No Internal Dependencies:**
-This is a foundational intent with no dependencies on other intents, services, or existing system components. It represents the first orbit in establishing the Fio Test Repo infrastructure.
+### Internal Dependencies
+- **GitHub Repository:** `Fio Test Repo` must be accessible with write permissions for initial commit
+- **CI/CD Context (Optional):** If GitHub Actions or similar CI exists, template should include workflow configuration for automated testing/building
 
-**Downstream Enablement:**
-This template will serve as the foundation for future intents requiring:
-- UI component development
-- Frontend feature implementation
-- Integration testing with backend services
-- Deployment pipeline configuration
+### Assumed Context
+- Development environment has standard web browser for testing (Chrome/Firefox/Safari)
+- No backend services required for initial template — assumes static site or future API integration
+- No existing codebase to migrate or integrate with — greenfield project
+
+### Blockers
+- None identified. Template creation is the foundational step with no upstream dependencies within the trajectory.
