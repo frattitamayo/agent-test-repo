@@ -2,297 +2,127 @@
 
 ## Codebase References
 
-### Files to Create
-
-**Root Level:**
-- `package.json` — Project manifest defining dependencies, scripts, and metadata
-- `package-lock.json` or `yarn.lock` — Dependency lock file for reproducible builds
-- `.gitignore` — Standard Node.js/React gitignore patterns
-- `README.md` — Setup instructions, project structure documentation, and development commands
-- `.env.example` — Template for environment variables (empty or with placeholder comments)
-
-**Configuration Files:**
-- `.eslintrc.json` or `.eslintrc.js` — Linting rules for code quality
-- `.prettierrc` or `.prettierrc.json` — Code formatting configuration (if using Prettier)
-- `tsconfig.json` — TypeScript configuration (if implementing stretch outcome)
-- `vite.config.js` or `webpack.config.js` — Build tool configuration (depending on chosen scaffolding tool)
-
-**Source Directory (`src/`):**
-- `src/index.js` or `src/main.jsx` — Application entry point
-- `src/App.jsx` — Root application component
-- `src/App.css` — Root component styling
-- `src/index.css` — Global styles
-- `src/components/` — Directory for reusable components (create example component if target outcome pursued)
-
-**Public Directory (`public/`):**
+### Primary Files (To Be Created)
+- `package.json` — Project dependencies and scripts configuration
+- `src/index.js` or `src/index.tsx` — Application entry point
+- `src/App.js` or `src/App.tsx` — Root React component
 - `public/index.html` — HTML template
-- `public/favicon.ico` — Browser tab icon
-- `public/robots.txt` — Search engine crawling rules (optional)
+- `.gitignore` — Git exclusions for node_modules, build artifacts
+- `README.md` — Project documentation and setup instructions
 
-### Repository Context
+### Configuration Files
+- `tsconfig.json` — TypeScript configuration (if TypeScript is used)
+- `.eslintrc.js` or `.eslintrc.json` — Linting rules
+- `.prettierrc` — Code formatting rules
+- `vite.config.js` or `webpack.config.js` — Build tool configuration
 
-**Repository Location:** `Fio Test Repo` — This is a testing repository, meaning:
-- No production dependencies exist
-- Experimental work is expected and encouraged
-- Failures have no external impact
-- Documentation can be more experimental/informal than production repos
-
-**Repository Root:** All project files should be created at the repository root unless a specific subfolder structure already exists for organizing multiple projects.
+### Directory Structure
+```
+/
+├── public/
+│   └── index.html
+├── src/
+│   ├── components/
+│   ├── assets/
+│   ├── App.js
+│   └── index.js
+├── package.json
+└── README.md
+```
 
 ## Architecture Context
 
-### System Position
+### System Overview
+This is a foundational React template project that will serve as the starting point for future development within the "Testing GitHub Integration" trajectory. The architecture follows standard React application patterns with a component-based structure.
 
-This intent creates a **standalone frontend application scaffold** with no integration points. The React application will:
+### Build Tooling
+- **Bundler Options:** Vite (recommended for modern React) or Create React App (CRA) for rapid setup
+- **Development Server:** Hot module replacement (HMR) enabled for rapid iteration
+- **Build Output:** Static assets compiled to `/dist` or `/build` directory
 
-- Run entirely in the browser with no backend communication
-- Serve static assets from a development server during development
-- Build to static files for potential deployment (though deployment is out of scope)
-- Have no data persistence layer (no databases, APIs, or external services)
+### Data Flow
+- Component hierarchy with unidirectional data flow (React standard)
+- Props passed down, events bubble up
+- State management localized to components initially (can be extended with Context API or external state management later)
 
-### React Application Architecture
-
-**Single Page Application (SPA) Pattern:**
-- All rendering happens client-side in the browser
-- JavaScript bundle loads once; subsequent navigation happens via DOM manipulation
-- Hot Module Replacement (HMR) enables live updates during development without full page reloads
-
-**Component Hierarchy:**
-```
-index.html (public/)
-  └─ index.js (src/)
-       └─ App.jsx (src/)
-            └─ [Future Components]
-```
-
-### Development vs. Production Modes
-
-**Development Server:**
-- Runs on localhost (typically port 3000 or 5173 for Vite)
-- Provides HMR for instant feedback
-- Includes source maps for debugging
-- Unoptimized bundles for faster rebuilds
-
-**Production Build:**
-- Generates optimized, minified static assets
-- Removes development-only code
-- Creates compressed bundles
-- Outputs to `dist/` or `build/` directory
-
-### Tooling Decision Point
-
-**Create React App (CRA):**
-- Pros: Zero configuration, widely adopted, comprehensive
-- Cons: Slower build times, larger dependency footprint, maintenance mode as of 2023
-
-**Vite:**
-- Pros: Lightning-fast dev server, modern ESM-based, smaller footprint
-- Cons: Newer (less community resources for troubleshooting)
-- **Recommended** for new projects in 2024+
-
-**Manual Setup:**
-- Pros: Full control, minimal dependencies
-- Cons: Time-intensive, requires deep understanding of Webpack/Rollup
-- **Not recommended** for template creation (defeats purpose of quick start)
-
-### Infrastructure Constraints
-
-**Node.js Version:** Requires Node.js 16.x or higher
-- Vite requires Node.js 14.18+ or 16+
-- React 18 requires Node.js 14+
-- **Target: Node.js 18.x LTS** (current stable LTS as of late 2023/early 2024)
-
-**Browser Compatibility:**
-- Modern ES6+ syntax
-- No IE11 support required (per constraints)
-- Targets last 2 versions of major browsers
+### Integration Points
+- No external services or APIs at this stage
+- Template designed to be extended with routing, state management, and API integration as needed
 
 ## Pattern Library
 
-### React Component Patterns
+### Component Structure
+- **Functional Components:** Use function components with hooks (modern React standard)
+- **File Naming:** PascalCase for component files (e.g., `MyComponent.jsx`)
+- **Component Organization:** One component per file, co-locate styles and tests
 
-**Functional Components with Hooks:**
-```jsx
-// src/components/ExampleComponent.jsx
-import { useState } from 'react';
+### Code Style
+- **JavaScript/TypeScript:** ES6+ syntax
+- **Formatting:** Consistent indentation (2 spaces), semicolons, single quotes
+- **Imports:** Absolute imports preferred over relative when possible
 
-function ExampleComponent({ title }) {
-  const [count, setCount] = useState(0);
-  
-  return (
-    <div>
-      <h2>{title}</h2>
-      <button onClick={() => setCount(count + 1)}>
-        Count: {count}
-      </button>
-    </div>
-  );
-}
+### Project Initialization
+- **Method 1 — Vite:**
+  ```bash
+  npm create vite@latest . -- --template react
+  ```
+- **Method 2 — Create React App:**
+  ```bash
+  npx create-react-app .
+  ```
 
-export default ExampleComponent;
-```
+### Dependency Management
+- Lock file (`package-lock.json` or `yarn.lock`) must be committed
+- Distinguish between `dependencies` and `devDependencies`
+- Pin major versions to avoid breaking changes
 
-**Avoid class components** — functional components with hooks are the modern React standard (React 16.8+).
-
-### File Naming Conventions
-
-**React Components:**
-- PascalCase: `MyComponent.jsx` or `MyComponent.tsx`
-- Use `.jsx` extension to distinguish from plain JavaScript
-
-**Utilities and Helpers:**
-- camelCase: `apiHelpers.js`, `formatUtils.js`
-- Use `.js` extension
-
-**Stylesheets:**
-- Matching component name: `MyComponent.css` for `MyComponent.jsx`
-- OR global: `index.css`, `App.css`
-
-### Directory Structure
-
-```
-fio-test-repo/
-├── public/
-│   ├── index.html
-│   └── favicon.ico
-├── src/
-│   ├── components/
-│   │   └── ExampleComponent.jsx
-│   ├── App.jsx
-│   ├── App.css
-│   ├── index.js
-│   └── index.css
-├── .gitignore
-├── package.json
-├── README.md
-└── vite.config.js (or equivalent)
-```
-
-### NPM Scripts Standard
-
-```json
-{
-  "scripts": {
-    "dev": "vite",           // Start development server
-    "build": "vite build",   // Create production build
-    "preview": "vite preview", // Preview production build locally
-    "lint": "eslint src --ext js,jsx", // Run linter
-    "format": "prettier --write "src/**/*.{js,jsx}"" // Format code
-  }
-}
-```
-
-### Code Quality Configuration
-
-**ESLint:**
-- Extend `eslint:recommended` and `plugin:react/recommended`
-- Configure `react/react-in-jsx-scope` as off (not needed in React 17+)
-- Enable `plugin:react-hooks/recommended` for hooks rules
-
-**Prettier:**
-- 2-space indentation
-- Single quotes
-- Trailing commas: `es5`
-- Semi-colons: true
-
-### Git Commit Message Convention
-
-For this template creation:
-```
-feat: initialize React project scaffold
-
-- Configure Vite with React
-- Add ESLint and Prettier
-- Create basic component structure
-- Document setup in README
-```
+### Documentation Standards
+- README must include: setup instructions, available scripts, project purpose
+- Inline comments for complex logic only
+- Component-level JSDoc comments for public APIs
 
 ## Prior Orbit References
 
-### Current Orbit Context
+### Related Work
+- **Orbit #1** (current) — First orbit in "Testing GitHub Integration" trajectory
+- No prior orbits exist for this trajectory
+- This template serves as the foundation for subsequent work
 
-**Orbit ORB-1:**
-- **Phase:** Intent (current)
-- **Status:** In Progress
-- **Summary:** "Create a basic react project framework to build off of"
-
-This is the **first orbit** in the "Testing GitHub Integration" trajectory. No prior work exists in this trajectory.
-
-### Related Work in Repository
-
-**Unknown:** This is a test repository with no provided history. Assume this is a **greenfield setup** — no existing React projects, no established patterns to inherit, no prior architectural decisions to respect.
-
-### Lessons from Broader React Ecosystem
-
-**React 18+ Considerations:**
-- New root API: `ReactDOM.createRoot()` instead of `ReactDOM.render()`
-- Automatic batching of state updates
-- Concurrent rendering features available (not required for template)
-
-**Deprecated Patterns to Avoid:**
-- Class components (unless legacy code requires)
-- `componentWillMount`, `componentWillReceiveProps` lifecycle methods
-- Direct DOM manipulation (use refs when needed)
-- Prop drilling (consider Context API for shared state in future)
+### Known Context
+- Project is in **test repository** — focus on demonstrating GitHub integration capabilities
+- Intent status is **draft** — template can evolve based on trajectory needs
+- Trust tier is **tier_1** — standard review and approval process applies
 
 ## Risk Assessment
 
-### Low-Severity Risks
+### Technical Risks
 
-**Risk: Tooling version mismatches**
-- **Scenario:** Node.js version on developer machine differs from what template assumes
-- **Impact:** Project may fail to install or start
-- **Mitigation:** Document required Node.js version prominently in README; include `.nvmrc` file for nvm users
-- **Probability:** Medium | **Severity:** Low
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|------------|
+| **Dependency Vulnerabilities** | Medium | Medium | Run `npm audit` post-install; use `npm audit fix` for automated patches; document any unfixable vulnerabilities |
+| **Build Tool Conflicts** | Low | Low | Choose one build tool (Vite or CRA); avoid mixing configurations; test build process before committing |
+| **Node Version Mismatch** | Medium | Medium | Add `.nvmrc` file specifying Node version; document Node requirements in README |
+| **Large node_modules** | Low | High | Ensure `.gitignore` excludes `node_modules/`; verify before initial commit |
 
-**Risk: Conflicting ESLint/Prettier rules**
-- **Scenario:** Auto-formatting and linting produce conflicting feedback
-- **Impact:** Developer confusion, inconsistent code style
-- **Mitigation:** Use `eslint-config-prettier` to disable ESLint formatting rules that conflict with Prettier
-- **Probability:** Medium | **Severity:** Low
+### Implementation Risks
 
-**Risk: Port 3000 already in use**
-- **Scenario:** Another process is using the default dev server port
-- **Impact:** Dev server fails to start
-- **Mitigation:** Vite auto-increments to next available port; document this behavior in README
-- **Probability:** Low | **Severity:** Negligible
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|------------|
+| **Over-engineering** | Low | Medium | Start minimal — add complexity only when needed; avoid premature optimization |
+| **Incomplete Documentation** | Medium | Medium | Template README with all essential setup steps; include example commands |
+| **Inconsistent Structure** | Low | Low | Follow established React conventions; use community-standard folder structure |
 
-### Medium-Severity Risks
+### Security Considerations
+- **Secrets Management:** No API keys or secrets in this phase; establish `.env` pattern early for future use
+- **Dependency Scanning:** Enable GitHub Dependabot alerts for automated vulnerability detection
+- **HTTPS Development:** Ensure development server runs on localhost (not exposed externally)
 
-**Risk: Dependency vulnerabilities**
-- **Scenario:** Newly installed packages contain known security vulnerabilities
-- **Impact:** Security warnings in terminal, potential CI failures if vulnerability scanning is enabled
-- **Mitigation:** Run `npm audit` after setup; update vulnerable dependencies before committing; this is a test repo with no production data, so risk is theoretical
-- **Probability:** Low | **Severity:** Low (test repo context)
+### Performance Considerations
+- **Bundle Size:** Minimal at this stage; establish bundle analysis tooling (e.g., `webpack-bundle-analyzer`) for future growth
+- **Development Server:** Default configurations are sufficient for single-developer setup
+- **Asset Optimization:** Image/asset optimization can be deferred to later orbits when content is added
 
-**Risk: Missing `.gitignore` entries**
-- **Scenario:** Node modules or build artifacts accidentally committed to Git
-- **Impact:** Bloated repository, merge conflicts on dependency updates
-- **Mitigation:** Use comprehensive `.gitignore` template from gitignore.io or GitHub's Node template; verify `node_modules/` and `dist/` are excluded
-- **Probability:** Very Low | **Severity:** Medium
-
-**Risk: Undocumented setup steps**
-- **Scenario:** README omits critical setup information (e.g., environment variables, special configuration)
-- **Impact:** Next developer cannot reproduce setup; trajectory stalls
-- **Mitigation:** Test README instructions in a fresh environment; include troubleshooting section
-- **Probability:** Low | **Severity:** Medium
-
-### Negligible Risks
-
-**Risk: Hot reload fails**
-- **Scenario:** HMR breaks due to syntax error or configuration issue
-- **Impact:** Developer must manually refresh browser (annoying but not blocking)
-- **Mitigation:** No special mitigation needed; HMR failures are self-evident and easily resolved with server restart
-- **Probability:** Low | **Severity:** Negligible
-
-**Risk: Build output size**
-- **Scenario:** Production build is larger than expected
-- **Impact:** Slower initial page loads if deployed (not a concern for template-only work)
-- **Mitigation:** No action needed at template stage; can be optimized later if project goes to production
-- **Probability:** Not Applicable | **Severity:** Negligible
-
-### Risk Summary
-
-This intent carries **minimal risk** due to its isolated nature (test repository, no production impact) and reversibility (can be deleted or reverted without consequences). The most significant risk is poor documentation leading to setup friction for future developers, which is mitigated by thorough README content and testing setup instructions before committing.
-
-**No security, data, or availability risks** — this is a static frontend template with no authentication, backend, or user data.
+### Rollback Strategy
+- Template creation is low-risk with simple rollback
+- If issues arise: `git reset --hard` to prior commit
+- No production dependencies — changes are isolated to development environment
