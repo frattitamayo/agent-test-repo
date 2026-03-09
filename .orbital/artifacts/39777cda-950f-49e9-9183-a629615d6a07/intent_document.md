@@ -2,7 +2,7 @@
 
 ## Desired Outcome
 
-Users can trigger a friendly greeting toast notification by clicking a button. When activated, a toast message displaying "Hello sir" appears on screen, providing immediate visual feedback and confirming the interaction was successful. This creates a simple, delightful interaction pattern that can serve as a foundation for future notification-based features.
+Users can trigger a friendly greeting toast notification by clicking a button. When activated, a toast message displaying "Hello good sir" appears on screen, providing immediate visual feedback and confirming the interaction was successful. This creates a simple, delightful interaction pattern that can serve as a foundation for future notification-based features.
 
 ## Constraints
 
@@ -17,7 +17,7 @@ Users can trigger a friendly greeting toast notification by clicking a button. W
 
 **Functional Requirements:**
 - Button renders on the target page/component with appropriate styling
-- Clicking the button triggers a toast notification with the exact text "Hello sir"
+- Clicking the button triggers a toast notification with the exact text "Hello good sir"
 - Toast appears within 100ms of button click
 - Toast automatically dismisses after 3-5 seconds (configurable if framework allows)
 - Multiple rapid clicks do not create overlapping or duplicate toasts
