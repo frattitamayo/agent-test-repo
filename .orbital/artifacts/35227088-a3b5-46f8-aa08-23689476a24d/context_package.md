@@ -53,6 +53,45 @@ User Browser → Static HTML (index.html) → React Bundle Load → Component Re
 
 No external data sources, authentication layers, or API integrations exist at this stage.
 
+### Data Layer Architecture
+
+**Initial State (Template Phase):**
+- Local component state via React hooks (`useState`, `useReducer`)
+- No external data fetching, APIs, or persistent storage
+- Props drilling for component communication
+- No global state management library required
+
+**Future Integration Patterns:**
+- **Data Fetching:** `src/services/` directory for API clients
+  - Centralized axios/fetch instances
+  - Error handling and retry logic
+  - Request/response interceptors
+- **State Management:** When complexity grows:
+  - React Context API for shared application state
+  - Consider Zustand/Jotai for lightweight global state
+  - Redux Toolkit for complex state workflows (only if needed)
+- **Data Validation:** Zod or Yup for schema validation at API boundaries
+- **Caching Strategy:** React Query or SWR for server state caching and synchronization
+
+**Directory Structure (Future):**
+```
+src/
+├── services/
+│   ├── api.js          # Base API client configuration
+│   └── userService.js  # Domain-specific API calls
+├── hooks/
+│   └── useDataFetch.js # Custom data fetching hooks
+├── context/
+│   └── AppContext.jsx  # Global state context providers
+└── types/              # TypeScript interfaces for data models
+```
+
+**Data Flow Principles:**
+- Component state for UI-only concerns (form inputs, toggles)
+- Lifted state for sibling component sharing
+- Context for deeply nested prop drilling scenarios
+- External state management only when Context becomes cumbersome
+
 ### Build Pipeline
 **Development Mode:**
 - Local development server (typically port 3000 or 5173)
