@@ -1,49 +1,78 @@
-# Intent Document — Fio Test Repo
+# Bruh Feature Toast
 
-**Generated:** 2026-03-04  
-**Source:** Intent "Yuh Feature Toast" from Trajectory "Testing GitHub Integration"  
-**Intent Count:** 1
+## Desired Outcome
 
----
+Users can trigger a toast notification displaying "Good day sir!" by clicking a button. This provides immediate visual feedback for user interaction and establishes a reusable toast notification pattern within the application.
 
-## INT-001: Yuh Feature Toast
+When complete, any user will be able to:
+- Click a clearly labeled button in the UI
+- See a toast notification appear with the message "Good day sir!"
+- Observe the toast dismiss automatically or manually after a reasonable duration
+- Experience consistent, accessible notification behavior across the application
 
-- **outcome:** User receives immediate visual feedback when clicking a button — a toast notification appears displaying the message "Yuh!"
+## Constraints
 
-- **constraints:** Must not interfere with existing UI elements or workflows; must use existing toast/notification system (no custom implementation); must follow established UI component patterns; must not persist data or modify application state beyond the transient toast display; must not increase bundle size by >10KB; must not create memory leaks from repeated interactions; must meet WCAG 2.1 AA accessibility standards including 4.5:1 contrast ratio minimum; must respect prefers-reduced-motion user settings; must prevent toast spam from rapid button clicks (max 1 toast per second); must support browsers released within last 2 years (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+); must fail silently if toast system unavailable (no app crash); must prevent XSS if message ever becomes dynamic; toast must not obscure critical UI elements; must support touch interactions on mobile devices with minimum 44x44px touch target (WCAG 2.5.5); must function in offline/degraded network conditions (toast is client-side only); must not hard-code text in implementation (message should be configurable for future internationalization); toast z-index must not conflict with modals, dropdowns, or navigation elements (must respect existing stacking context); toast animations must not cause layout thrashing or forced reflows (must use GPU-accelerated properties: transform/opacity only); must be testable in CI/CD without visual regression (deterministic timing for automated tests).
+- **Accessibility:** Toast must meet WCAG 2.1 AA standards including screen reader announcements, keyboard dismissal, and sufficient color contrast
+- **Performance:** Toast render time must not exceed 100ms from button click to visible display
+- **UX Consistency:** Must align with existing design system patterns if present; if no design system exists, must establish reusable component architecture for future notifications
+- **Browser Compatibility:** Must function correctly in Chrome, Firefox, Safari, and Edge (latest two versions)
+- **Non-blocking:** Toast must not prevent interaction with other UI elements or require dismissal to continue user workflows
+- **No External Dependencies:** May not introduce new third-party libraries without explicit approval (use existing framework capabilities)
 
-- **acceptance:** 
-  - Button renders and is clickable in all supported browsers and devices
-  - Toast appears within <100ms of button click `[inferred]`
-  - Toast displays exactly "Yuh!" message
-  - Toast auto-dismisses or provides dismiss control
-  - No console errors or warnings on interaction
-  - Accessibility score ≥ 95 (Lighthouse) `[inferred]`
-  - Button has proper ARIA label and keyboard support (Enter/Space)
-  - Works consistently across Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
-  - Bundle size increase measured and confirmed <10KB `[inferred]`
-  - Memory profiling shows no leaks after 100 consecutive button clicks `[inferred]`
-  - Button contrast ratio ≥ 4.5:1 (WCAG AA)
-  - Button touch target ≥ 44x44px on mobile devices
-  - Toast respects prefers-reduced-motion (reduced animation if user prefers reduced motion)
-  - Rapid clicks (>1 per second) only trigger one toast per second `[inferred]`
-  - App remains functional if toast system unavailable (graceful degradation)
-  - Screen reader announces toast message
-  - Toast message is configurable via prop/parameter (not hard-coded in component logic)
-  - Toast z-index does not conflict with existing UI layers (tested against modals/dropdowns)
-  - Toast animations use only transform/opacity (verified via DevTools performance profiling)
-  - Automated tests pass in CI/CD with deterministic timing (no flaky timing-dependent failures)
-  - Feature works offline (no network requests required for toast display)
+## Acceptance Boundaries
 
-- **trust_tier:** 2 — supervised (user-facing UI change that affects user experience; requires human approval before deploy to ensure visual consistency and accessibility compliance)
+### Functional Requirements
+- Button renders in the UI with clear, appropriate labeling (e.g., "Show Toast", "Greet User")
+- Click event triggers toast notification 100% of the time
+- Toast displays exact message: "Good day sir!"
+- Toast appears in consistent screen position (corner or edge, not center-blocking)
+- Toast auto-dismisses after 3-5 seconds OR provides user-dismissible close control
 
----
+### Quality Thresholds
+- **Accessibility Score:** Lighthouse accessibility audit ≥ 95
+- **Performance:** Click-to-render latency < 100ms (p95)
+- **Visual Consistency:** Design review confirms alignment with project UI patterns
+- **Cross-browser Testing:** Manual verification pass in 4 target browsers
+
+### Acceptable Variations
+- Toast position (top-right, bottom-right, top-center) — any corner/edge placement acceptable
+- Animation style (slide, fade) — any smooth animation ≤ 300ms acceptable
+- Dismiss timing (3-5 seconds) — any duration in range acceptable
+- Styling details (shadow, border, padding) — any readable, accessible treatment acceptable
+
+## Trust Tier Assignment
+
+**Tier 2: Supervised**
+
+**Rationale:**
+This feature introduces a new UI interaction pattern that affects user experience and establishes architectural precedent for notification handling. While the blast radius is limited (single button, single message), the implementation decisions (component architecture, accessibility implementation, state management) will influence future notification features.
+
+Supervision is warranted because:
+- First implementation of toast/notification system creates architectural precedent
+- Accessibility compliance requires verification beyond automated testing
+- UI/UX patterns should align with project direction and human aesthetic approval
+- Risk of poor implementation creating technical debt in notification handling
+
+Human review gates:
+1. Design/UX approval of toast appearance and behavior
+2. Accessibility verification (screen reader testing, keyboard navigation)
+3. Code review of component architecture for reusability
+4. Final integration testing before merge
 
 ## Dependencies
 
-**Assumptions:**
-- Existing toast/notification system is available and functional
-- UI component library or framework is in place
-- No external API or backend changes required
+### Internal Dependencies
+- Existing UI framework/library (React, Vue, Angular, or vanilla JS stack)
+- Current styling system (CSS framework, component library, or custom styles)
+- Build and deployment pipeline for the test repository
 
-**Blockers:** None identified
+### External Dependencies
+None — implementation should use existing project dependencies only
+
+### Prior Work
+- No prior orbits referenced
+- This is the first feature implementation for the Fio Test Repo under the Testing GitHub Integration trajectory
+- Establishes baseline patterns for future UI enhancement intents
+
+### Blockers
+None identified — all dependencies are existing infrastructure
