@@ -2,244 +2,297 @@
 
 ## Codebase References
 
-### Target Location
-- **Root Directory**: `/` — New React project will be scaffolded at repository root
-- **Expected Structure** (post-creation):
-  - `/src/` — Application source code
-  - `/public/` — Static assets
-  - `/package.json` — Dependency manifest
-  - `/README.md` — Project documentation
-  - `/.gitignore` — Version control exclusions
-  - `/node_modules/` — Dependencies (not committed)
+### Files to Create
 
-### Configuration Files (to be created)
-- `/package.json` — Must include `start`, `build`, `test` scripts
-- `/eslintrc.*` or `eslint.config.js` — Linting configuration
-- `/tsconfig.json` — TypeScript configuration (stretch goal)
-- `/.prettierrc` — Code formatting rules (stretch goal)
-- `/.husky/` — Git hooks directory (stretch goal)
-- `/.github/workflows/ci.yml` — CI validation workflow (stretch goal)
+**Root Level:**
+- `package.json` — Project manifest defining dependencies, scripts, and metadata
+- `package-lock.json` or `yarn.lock` — Dependency lock file for reproducible builds
+- `.gitignore` — Standard Node.js/React gitignore patterns
+- `README.md` — Setup instructions, project structure documentation, and development commands
+- `.env.example` — Template for environment variables (empty or with placeholder comments)
 
-### No Existing Codebase
-This intent creates the foundational project structure. No prior implementation exists to reference or modify.
+**Configuration Files:**
+- `.eslintrc.json` or `.eslintrc.js` — Linting rules for code quality
+- `.prettierrc` or `.prettierrc.json` — Code formatting configuration (if using Prettier)
+- `tsconfig.json` — TypeScript configuration (if implementing stretch outcome)
+- `vite.config.js` or `webpack.config.js` — Build tool configuration (depending on chosen scaffolding tool)
+
+**Source Directory (`src/`):**
+- `src/index.js` or `src/main.jsx` — Application entry point
+- `src/App.jsx` — Root application component
+- `src/App.css` — Root component styling
+- `src/index.css` — Global styles
+- `src/components/` — Directory for reusable components (create example component if target outcome pursued)
+
+**Public Directory (`public/`):**
+- `public/index.html` — HTML template
+- `public/favicon.ico` — Browser tab icon
+- `public/robots.txt` — Search engine crawling rules (optional)
+
+### Repository Context
+
+**Repository Location:** `Fio Test Repo` — This is a testing repository, meaning:
+- No production dependencies exist
+- Experimental work is expected and encouraged
+- Failures have no external impact
+- Documentation can be more experimental/informal than production repos
+
+**Repository Root:** All project files should be created at the repository root unless a specific subfolder structure already exists for organizing multiple projects.
 
 ## Architecture Context
 
-### Project Type
-Standalone React single-page application (SPA) with client-side rendering. No server-side rendering (SSR) or static site generation (SSG) required at this stage.
+### System Position
 
-### Build Tooling Decision Matrix
-Three viable approaches exist for React project initialization:
+This intent creates a **standalone frontend application scaffold** with no integration points. The React application will:
 
-1. **Create React App (CRA)**
-   - Pros: Zero-config, official React tooling, extensive documentation
-   - Cons: No longer actively maintained (as of 2023), webpack-based (slower)
-   - Use Case: Maximum stability, minimal customization needs
+- Run entirely in the browser with no backend communication
+- Serve static assets from a development server during development
+- Build to static files for potential deployment (though deployment is out of scope)
+- Have no data persistence layer (no databases, APIs, or external services)
 
-2. **Vite**
-   - Pros: Fast HMR, modern ESM-based, active development, plugin ecosystem
-   - Cons: Newer ecosystem, some library compatibility gaps
-   - Use Case: Performance priority, modern development experience
+### React Application Architecture
 
-3. **Next.js (Pages Router, CSR only)**
-   - Pros: Production-ready, extensive tooling, easy future SSR migration
-   - Cons: Heavier than needed for pure SPA, opinionated structure
-   - Use Case: Future-proofing for server features
+**Single Page Application (SPA) Pattern:**
+- All rendering happens client-side in the browser
+- JavaScript bundle loads once; subsequent navigation happens via DOM manipulation
+- Hot Module Replacement (HMR) enables live updates during development without full page reloads
 
-**Recommended Approach**: Vite with React template (`npm create vite@latest . -- --template react` or `--template react-ts` for TypeScript).
-
-**Rationale**: Aligns with "Build Performance" constraint (<10s start time), provides modern DX with HMR, actively maintained, and satisfies all acceptance criteria without over-engineering.
-
-### Development Workflow
+**Component Hierarchy:**
 ```
-Developer → npm install → npm run dev → localhost:5173
-                         ↓
-                    Code changes → HMR → Browser updates
-                         ↓
-                    npm run build → dist/ folder (production assets)
+index.html (public/)
+  └─ index.js (src/)
+       └─ App.jsx (src/)
+            └─ [Future Components]
 ```
 
-### Folder Structure Convention
-```
-/
-├── src/
-│   ├── components/        # Reusable UI components
-│   ├── assets/            # Images, fonts, static resources
-│   ├── utils/             # Helper functions, utilities
-│   ├── App.jsx (or .tsx)  # Root component
-│   └── main.jsx (or .tsx) # Application entry point
-├── public/                # Static files served as-is
-├── dist/                  # Build output (gitignored)
-└── package.json
-```
+### Development vs. Production Modes
 
-### No Backend Integration
-This template is frontend-only. API integration, authentication, and backend services are explicitly scoped out (per "Non-Goals" in intent). Future intents will handle those concerns.
+**Development Server:**
+- Runs on localhost (typically port 3000 or 5173 for Vite)
+- Provides HMR for instant feedback
+- Includes source maps for debugging
+- Unoptimized bundles for faster rebuilds
 
-### Browser Target Configuration
-Must transpile/polyfill for:
-- Chrome/Edge: last 2 versions
-- Firefox: last 2 versions
-- Safari: last 2 versions
+**Production Build:**
+- Generates optimized, minified static assets
+- Removes development-only code
+- Creates compressed bundles
+- Outputs to `dist/` or `build/` directory
 
-No IE11 support required (per "evergreen browsers" constraint).
+### Tooling Decision Point
+
+**Create React App (CRA):**
+- Pros: Zero configuration, widely adopted, comprehensive
+- Cons: Slower build times, larger dependency footprint, maintenance mode as of 2023
+
+**Vite:**
+- Pros: Lightning-fast dev server, modern ESM-based, smaller footprint
+- Cons: Newer (less community resources for troubleshooting)
+- **Recommended** for new projects in 2024+
+
+**Manual Setup:**
+- Pros: Full control, minimal dependencies
+- Cons: Time-intensive, requires deep understanding of Webpack/Rollup
+- **Not recommended** for template creation (defeats purpose of quick start)
+
+### Infrastructure Constraints
+
+**Node.js Version:** Requires Node.js 16.x or higher
+- Vite requires Node.js 14.18+ or 16+
+- React 18 requires Node.js 14+
+- **Target: Node.js 18.x LTS** (current stable LTS as of late 2023/early 2024)
+
+**Browser Compatibility:**
+- Modern ES6+ syntax
+- No IE11 support required (per constraints)
+- Targets last 2 versions of major browsers
 
 ## Pattern Library
 
-### React Patterns (Established Best Practices)
-Since this is a greenfield project, adopt these React ecosystem standards:
+### React Component Patterns
 
-1. **Component Structure**
-   - Functional components only (no class components)
-   - Hooks for state and side effects
-   - Props destructuring in function signature
-   - Example:
-     ```jsx
-     function ExampleComponent({ title, onAction }) {
-       const [state, setState] = useState(initialValue);
-       
-       useEffect(() => {
-         // side effect
-       }, [dependencies]);
-       
-       return <div>{title}</div>;
-     }
-     ```
+**Functional Components with Hooks:**
+```jsx
+// src/components/ExampleComponent.jsx
+import { useState } from 'react';
 
-2. **File Naming**
-   - Components: PascalCase (e.g., `Button.jsx`, `UserProfile.tsx`)
-   - Utilities: camelCase (e.g., `formatDate.js`, `apiHelpers.js`)
-   - Constants: UPPER_SNAKE_CASE in dedicated files (e.g., `API_ENDPOINTS.js`)
+function ExampleComponent({ title }) {
+  const [count, setCount] = useState(0);
+  
+  return (
+    <div>
+      <h2>{title}</h2>
+      <button onClick={() => setCount(count + 1)}>
+        Count: {count}
+      </button>
+    </div>
+  );
+}
 
-3. **Import Organization**
-   ```javascript
-   // 1. External dependencies
-   import React, { useState } from 'react';
-   import { someLibrary } from 'external-package';
-   
-   // 2. Internal modules
-   import { utilityFunction } from './utils/helpers';
-   
-   // 3. Styles/assets
-   import './Component.css';
-   import logo from './assets/logo.svg';
-   ```
+export default ExampleComponent;
+```
 
-4. **ESLint Rules (Recommended Baseline)**
-   - `react/jsx-uses-react`: off (React 17+ JSX transform)
-   - `react/react-in-jsx-scope`: off (React 17+ JSX transform)
-   - `react/prop-types`: warn (or use TypeScript)
-   - `no-unused-vars`: error
-   - `no-console`: warn (production should not ship console logs)
+**Avoid class components** — functional components with hooks are the modern React standard (React 16.8+).
 
-5. **Testing Patterns** (if stretch goal achieved)
-   - Test files co-located with components: `Button.test.jsx`
-   - Use React Testing Library over Enzyme (modern standard)
-   - Test user behavior, not implementation details
+### File Naming Conventions
 
-### Anti-Patterns to Avoid
-- **Direct DOM manipulation**: Use React state/refs, not `document.getElementById`
-- **Prop drilling**: If passing props >3 levels deep, consider context or composition
-- **Premature optimization**: Do not add Redux/Zustand/etc. unless state complexity demands it
-- **Mixing concerns**: Keep business logic separate from presentational components
+**React Components:**
+- PascalCase: `MyComponent.jsx` or `MyComponent.tsx`
+- Use `.jsx` extension to distinguish from plain JavaScript
 
-### Package.json Script Conventions
+**Utilities and Helpers:**
+- camelCase: `apiHelpers.js`, `formatUtils.js`
+- Use `.js` extension
+
+**Stylesheets:**
+- Matching component name: `MyComponent.css` for `MyComponent.jsx`
+- OR global: `index.css`, `App.css`
+
+### Directory Structure
+
+```
+fio-test-repo/
+├── public/
+│   ├── index.html
+│   └── favicon.ico
+├── src/
+│   ├── components/
+│   │   └── ExampleComponent.jsx
+│   ├── App.jsx
+│   ├── App.css
+│   ├── index.js
+│   └── index.css
+├── .gitignore
+├── package.json
+├── README.md
+└── vite.config.js (or equivalent)
+```
+
+### NPM Scripts Standard
+
 ```json
 {
   "scripts": {
-    "dev": "vite",              // Development server
-    "build": "vite build",      // Production build
-    "preview": "vite preview",  // Preview production build
-    "lint": "eslint src",       // Code linting
-    "test": "vitest"            // Test runner (if configured)
+    "dev": "vite",           // Start development server
+    "build": "vite build",   // Create production build
+    "preview": "vite preview", // Preview production build locally
+    "lint": "eslint src --ext js,jsx", // Run linter
+    "format": "prettier --write "src/**/*.{js,jsx}"" // Format code
   }
 }
 ```
 
+### Code Quality Configuration
+
+**ESLint:**
+- Extend `eslint:recommended` and `plugin:react/recommended`
+- Configure `react/react-in-jsx-scope` as off (not needed in React 17+)
+- Enable `plugin:react-hooks/recommended` for hooks rules
+
+**Prettier:**
+- 2-space indentation
+- Single quotes
+- Trailing commas: `es5`
+- Semi-colons: true
+
+### Git Commit Message Convention
+
+For this template creation:
+```
+feat: initialize React project scaffold
+
+- Configure Vite with React
+- Add ESLint and Prettier
+- Create basic component structure
+- Document setup in README
+```
+
 ## Prior Orbit References
 
-### Trajectory Context
-- **Trajectory Name**: Testing GitHub Integration
-- **Trajectory Description**: (Not provided — assume this validates GitHub integration workflows)
+### Current Orbit Context
 
-### Prior Intents
-**None.** This is Intent #1 in the trajectory (OBT-1, Orbit 1). No previous implementation exists.
+**Orbit ORB-1:**
+- **Phase:** Intent (current)
+- **Status:** In Progress
+- **Summary:** "Create a basic react project framework to build off of"
 
-### Lessons from Ecosystem
-While no prior orbits exist, common pitfalls from React project creation across industry:
+This is the **first orbit** in the "Testing GitHub Integration" trajectory. No prior work exists in this trajectory.
 
-1. **CRA Deprecation** (2023): Create React App is no longer maintained. Avoid unless there's a compelling legacy reason.
-2. **Node Version Mismatch**: Lock Node.js version using `.nvmrc` or `engines` field in `package.json` to prevent "works on my machine" issues.
-3. **Dependency Sprawl**: Keep initial dependencies minimal. Resist adding libraries before they're needed.
-4. **Ignoring TypeScript**: While optional here (stretch goal), starting with TypeScript is easier than retrofitting later. Strongly consider using `react-ts` template.
+### Related Work in Repository
+
+**Unknown:** This is a test repository with no provided history. Assume this is a **greenfield setup** — no existing React projects, no established patterns to inherit, no prior architectural decisions to respect.
+
+### Lessons from Broader React Ecosystem
+
+**React 18+ Considerations:**
+- New root API: `ReactDOM.createRoot()` instead of `ReactDOM.render()`
+- Automatic batching of state updates
+- Concurrent rendering features available (not required for template)
+
+**Deprecated Patterns to Avoid:**
+- Class components (unless legacy code requires)
+- `componentWillMount`, `componentWillReceiveProps` lifecycle methods
+- Direct DOM manipulation (use refs when needed)
+- Prop drilling (consider Context API for shared state in future)
 
 ## Risk Assessment
 
-### Risk 1: Tooling Choice Lock-In
-**Severity**: Medium  
-**Description**: Choosing Create React App could saddle project with deprecated tooling; choosing Next.js could over-engineer for current needs.  
-**Mitigation**: Use Vite as recommended. It's actively maintained, performant, and doesn't impose unnecessary architecture. Document the decision in README.md with rationale.
+### Low-Severity Risks
 
-### Risk 2: Dependency Vulnerability
-**Severity**: Low (manageable)  
-**Description**: Fresh installs pull latest package versions, which may have unpatched vulnerabilities.  
-**Mitigation**: 
-- Run `npm audit` immediately after `npm install`
-- Add GitHub Dependabot configuration to trajectory for automated vulnerability alerts
-- Pin major versions in `package.json` to prevent breaking changes
+**Risk: Tooling version mismatches**
+- **Scenario:** Node.js version on developer machine differs from what template assumes
+- **Impact:** Project may fail to install or start
+- **Mitigation:** Document required Node.js version prominently in README; include `.nvmrc` file for nvm users
+- **Probability:** Medium | **Severity:** Low
 
-### Risk 3: Development Environment Variability
-**Severity**: Medium  
-**Description**: Different Node.js versions or package manager choices (npm vs. yarn vs. pnpm) can cause inconsistent behavior.  
-**Mitigation**:
-- Add `.nvmrc` with specific Node version (e.g., `18.18.0` or `20.10.0`)
-- Document required Node version in README.md
-- Use `package-lock.json` (npm) or `yarn.lock` — commit it to ensure deterministic installs
+**Risk: Conflicting ESLint/Prettier rules**
+- **Scenario:** Auto-formatting and linting produce conflicting feedback
+- **Impact:** Developer confusion, inconsistent code style
+- **Mitigation:** Use `eslint-config-prettier` to disable ESLint formatting rules that conflict with Prettier
+- **Probability:** Medium | **Severity:** Low
 
-### Risk 4: HMR Failure on File System Watchers
-**Severity**: Low  
-**Description**: On some systems (especially Windows, WSL2), file watchers may not trigger HMR properly.  
-**Mitigation**: Vite has robust defaults; document troubleshooting steps in README if issues arise (e.g., increasing file watcher limits on Linux).
+**Risk: Port 3000 already in use**
+- **Scenario:** Another process is using the default dev server port
+- **Impact:** Dev server fails to start
+- **Mitigation:** Vite auto-increments to next available port; document this behavior in README
+- **Probability:** Low | **Severity:** Negligible
 
-### Risk 5: Missing Documentation
-**Severity**: High  
-**Description**: Per acceptance boundaries, lack of documentation makes template unusable for other developers.  
-**Impact**: Blocks subsequent intents, reduces trajectory velocity  
-**Mitigation**: 
-- Treat README.md as mandatory, not optional
-- Must include: setup steps, available scripts, folder structure explanation, how to extend
-- Add inline comments in key files (`main.jsx`, `vite.config.js`) explaining non-obvious choices
+### Medium-Severity Risks
 
-### Risk 6: Overcomplication (Scope Creep)
-**Severity**: Medium  
-**Description**: Temptation to add routing, state management, UI libraries despite "Non-Goals" constraint.  
-**Mitigation**: 
-- Strictly adhere to acceptance criteria
-- Stretch goals (TypeScript, testing, Prettier, husky) are acceptable as they enhance DX without changing architecture
-- State management, routing, component libraries are explicitly future intents — do not pre-implement
+**Risk: Dependency vulnerabilities**
+- **Scenario:** Newly installed packages contain known security vulnerabilities
+- **Impact:** Security warnings in terminal, potential CI failures if vulnerability scanning is enabled
+- **Mitigation:** Run `npm audit` after setup; update vulnerable dependencies before committing; this is a test repo with no production data, so risk is theoretical
+- **Probability:** Low | **Severity:** Low (test repo context)
 
-### Risk 7: Build Time Exceeding Constraint
-**Severity**: Low  
-**Description**: Development server start time exceeds <10 seconds on standard hardware.  
-**Mitigation**: 
-- Vite typically starts in <3 seconds for empty projects
-- Test on mid-tier hardware (8GB RAM, quad-core) before considering acceptance met
-- If exceeded, profile with `DEBUG=vite:* npm run dev` and optimize
+**Risk: Missing `.gitignore` entries**
+- **Scenario:** Node modules or build artifacts accidentally committed to Git
+- **Impact:** Bloated repository, merge conflicts on dependency updates
+- **Mitigation:** Use comprehensive `.gitignore` template from gitignore.io or GitHub's Node template; verify `node_modules/` and `dist/` are excluded
+- **Probability:** Very Low | **Severity:** Medium
 
-### Security Considerations
-- **No Secrets**: Ensure no API keys, tokens, or credentials are committed (add to `.gitignore` template)
-- **Public Directory**: Anything in `/public` is served as-is — do not place sensitive files there
-- **Script Injection**: Default Vite/React setup is safe; avoid `dangerouslySetInnerHTML` in example components
+**Risk: Undocumented setup steps**
+- **Scenario:** README omits critical setup information (e.g., environment variables, special configuration)
+- **Impact:** Next developer cannot reproduce setup; trajectory stalls
+- **Mitigation:** Test README instructions in a fresh environment; include troubleshooting section
+- **Probability:** Low | **Severity:** Medium
 
-### Performance Baseline
-- **Cold Start** (first `npm run dev`): <10 seconds (per constraint)
-- **HMR Update**: <500ms for single component change
-- **Production Build**: <30 seconds for minimal template
-- **Bundle Size**: Initial bundle <200KB (gzipped) — baseline for future measurement
+### Negligible Risks
 
-### Rollback Strategy
-If this intent fails validation:
-1. Delete project directory
-2. Reset repository to previous commit
-3. Re-run creation with adjusted parameters
-4. No persistent state exists — complete rollback possible
+**Risk: Hot reload fails**
+- **Scenario:** HMR breaks due to syntax error or configuration issue
+- **Impact:** Developer must manually refresh browser (annoying but not blocking)
+- **Mitigation:** No special mitigation needed; HMR failures are self-evident and easily resolved with server restart
+- **Probability:** Low | **Severity:** Negligible
+
+**Risk: Build output size**
+- **Scenario:** Production build is larger than expected
+- **Impact:** Slower initial page loads if deployed (not a concern for template-only work)
+- **Mitigation:** No action needed at template stage; can be optimized later if project goes to production
+- **Probability:** Not Applicable | **Severity:** Negligible
+
+### Risk Summary
+
+This intent carries **minimal risk** due to its isolated nature (test repository, no production impact) and reversibility (can be deleted or reverted without consequences). The most significant risk is poor documentation leading to setup friction for future developers, which is mitigated by thorough README content and testing setup instructions before committing.
+
+**No security, data, or availability risks** — this is a static frontend template with no authentication, backend, or user data.
