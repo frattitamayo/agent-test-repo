@@ -1,95 +1,73 @@
-# Create Template Project
+# Create React Template Project
 
 ## Desired Outcome
 
-A functional React project template exists in the Fio Test Repo that serves as a foundational starting point for future development work. Developers can clone, run, and build upon this template without encountering setup barriers or missing dependencies. The template demonstrates React best practices and provides a clean slate for feature development.
+A functional React project template exists that serves as the foundation for future development work in the Fio Test Repo. Developers can clone, install dependencies, and run the development server without configuration errors. The project follows modern React best practices and includes essential tooling for a professional development workflow.
 
 ## Constraints
 
-- **Technology Stack:** Must use React as the primary framework (no alternative frameworks)
-- **Build Tooling:** Must use standard, well-supported build tools (Vite, Create React App, or equivalent) — no experimental or deprecated tooling
-- **Node Version:** Must support Node.js LTS versions (currently 18.x and 20.x)
-- **Repository Structure:** Must integrate cleanly with existing Fio Test Repo without disrupting any current files or configurations
-- **License Compliance:** All dependencies must use permissive licenses compatible with the project's intended use
-- **No Production Secrets:** Template must not contain any hardcoded credentials, API keys, or environment-specific configuration
-- **Minimal Footprint:** Initial setup should not exceed 500MB of node_modules (excluding dev dependencies)
+- **Framework Version:** Must use React 18 or later with current LTS support
+- **Build Tool:** Must use a maintained, community-standard build tool (Vite, Create React App, or Next.js)
+- **Node Version:** Compatible with Node.js LTS versions (18.x or 20.x)
+- **Package Manager:** Use npm, yarn, or pnpm consistently; do not mix package managers
+- **Repository Structure:** Must not conflict with existing GitHub repository structure or settings
+- **License Compliance:** All dependencies must use permissive open-source licenses (MIT, Apache 2.0, BSD)
+- **No Backend Services:** This template is frontend-only; do not include API servers, databases, or backend frameworks
+- **Non-Goal:** This is NOT a production-ready application; UI/UX polish is not required
 
 ## Acceptance Boundaries
 
-**Minimum Viable (Tier 1 - Autonomous Proceed):**
-- Project initializes with `npm install` or `yarn install` without errors
-- Development server starts with `npm run dev` or equivalent and serves on localhost
-- Browser loads the default React page without console errors
-- README.md exists with setup instructions (minimum: install, run dev server)
-- At least one basic component renders successfully
+**Minimal Acceptable:**
+- Project initializes without errors using standard commands (`npm install` or equivalent)
+- Development server starts successfully on localhost
+- Default landing page renders in browser without console errors
+- README contains installation and run instructions
+- Git repository remains clean (appropriate .gitignore in place)
 
-**Target State (Ideal):**
-- Hot module replacement (HMR) works correctly during development
-- Production build (`npm run build`) generates optimized static assets
-- Project includes basic folder structure (components, assets, styles)
-- ESLint or similar linting configured with React-recommended rules
-- TypeScript support included and configured (if React with TS chosen)
-- README includes build, test, and deployment instructions
-- Initial bundle size ≤ 150KB gzipped for production build
+**Target State:**
+- Development server starts in <5 seconds on modern hardware
+- Hot module replacement (HMR) functional for component changes
+- TypeScript support configured (if using TypeScript)
+- Basic linting configured (ESLint or equivalent)
+- Basic formatting configured (Prettier or equivalent)
+- Test framework present with at least one passing example test
+- README includes project structure overview and next steps guidance
 
-**Acceptable Degradation:**
-- If HMR occasionally requires manual refresh (noted in README)
-- If production build size reaches 200KB gzipped (but documented with rationale)
-- If linting configuration is basic/minimal (can be enhanced later)
-
-**Unacceptable:**
-- Project fails to install or run on Node LTS versions
-- Development server crashes or requires manual restarts frequently
-- Missing or incomplete setup documentation
-- Production build fails or produces non-functional output
-- Security vulnerabilities in dependencies (npm audit critical/high warnings)
+**Exceptional:**
+- CI/CD pipeline configuration included (.github/workflows)
+- Storybook or component documentation setup
+- Pre-commit hooks configured (Husky or equivalent)
+- Performance monitoring baseline established
+- Accessibility testing framework integrated
 
 ## Trust Tier Assignment
 
-**Tier 1 — Informed (Autonomous with Notification)**
+**Tier 1 — Autonomous**
 
 **Rationale:**
-- **Low Blast Radius:** Creating a new template project does not modify existing production systems or user-facing features
-- **Reversible:** Changes are isolated to new files/directories and can be removed without impact
-- **Standard Practice:** React project initialization is well-documented and follows established patterns
-- **No Data Risk:** No user data, authentication, or sensitive business logic involved
-- **Testing Requirement:** Project initialization can be verified through local testing before commit
+- **Low Blast Radius:** Creating a template project in a testing repository affects no production systems or user-facing services
+- **Fully Reversible:** All changes are contained to version control; repository can be reset or branch deleted without consequence
+- **Standard Practice:** React project scaffolding is a well-established, low-risk operation with predictable outcomes
+- **No Sensitive Data:** Template contains no API keys, credentials, PII, or business logic
+- **Observable Impact:** Success or failure is immediately visible through standard development workflows
+- **Testing Repository Context:** Explicitly designated as a testing environment, further reducing risk profile
 
-**Risk Factors Considered:**
-- Repository impact is minimal (new files only)
-- No integration points with external services required
-- Dependency selection involves standard, widely-used packages
-- Failure mode is contained (project simply doesn't run, doesn't break other systems)
-
-**Notification Triggers:**
-- Summary report of selected tooling and rationale
-- List of major dependencies and their versions
-- Confirmation that security audit passed
-- Documentation of any deviations from standard React patterns
+The AI agent can execute this work autonomously with post-execution notification to the human.
 
 ## Dependencies
 
-**Technical Dependencies:**
-- Node.js runtime (LTS versions 18.x or 20.x)
-- npm or yarn package manager
-- Git (for version control integration)
-- Modern web browser for testing (Chrome, Firefox, Safari, or Edge)
+**External:**
+- Node.js runtime (v18.x or v20.x LTS)
+- npm, yarn, or pnpm package manager
+- Git version control
 
-**Repository Dependencies:**
-- Access to Fio Test Repo with write permissions
-- Understanding of existing repo structure to avoid conflicts
-- Coordination with "Testing GitHub Integration" trajectory goals
+**Repository:**
+- Write access to `fio-test-repo` GitHub repository
+- No existing conflicting React project in target directory
 
-**External Dependencies:**
-- npm registry availability for package installation
-- React and related packages from official npm distributions
-- Build tool packages (Vite/CRA/etc.) from official sources
+**Prior Orbits:**
+- None; this is the foundational orbit for the Testing GitHub Integration trajectory
 
-**Knowledge Dependencies:**
-- React ecosystem current best practices (2024)
-- Modern JavaScript/TypeScript patterns
-- Standard project structure conventions for maintainability
-
-**No Prior Orbit Dependencies:**
-- This is Orbit 1 — no preceding intents or artifacts required
-- Establishes baseline for future trajectory work
+**Downstream Implications:**
+- Future intents in this trajectory will build upon this template structure
+- Component development, routing, and state management intents will assume this foundation exists
