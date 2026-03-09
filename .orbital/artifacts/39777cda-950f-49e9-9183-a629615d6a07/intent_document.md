@@ -2,7 +2,7 @@
 
 ## Desired Outcome
 
-Users can trigger a friendly greeting toast notification by pressing a button. When activated, a non-blocking toast message appears on screen displaying "Hello sir" and automatically dismisses after a standard duration. This provides immediate visual feedback for user interaction and demonstrates functional UI notification patterns in the test repository.
+Users can trigger a friendly greeting toast notification by pressing a button. When activated, a non-blocking toast message appears on screen displaying "Hello and good day sir" and automatically dismisses after a standard duration. This provides immediate visual feedback for user interaction and demonstrates functional UI notification patterns in the test repository.
 
 ## Constraints
 
@@ -17,7 +17,7 @@ Users can trigger a friendly greeting toast notification by pressing a button. W
 
 **Minimum viable:**
 - Button renders on page and is clickable
-- Toast appears with text "Hello sir" on button press
+- Toast appears with text "Hello and good day sir" on button press
 - Toast auto-dismisses within 2-5 seconds
 - No console errors on interaction
 
