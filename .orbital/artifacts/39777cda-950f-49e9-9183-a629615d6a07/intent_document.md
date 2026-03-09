@@ -1,67 +1,65 @@
-# Greeting Button for Toast
+# Greeting Button with Toast Notification
 
 ## Desired Outcome
 
-When a user interacts with a designated button in the Fio Test Repo application interface, a transient toast notification appears displaying the message "Hello sir". This interaction provides immediate, non-blocking feedback to the user, confirming their action without interrupting workflow or requiring dismissal. The feature demonstrates basic UI interaction patterns and toast notification functionality within the testing environment.
+Users can trigger a friendly greeting toast notification through a single button interaction. When pressed, a non-blocking toast message displays "Hello sir" to the user, providing immediate visual feedback without disrupting their workflow or requiring dismissal action.
 
 ## Constraints
 
-- **UI Non-Interference:** Toast must not block user interaction with other interface elements; must be dismissible or auto-dismiss
-- **Accessibility:** Button must be keyboard accessible (Enter/Space activation) and toast must be announced to screen readers via ARIA live region
-- **Performance:** Toast appearance latency must not exceed 100ms from button click
-- **Visual Consistency:** Toast styling must align with existing design system patterns used in Fio Test Repo (if defined) or follow standard material/component library conventions
-- **Non-Goals:** No customization of toast message, duration, or position beyond default behavior; no persistent notification history; no multi-language support required at this stage
+- **UI Consistency:** Toast notification must follow the project's existing design system patterns for non-critical informational messages
+- **Accessibility:** Button must be keyboard-accessible (Enter/Space) and include appropriate ARIA labels; toast must be announced to screen readers
+- **Non-Blocking:** Toast must not prevent user interaction with other UI elements and should auto-dismiss within 3-5 seconds
+- **Browser Compatibility:** Must function in all browsers supported by the Fio Test Repo (minimum: latest 2 versions of Chrome, Firefox, Safari, Edge)
+- **No External Dependencies:** Solution must not introduce new third-party libraries unless already present in the project
+- **Performance:** Button click-to-toast-display latency must remain under 100ms
 
 ## Acceptance Boundaries
 
-**Minimum Acceptable:**
+### Minimal Acceptable
 - Button renders and is clickable
-- Toast appears with exact text "Hello sir"
-- Toast is visible for minimum 2 seconds
-- Button and toast are keyboard accessible
+- Toast appears with text "Hello sir"
+- Toast disappears automatically within 10 seconds
+- Works in Chrome desktop
 
-**Target:**
-- Toast appears within 50ms of button activation
-- Toast auto-dismisses after 3-4 seconds
+### Target
+- Button renders with clear, accessible label
+- Toast appears within 50ms of click
+- Toast auto-dismisses after 3 seconds
+- Toast positioning follows design system conventions (typically top-right or bottom-center)
+- Keyboard navigation fully functional (Tab to focus, Enter/Space to activate)
+- Works across all supported browsers
 - Screen reader announces toast content
-- Button has hover and focus states
-- Toast has smooth fade-in/fade-out animation
 
-**Exceptional:**
-- Toast position is configurable (top/bottom)
-- Multiple rapid clicks queue or debounce appropriately (no spam)
-- Toast respects prefers-reduced-motion for users with motion sensitivity
-- Unit tests cover button click handler and toast trigger
-- Visual regression tests capture toast appearance
+### Exceptional
+- Toast animation follows design system motion principles
+- Multiple rapid clicks are debounced or queued gracefully (no overlapping toasts)
+- Toast includes subtle icon or styling indicating informational intent
+- Button provides visual feedback on press (ripple, state change)
+- Works on mobile touch interfaces with appropriate touch targets (minimum 44x44px)
 
 ## Trust Tier Assignment
 
-**Tier 1 — Informed (Autonomous with notification)**
+**Tier 1 — Informed**
 
-**Rationale:**
-- **Low Blast Radius:** Feature is isolated UI interaction with no backend integration, data persistence, or cross-feature dependencies
-- **Fully Reversible:** Component can be removed or disabled without system impact
-- **Non-Critical Path:** Does not affect authentication, data integrity, security, or core business logic
-- **Testing Environment:** Explicitly within "Fio Test Repo" — a non-production context designed for experimentation
-- **Standard Pattern:** Toast notifications are well-established UI patterns with minimal risk of unexpected behavior
+**Rationale:** This implementation carries low risk with minimal blast radius:
 
-Human review is recommended post-deployment to validate UX feel and accessibility compliance, but the feature can be deployed autonomously with logging/monitoring of usage.
+- **Reversibility:** Feature is purely additive and can be easily removed or disabled
+- **Scope:** Self-contained UI interaction with no data persistence, external API calls, or side effects
+- **User Impact:** Non-critical feature; failure affects only this specific interaction, not core functionality
+- **Security:** No authentication, authorization, data processing, or sensitive operations involved
+- **Deployment Risk:** Low — isolated component with no dependencies on critical system flows
+
+Human review is warranted post-deployment to validate UX quality and accessibility compliance, but the low technical risk and isolated scope make autonomous deployment with subsequent notification appropriate.
 
 ## Dependencies
 
-**Internal:**
-- UI framework/library currently in use (React, Vue, Angular, vanilla JS) — must support component-based architecture
-- Existing toast/notification library or component (e.g., react-toastify, Material-UI Snackbar, custom implementation) — or willingness to introduce one
-- Build and deployment pipeline for Fio Test Repo
+### Internal Dependencies
+- **Existing UI Framework:** Requires access to the project's current frontend stack (React, Vue, vanilla JS, etc.)
+- **Design System:** Should integrate with any existing toast/notification component library or design tokens
+- **Build Pipeline:** Must be compatible with the project's build and bundling configuration
 
-**External:**
-- None
+### External Dependencies
+None — this is a self-contained UI feature with no external service integrations.
 
-**Prior Work:**
-- If Fio Test Repo already has a design system or component library, button and toast styling should leverage existing patterns
-- If prior orbits established UI conventions (color scheme, spacing, typography), this feature should conform
-
-**Assumed Available:**
-- Development environment with ability to add/modify UI components
-- Basic event handling infrastructure (click listeners)
-- CSS or styled-component capability for visual presentation
+### Prior Work
+None identified — this is the initial orbit for this trajectory.
