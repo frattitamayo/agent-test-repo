@@ -22,10 +22,12 @@ A functional React project template exists that serves as the foundation for fut
 - A single "Hello World" or placeholder component renders in the browser
 - Basic package.json with scripts for start, build, and test exists
 - README.md with setup instructions is present
+- Initial page load completes in under 3 seconds on standard broadband connection
 
 **Target Acceptable:**
-- Hot module replacement works during development
+- Hot module replacement works during development with updates reflecting in under 2 seconds
 - Production build completes successfully and generates optimized bundles
+- Production bundle size is ≤250KB gzipped for initial load
 - ESLint or similar linting configuration is present with sensible defaults
 - Project includes basic TypeScript or PropTypes for type safety [if applicable based on React setup tool used]
 - Git repository initialized with appropriate .gitignore for Node/React projects
@@ -37,6 +39,8 @@ A functional React project template exists that serves as the foundation for fut
 - Component folder structure demonstrates scalable patterns (e.g., components/, pages/, utils/)
 - Development environment documentation includes common troubleshooting steps
 - Prettier or similar code formatting configured and integrated with editor support
+- Lighthouse performance score ≥90 for the initial template page
+- Production build completes in under 30 seconds on standard CI/CD runners
 
 ## Trust Tier Assignment
 
