@@ -1,143 +1,264 @@
 # Context Package: Greeting Button for Toast
 
-**Generated:** 2025-02-17
-**Package Type:** intent-specific
-**Intent:** Greeting button for toast
-**Orbit:** 1
-
----
-
 ## Codebase References
 
-### Primary (will be modified or created)
+### UI Components Layer
+- **Button Component**: Verify existence of reusable button component at `/src/components/Button` or `/src/components/ui/Button`
+- **Toast/Notification System**: Check for existing implementation at `/src/components/Toast`, `/src/components/Notification`, or `/src/lib/toast`
+- **Target Integration Point**: Identify parent component or page where button will be mounted (likely `/src/pages/*` or `/src/views/*`)
 
-- `src/components/GreetingButton.jsx` (or `.tsx`, `.vue` depending on framework)
-- `src/components/GreetingButton.test.js`
-- `src/pages/TestPage.jsx` (or equivalent page where button will be mounted)
-- `src/styles/components/greeting-button.css` (if separate styling)
+### Styling System
+- **Style Files**: Locate global styles at `/src/styles/*` or component-level styles (`.module.css`, `.styled.js`, or Tailwind config)
+- **Design Tokens**: Check `/src/styles/tokens.js`, `/src/theme/*`, or design system configuration for color variables, spacing units, timing values
 
-### Secondary (dependencies and interfaces)
+### State Management (if applicable)
+- **UI State**: Determine if toast state requires centralized management (Redux store, Zustand, Context API) or can be component-local
+- **Toast Queue Logic**: Check for existing toast manager/queue implementation to prevent overlapping notifications
 
-- `src/components/Toast/` or `src/utils/toast.js` — existing toast/notification system
-- `src/styles/globals.css` or `src/styles/theme.css` — global styling variables
-- `src/utils/accessibility.js` — ARIA utilities if available
-- `package.json` — verify existing toast library dependencies
+### Testing Infrastructure
+- **Component Tests**: Locate test file patterns (`*.test.js`, `*.spec.js`) in `/src/__tests__/`, `/__tests__/`, or colocated with components
+- **Accessibility Tests**: Verify presence of `@testing-library/react`, `jest-axe`, or similar a11y testing utilities
 
-### Tests
-
-- `src/components/__tests__/` — existing component test patterns
-- `src/setupTests.js` or test configuration files
-
----
+### Build Configuration
+- **Package Manager**: Identify `package.json` at project root to verify installed dependencies and available toast libraries
+- **Framework Detection**: Confirm React/Vue/Svelte/vanilla JS from `package.json` dependencies and file structure
 
 ## Architecture Context
 
-This intent introduces an isolated UI interaction component in the presentation layer. The button component will be a self-contained module that integrates with the existing toast notification system.
+### Application Layer
+This feature operates entirely within the **presentation/UI layer**. No backend services, API endpoints, or database operations are required. The implementation is a pure client-side interaction pattern.
 
-**Data Flow:**
-1. User clicks button → event handler triggered
-2. Handler calls toast utility/service → toast queued
-3. Toast manager renders notification → DOM updated
-4. Auto-dismiss timer → toast removed from DOM
+### Component Hierarchy
+```
+[Page/View Container]
+  └── [Greeting Button Component] (new)
+       └── onClick handler → trigger toast
+  
+[Toast Provider/Portal] (verify or implement)
+  └── [Toast Component Instance] (ephemeral, auto-dismiss)
+```
 
-**Integration Points:**
-- **UI Component Layer:** Button registers in component tree
-- **Notification System:** Calls existing toast API (likely centralized service or context provider)
-- **Accessibility Layer:** Button must emit ARIA events; toast must use live region
+### Data Flow
+1. User clicks button → Event handler invoked
+2. Handler calls toast notification API/function with message "Hello sir"
+3. Toast manager adds notification to queue (if queuing exists) or renders immediately
+4. Toast component mounts to DOM via portal or absolute positioning
+5. Auto-dismiss timer triggers unmount after 3-5 seconds
+6. Component cleanup on unmount prevents memory leaks
 
-**Technology Stack Assumptions:**
-- Frontend framework: React, Vue, or vanilla JavaScript
-- State management: Framework-native (hooks, reactive data, or DOM manipulation)
-- Styling: CSS modules, styled-components, or global CSS
-- Testing: Jest + React Testing Library or equivalent
+### State Management Pattern
+**Recommendation**: Local component state or lightweight toast context unless project already has centralized notification system. Avoid introducing Redux/complex state management for this isolated feature.
 
----
+### Styling Approach
+- **If using CSS Modules**: Create scoped styles for button and toast components
+- **If using styled-components/Emotion**: Follow established component styling patterns
+- **If using Tailwind**: Apply utility classes consistent with existing components
+- **Animation**: Use CSS transitions or framework-native animation libraries (Framer Motion, React Spring) if already in project
+
+### Accessibility Architecture
+- Button must be semantic `<button>` element (not `<div>` with click handler)
+- Toast must use ARIA `role="status"` or `role="alert"` for screen reader announcements
+- Toast must be appended to a portal/live region for proper screen reader integration
+- Focus management: Toast should not steal focus from button or page content
 
 ## Pattern Library
 
-### Conventions (follow these)
+### Existing Button Patterns
+**Verify and match these conventions:**
+- Button sizing: Check for `size` prop variants (`small`, `medium`, `large`)
+- Button variants: Identify primary/secondary/tertiary styling patterns
+- Icon support: Determine if buttons support leading/trailing icons
+- Loading states: Check for spinner or disabled state patterns during async operations
+- Event handling: Confirm standard `onClick` prop naming convention
 
-- **Component Structure**: If React-based, see `src/components/Button/` or similar — functional components with hooks, props interface, test co-location
-- **Toast Invocation**: Check `src/utils/toast.js` or existing notification component for API pattern (e.g., `toast.success("message")`, `showNotification({...})`)
-- **Event Handlers**: Use descriptive handler names like `handleGreetingClick` or `onGreetingButtonClick`
-- **Accessibility**: Follow established pattern for keyboard navigation (see `src/components/AccessibleButton.jsx` if exists) — must include `aria-label`, `role` if non-semantic element, visible focus states
-- **Testing**: Table-driven or scenario-based tests (see existing component tests in `src/components/__tests__/`) — test rendering, click behavior, accessibility tree
-- **Styling**: Check if project uses CSS modules (`.module.css`), styled-components, or global classes — maintain consistency
+### Toast/Notification Patterns (if existing)
+**If toast system exists, adopt its API:**
+```javascript
+// Example pattern to verify:
+toast.success("Message");
+toast.error("Message");
+toast.info("Message");
+toast({
+  message: "Hello sir",
+  duration: 4000,
+  position: "top-right"
+});
+```
 
-### Anti-patterns (avoid these)
+**If no toast system exists, follow these conventions:**
+- **Position**: Top-right or bottom-right (consistent with UX norms)
+- **Animation**: Slide-in from edge + fade-in (150-300ms duration)
+- **Dismiss**: Auto-dismiss after 4 seconds (middle of 3-5s range)
+- **Stacking**: If multiple toasts, stack vertically with consistent spacing
 
-- **Inline toast implementation**: Do not build custom toast logic if existing system is available — use established notification infrastructure
-- **Blocking modals**: Do not use `alert()` or blocking dialogs — toast must be non-blocking per constraint
-- **Tight coupling**: Button should not directly manipulate DOM for toast rendering — delegate to toast service/utility
-- **Hardcoded timing**: Avoid magic numbers for animation/dismiss durations — use theme constants or configurable props
-- **Missing cleanup**: If using timers for animations, ensure proper cleanup in component unmount
+### Component File Structure
+**Adopt project conventions:**
+```
+ComponentName/
+  ├── index.js (export)
+  ├── ComponentName.jsx (implementation)
+  ├── ComponentName.module.css (styles)
+  ├── ComponentName.test.js (tests)
+  └── ComponentName.stories.js (Storybook, if used)
+```
 
----
+### Testing Patterns
+**Match existing test structure:**
+- Use `describe` blocks for component tests
+- Use `it` or `test` for individual test cases
+- Follow Arrange-Act-Assert pattern
+- Use `@testing-library/react` queries (`getByRole`, `getByText`)
+- Test accessibility with `toHaveAccessibleName()` or `axe` matcher
+
+### Naming Conventions
+- **Component names**: PascalCase (`GreetingButton`, `Toast`)
+- **File names**: Match component name or kebab-case
+- **CSS classes**: Verify BEM, camelCase, or utility-first approach
+- **Event handlers**: `handle[Event]` (e.g., `handleClick`, `handleDismiss`)
+- **Props**: camelCase, descriptive (`onDismiss`, `autoClose`, `duration`)
 
 ## Prior Orbit References
 
-### Completed
+### Orbit Context
+**Current Orbit**: Orbit 1 (Initial Orbit)
+**Phase**: Verification
+**Status**: In Progress
 
-- None — this is Orbit 1, initial implementation in the test repository
+This is the **first orbit** of the "Testing GitHub Integration" trajectory. No prior orbit history exists for this trajectory.
 
-### Known Issues
+### Related Intents (Cross-Trajectory)
+**Action Required**: Query repository commit history and closed PRs for:
+- Previous notification/toast implementations
+- Similar UI pattern additions (modals, alerts, popups)
+- Accessibility improvements to UI components
+- Button component additions or modifications
 
-- None currently tracked for this surface
-- If toast system is not yet implemented in the test repo, this must be confirmed before starting (blocker noted in intent dependencies)
-
----
+### Lessons from Similar Features (Generic)
+Without project-specific history, apply these common pitfalls from notification implementations:
+- **Toast Z-Index Issues**: Ensure toast appears above all other UI elements (z-index: 9999+)
+- **Mobile Viewport Problems**: Test toast positioning on small screens (avoid fixed positions that clip)
+- **Rapid Click Handling**: Debounce or disable button briefly after click to prevent toast spam
+- **Memory Leaks**: Always cleanup timers/intervals in component unmount lifecycle
+- **Screen Reader Chaos**: Avoid aggressive `role="alert"` that interrupts every user action
 
 ## Risk Assessment
 
-### Risk: Toast system does not exist
+### Technical Risks
 
-**Likelihood:** Medium  
-**Impact:** High (blocks implementation)  
-**Mitigation:** Before starting, scan codebase for existing toast/notification utilities. If absent, select lightweight library (`react-hot-toast`, `sonner`, or vanilla implementation). Document choice for future intents.
+**Risk: Toast Library Selection**
+- **Issue**: Choosing wrong library adds unnecessary bundle size or lacks required features
+- **Likelihood**: Medium
+- **Impact**: Low (can be replaced)
+- **Mitigation**: Evaluate existing dependencies first; if none, prefer lightweight libraries (react-hot-toast ~3KB, sonner ~5KB) over heavy solutions
 
-### Risk: Multiple rapid clicks overwhelm UI
+**Risk: Z-Index Conflicts**
+- **Issue**: Toast renders behind modals, headers, or other overlays
+- **Likelihood**: Medium
+- **Impact**: Medium (feature unusable)
+- **Mitigation**: Render toast in portal at document body root; use z-index value higher than any existing component (verify maximum z-index in codebase)
 
-**Likelihood:** Medium  
-**Impact:** Low (poor UX, not breaking)  
-**Mitigation:** Implement either toast queuing (show sequentially) or replace-on-new (cancel previous, show latest). Document chosen behavior for consistency.
+**Risk: Button Click Debouncing Missing**
+- **Issue**: Rapid clicks create multiple overlapping toasts
+- **Likelihood**: High (without explicit handling)
+- **Impact**: Low (annoying but not breaking)
+- **Mitigation**: Implement debounce (300ms) or temporary button disable state after click
 
-### Risk: Accessibility violations
+**Risk: Animation Performance on Low-End Devices**
+- **Issue**: Janky animations on older mobile devices
+- **Likelihood**: Low
+- **Impact**: Low (cosmetic)
+- **Mitigation**: Use CSS transforms/opacity instead of position/layout properties; test on throttled CPU in DevTools
 
-**Likelihood:** Low (explicitly constrained)  
-**Impact:** Medium (excludes users)  
-**Mitigation:** Use semantic `<button>` element, add `aria-live="polite"` to toast container, verify with screen reader. Include accessibility tests.
+### Accessibility Risks
 
-### Risk: Performance regression on slower devices
+**Risk: Screen Reader Not Announcing Toast**
+- **Issue**: User with screen reader misses notification
+- **Likelihood**: High (without proper ARIA)
+- **Impact**: High (accessibility failure)
+- **Mitigation**: Use `role="status"` or `role="alert"` with `aria-live="polite"`; test with NVDA/JAWS/VoiceOver
 
-**Likelihood:** Low  
-**Impact:** Low  
-**Mitigation:** Test button click to toast render timing. Avoid heavy animations. Keep toast component lightweight (< 5KB bundle impact).
+**Risk: Insufficient Color Contrast**
+- **Issue**: Toast text fails WCAG AA requirements (4.5:1 ratio)
+- **Likelihood**: Medium
+- **Impact**: High (accessibility violation)
+- **Mitigation**: Use design system colors verified for contrast; run axe DevTools audit before commit
 
-### Risk: Browser compatibility issues
+**Risk: Keyboard Navigation Broken**
+- **Issue**: Button not focusable or Enter/Space don't trigger toast
+- **Likelihood**: Low (if using semantic `<button>`)
+- **Impact**: High (keyboard users excluded)
+- **Mitigation**: Use native `<button>` element; verify focus ring visibility; test keyboard navigation flow
 
-**Likelihood:** Low  
-**Impact:** Medium  
-**Mitigation:** Test in Chrome, Firefox, Safari, Edge. Avoid cutting-edge CSS features (e.g., container queries) without fallbacks. Verify polyfills for older browser versions if target includes IE11.
+### User Experience Risks
 
-### Risk: Styling conflicts with existing components
+**Risk: Toast Covers Important UI**
+- **Issue**: Toast overlaps form fields, navigation, or CTA buttons
+- **Likelihood**: Medium
+- **Impact**: Medium (user frustration)
+- **Mitigation**: Position toast in corner (top-right or bottom-right); ensure 16px margin from viewport edges; test on mobile viewports
 
-**Likelihood:** Medium  
-**Impact:** Low  
-**Mitigation:** Namespace CSS classes or use CSS modules. Verify toast doesn't overlap critical UI elements. Use z-index appropriately.
+**Risk: No Manual Dismiss Option**
+- **Issue**: User cannot close toast early if needed
+- **Likelihood**: Medium (depends on library)
+- **Impact**: Low (4s auto-dismiss is short)
+- **Mitigation**: Add close button (×) to toast; ensure button is keyboard accessible
 
----
+**Risk: Toast Not Visible in Light/Dark Mode**
+- **Issue**: Color scheme mismatch makes toast unreadable
+- **Likelihood**: Medium (if theme switching exists)
+- **Impact**: Medium (feature broken in one mode)
+- **Mitigation**: Test in both theme modes; use theme-aware colors from design system
 
-## Constraints
+### Integration Risks
 
-### Build (must pass)
+**Risk: Deployment Breaks Existing Tests**
+- **Issue**: New component causes unrelated test failures
+- **Likelihood**: Low
+- **Impact**: High (blocks deployment)
+- **Mitigation**: Run full test suite locally before commit; check for snapshot test failures; update snapshots if legitimate
 
-- `npm test` or equivalent test command
-- `npm run lint` (if linter configured)
-- `npm run build` (verify no bundle errors)
+**Risk: Framework Version Compatibility**
+- **Issue**: Toast library requires newer React/Vue version than project uses
+- **Likelihood**: Low
+- **Impact**: High (cannot install)
+- **Mitigation**: Check `peerDependencies` before installation; verify compatibility with project's framework version
 
-### Guardrails (do not violate)
+**Risk: Bundle Size Increase Exceeds Budget**
+- **Issue**: New library pushes bundle over performance budget
+- **Likelihood**: Low (toast libraries are small)
+- **Impact**: Medium (performance degradation)
+- **Mitigation**: Use bundle analyzer to measure impact; consider tree-shaking; lazy-load toast component if possible
 
-- **No new external dependencies** — use existing toast library or build minimal implementation
-- **Performance budget** — button click to toast render < 100ms (target 50ms)
-- **Accessibility requirements** — button must be keyboard-navigable, toast must announce to screen readers
-- **Non-blocking constraint** — toast must not prevent other interactions (no modals, no focus traps)
+### Security Risks
+
+**Risk: XSS via Toast Message**
+- **Issue**: If toast later accepts user-generated content, unescaped HTML could execute
+- **Likelihood**: Low (hardcoded message now)
+- **Impact**: Critical (if exploited later)
+- **Mitigation**: Always use text content, not `innerHTML`; document requirement to sanitize any future dynamic messages
+
+**Risk: Clickjacking of Dismiss Button**
+- **Issue**: Overlaid invisible element tricks user into clicking hidden action
+- **Likelihood**: Very Low
+- **Impact**: Low (isolated feature)
+- **Mitigation**: Ensure toast has high z-index; no external scripts injecting overlays
+
+### Monitoring & Rollback
+
+**Observable Signals**:
+- Browser console errors on button click
+- Toast not appearing in staging environment
+- Accessibility audit failures in CI/CD
+- User reports of missing notifications
+
+**Rollback Strategy**:
+1. Remove button component from parent page
+2. Delete toast implementation files
+3. Revert `package.json` if new library added
+4. Redeploy previous commit
+
+**Success Metrics (post-deployment)**:
+- Button click events logged (if analytics present)
+- Zero console errors related to toast
+- Lighthouse accessibility score unchanged or improved
+- User feedback confirms toast visibility
