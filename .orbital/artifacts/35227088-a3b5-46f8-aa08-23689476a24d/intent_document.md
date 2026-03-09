@@ -2,70 +2,94 @@
 
 ## Desired Outcome
 
-A functional React application scaffold exists in the repository that serves as the foundation for future development work. Developers can clone the repository, run a single setup command, and immediately begin building features on top of a working React application with standard tooling and structure.
+A functional React project template exists in the Fio Test Repo that serves as a foundational starting point for future development work. Developers can clone, run, and build upon this template without encountering setup barriers or missing dependencies. The template demonstrates React best practices and provides a clean slate for feature development.
 
 ## Constraints
 
-- **Framework:** Must use React (no alternative frameworks)
-- **Repository:** Must be created within the existing "Fio Test Repo" repository structure
-- **Development Experience:** Must support hot module reloading for rapid iteration
-- **Build System:** Must include production build capability
-- **Package Management:** Must use npm or yarn (whichever is standard for the organization)
-- **Browser Compatibility:** Must support modern browsers (last 2 versions of Chrome, Firefox, Safari, Edge)
-- **No Authentication/Backend:** This is a frontend-only template — no backend services, authentication, or API integrations required at this stage
-- **Non-Goal:** This is NOT a production-ready application with features; it is scaffolding only
+- **Technology Stack:** Must use React as the primary framework (no alternative frameworks)
+- **Build Tooling:** Must use standard, well-supported build tools (Vite, Create React App, or equivalent) — no experimental or deprecated tooling
+- **Node Version:** Must support Node.js LTS versions (currently 18.x and 20.x)
+- **Repository Structure:** Must integrate cleanly with existing Fio Test Repo without disrupting any current files or configurations
+- **License Compliance:** All dependencies must use permissive licenses compatible with the project's intended use
+- **No Production Secrets:** Template must not contain any hardcoded credentials, API keys, or environment-specific configuration
+- **Minimal Footprint:** Initial setup should not exceed 500MB of node_modules (excluding dev dependencies)
 
 ## Acceptance Boundaries
 
-### Minimal Acceptable Outcome
-- Repository contains a React project that builds successfully
-- `npm install` (or `yarn install`) and `npm start` (or `yarn start`) commands execute without errors
-- Application renders "Hello World" or equivalent placeholder content in a browser at `localhost:3000` (or documented port)
-- A README.md file documents the setup and start commands
+**Minimum Viable (Tier 1 - Autonomous Proceed):**
+- Project initializes with `npm install` or `yarn install` without errors
+- Development server starts with `npm run dev` or equivalent and serves on localhost
+- Browser loads the default React page without console errors
+- README.md exists with setup instructions (minimum: install, run dev server)
+- At least one basic component renders successfully
 
-### Target Outcome
-- Project includes standard React tooling (ESLint, Prettier, or equivalent code quality tools)
-- Clear directory structure with `src/`, `public/`, and configuration files organized logically
-- At least one sample component demonstrating React component structure
-- Development server starts in <10 seconds on standard hardware
-- README includes section on project structure and how to add new components
+**Target State (Ideal):**
+- Hot module replacement (HMR) works correctly during development
+- Production build (`npm run build`) generates optimized static assets
+- Project includes basic folder structure (components, assets, styles)
+- ESLint or similar linting configured with React-recommended rules
+- TypeScript support included and configured (if React with TS chosen)
+- README includes build, test, and deployment instructions
+- Initial bundle size ≤ 150KB gzipped for production build
 
-### Stretch Outcome
-- TypeScript configured and functional (if organization standard)
-- Basic component library or UI framework integrated (Material-UI, Tailwind, or similar)
-- Sample routing structure using React Router
-- Testing framework configured (Jest, React Testing Library) with at least one passing example test
-- CI/CD pipeline configuration file present (GitHub Actions, CircleCI, etc.) for future automation
+**Acceptable Degradation:**
+- If HMR occasionally requires manual refresh (noted in README)
+- If production build size reaches 200KB gzipped (but documented with rationale)
+- If linting configuration is basic/minimal (can be enhanced later)
+
+**Unacceptable:**
+- Project fails to install or run on Node LTS versions
+- Development server crashes or requires manual restarts frequently
+- Missing or incomplete setup documentation
+- Production build fails or produces non-functional output
+- Security vulnerabilities in dependencies (npm audit critical/high warnings)
 
 ## Trust Tier Assignment
 
-**Tier 1 — Autonomous**
+**Tier 1 — Informed (Autonomous with Notification)**
 
-**Rationale:** This intent involves creating a new React project scaffold in a testing repository with no production dependencies or user-facing impact. The blast radius is minimal:
+**Rationale:**
+- **Low Blast Radius:** Creating a new template project does not modify existing production systems or user-facing features
+- **Reversible:** Changes are isolated to new files/directories and can be removed without impact
+- **Standard Practice:** React project initialization is well-documented and follows established patterns
+- **No Data Risk:** No user data, authentication, or sensitive business logic involved
+- **Testing Requirement:** Project initialization can be verified through local testing before commit
 
-- **Reversibility:** Entirely reversible — files can be deleted or the commit can be reverted without affecting any running systems
-- **Isolation:** Work occurs in a testing repository with no dependencies on or from production systems
-- **Standard Tooling:** Uses well-established React tooling (Create React App, Vite, or similar) with predictable outcomes
-- **No Data Risk:** No user data, authentication, or sensitive information involved
-- **No Integration Risk:** No external API calls or service integrations
-- **Low Complexity:** Template creation is a deterministic operation with clear success criteria
+**Risk Factors Considered:**
+- Repository impact is minimal (new files only)
+- No integration points with external services required
+- Dependency selection involves standard, widely-used packages
+- Failure mode is contained (project simply doesn't run, doesn't break other systems)
 
-The AI can execute this autonomously, commit the result, and notify the human of completion. Human review can occur asynchronously after the fact.
+**Notification Triggers:**
+- Summary report of selected tooling and rationale
+- List of major dependencies and their versions
+- Confirmation that security audit passed
+- Documentation of any deviations from standard React patterns
 
 ## Dependencies
 
-### External Dependencies
-- **Node.js:** Runtime environment must be available (version 16.x or higher recommended)
-- **Package Manager:** npm (bundled with Node.js) or yarn must be available
-- **Git:** For version control operations within the repository
+**Technical Dependencies:**
+- Node.js runtime (LTS versions 18.x or 20.x)
+- npm or yarn package manager
+- Git (for version control integration)
+- Modern web browser for testing (Chrome, Firefox, Safari, or Edge)
 
-### Repository Dependencies
-- **Fio Test Repo:** Must have write access to create files and commit changes
-- **Repository Structure:** Understanding of any existing folder conventions or standards in the test repository
+**Repository Dependencies:**
+- Access to Fio Test Repo with write permissions
+- Understanding of existing repo structure to avoid conflicts
+- Coordination with "Testing GitHub Integration" trajectory goals
 
-### Knowledge Dependencies
-- **Organization Standards:** Confirmation of preferred React setup tool (Create React App vs. Vite vs. Next.js vs. manual setup)
-- **Code Style:** Any existing ESLint/Prettier configurations or coding standards to follow
+**External Dependencies:**
+- npm registry availability for package installation
+- React and related packages from official npm distributions
+- Build tool packages (Vite/CRA/etc.) from official sources
 
-### No Inbound Intent Dependencies
-This is the foundational intent for the trajectory — no prior intents must complete before this work can begin.
+**Knowledge Dependencies:**
+- React ecosystem current best practices (2024)
+- Modern JavaScript/TypeScript patterns
+- Standard project structure conventions for maintainability
+
+**No Prior Orbit Dependencies:**
+- This is Orbit 1 — no preceding intents or artifacts required
+- Establishes baseline for future trajectory work
