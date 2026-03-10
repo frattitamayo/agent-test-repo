@@ -2,70 +2,60 @@
 
 ## Desired Outcome
 
-Users can trigger a friendly greeting toast notification by clicking a button. When activated, a toast message displaying "Hello good sir" appears on screen, providing immediate visual feedback and confirming the interaction was successful. This creates a simple, delightful interaction pattern that can serve as a foundation for future notification-based features.
+A user interacting with the application can trigger a toast notification displaying "Hello sir" by pressing a clearly labeled button. The interaction provides immediate visual feedback that the action was registered, creating a simple and delightful micro-interaction.
+
+When this orbit completes, the user has a functional UI element that demonstrates basic interactivity and toast notification capability within the application.
 
 ## Constraints
 
-- **UI Framework Compatibility**: Solution must integrate with the existing UI component library and styling system without introducing new dependencies
-- **Accessibility Standards**: Toast notification must meet WCAG 2.1 AA requirements for visibility, screen reader announcements, and keyboard accessibility
-- **Visual Consistency**: Toast appearance and animation must match established design system patterns
-- **Non-Intrusive**: Toast must not block critical UI elements or interrupt user workflows
-- **Performance**: Button click-to-toast-render latency must not exceed 100ms
-- **No Persistence**: Toast implementation must not require database changes or server-side state management
+- **UX Consistency:** Toast notification must follow existing toast/notification patterns in the application if any exist. If no pattern exists, must use a standard, accessible toast implementation.
+- **Performance:** Button click to toast display must occur within 100ms to feel instant and responsive.
+- **Accessibility:** Button must be keyboard-accessible (focusable, activatable via Enter/Space) and screen-reader friendly with appropriate ARIA labels.
+- **No Breaking Changes:** Implementation must not disrupt existing UI flows or components.
+- **Scope Boundary:** This is a single-purpose demonstration feature — do not implement a full toast notification system if one doesn't exist. Use the simplest appropriate implementation.
 
 ## Acceptance Boundaries
 
-**Functional Requirements:**
-- Button renders on the target page/component with appropriate styling
-- Clicking the button triggers a toast notification with the exact text "Hello good sir"
-- Toast appears within 100ms of button click
-- Toast automatically dismisses after 3-5 seconds (configurable if framework allows)
-- Multiple rapid clicks do not create overlapping or duplicate toasts
+**Minimum Viable:**
+- Button renders visibly in the UI
+- Clicking the button displays a toast containing the exact text "Hello sir"
+- Toast appears and remains visible for at least 2 seconds
+- Toast can be dismissed (auto-dismiss or manual close)
 
-**Quality Thresholds:**
-- Button is keyboard accessible (Enter/Space key triggers toast)
-- Toast is announced to screen readers with appropriate ARIA role
-- Button has visible focus indicator that meets 3:1 contrast ratio
-- Toast has sufficient color contrast (4.5:1 minimum for text)
-- No console errors or warnings during interaction
-- Works consistently across Chrome, Firefox, Safari, and Edge (latest versions)
+**Target:**
+- Toast animation is smooth (fade in/out or slide)
+- Button has hover state indicating interactivity
+- Button is keyboard-accessible and announces properly to screen readers
+- Toast positioning is consistent and non-intrusive (e.g., top-right, bottom-center)
+- Multiple rapid clicks do not create overlapping toasts
 
-**Unacceptable:**
-- Toast blocks navigation elements or form inputs
-- Button click has no visual feedback (loading state, ripple, etc.)
-- Toast persists indefinitely without dismiss option
-- Memory leaks from undismissed toast instances
-- Button is non-functional on mobile viewports
+**Stretch:**
+- Toast uses existing design system tokens (colors, typography, spacing)
+- Button placement is contextually appropriate within the application layout
+- Implementation is reusable for future toast notifications
 
 ## Trust Tier Assignment
 
-**Tier 1: Autonomous**
+**Tier 1 — Informed**
 
 **Rationale:**
-- **Low Blast Radius**: Feature is additive and isolated; affects no existing functionality
-- **Fully Reversible**: Can be rolled back by removing button and toast implementation with zero data loss
-- **No Sensitive Systems**: Does not touch authentication, payments, data persistence, or external integrations
-- **Observable Impact**: Easy to verify in staging/development environments before production
-- **Standard Implementation**: Toast notifications are a common, well-documented UI pattern with established best practices
-- **Human Notification Sufficient**: Post-deployment monitoring can catch any issues without requiring pre-approval
+- **Low Blast Radius:** This is an additive, isolated UI feature with no data persistence, authentication, or external API calls.
+- **Reversible:** The feature can be removed or disabled without affecting other functionality.
+- **No Sensitive Domain:** Does not touch payment, auth, PII, or business-critical flows.
+- **Observable Impact:** Changes are entirely UI-visible and easily verifiable through manual testing.
 
-This feature introduces no breaking changes, handles no sensitive data, and can be deployed with confidence that any issues are immediately visible and easily reversible.
+The implementation carries minimal risk and can proceed autonomously with post-deployment notification to the human. No pre-deployment approval gate is necessary.
 
 ## Dependencies
 
-**Framework/Library Dependencies:**
-- Existing UI component library (assumes presence of toast/notification component or ability to install lightweight toast library)
-- Current styling system (CSS modules, styled-components, Tailwind, or equivalent)
+**Technical:**
+- Existing UI framework/library (React, Vue, Svelte, vanilla JS, etc.)
+- Toast notification library or component (if application already has one)
+- Access to modify the relevant UI component/page where button will be placed
 
-**Technical Dependencies:**
-- Access to the target page/component where button will be added
-- JavaScript event handling support in current framework (React, Vue, vanilla JS, etc.)
+**Contextual:**
+- Clarification on button placement location (which page/view/component)
+- Confirmation of whether an existing toast system is present or if a minimal implementation should be created
+- Design system or style guide reference (if available) for consistent styling
 
-**No External Dependencies:**
-- Does not require API endpoints
-- Does not require database schemas
-- Does not depend on other in-progress intents or orbits
-
-**Assumed Existing Capabilities:**
-- Application has basic DOM manipulation or component rendering capability
-- Build/deployment pipeline supports adding new UI components
+**No Prior Orbit Dependencies:** This is a standalone feature with no dependencies on other intents or orbits.
