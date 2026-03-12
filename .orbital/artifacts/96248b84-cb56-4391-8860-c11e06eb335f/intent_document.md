@@ -1,5 +1,10 @@
 # T6-003 · Migrate long-running LLM tasks to Fargate
 
+**Document Date:** 2026-03-12  
+**Orbit:** 1  
+**Phase:** Intent  
+**Trust Tier:** 2 — Supervised
+
 ## Desired Outcome
 
 Artifact generation and AI chat operations complete reliably without Lambda timeout failures, enabling users to generate complex documents and hold extended AI conversations within the Prometheus platform. The system processes LLM requests that exceed 15 minutes of compute time while maintaining responsive UI feedback through WebSocket notifications.
