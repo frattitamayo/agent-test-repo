@@ -1,90 +1,82 @@
 # T6-003 · Migrate long-running LLM tasks to Fargate
 
+**Generated:** 3/12/2026  
+**Project:** Prometheus V1  
+**Trajectory:** Container Infrastructure (Fargate)  
+**Trust Tier:** 2 — Supervised
+
+---
+
 ## Desired Outcome
 
-Long-running AI operations — artifact generation, extended chat sessions, and multi-turn LLM workflows — complete reliably without Lambda timeout failures. Users experience uninterrupted AI interactions through WebSocket notifications, while the backend scales elastically to handle variable workload durations without degrading API responsiveness or consuming Lambda concurrency limits.
+AI-powered artifact generation and chat operations complete successfully without Lambda timeout failures. Users experience uninterrupted AI interactions regardless of processing duration, with real-time progress updates delivered through WebSocket connections. The system handles LLM operations that require >15 minutes of processing time while maintaining the existing API contract and user experience.
 
-The system transitions from a synchronous, Lambda-bound execution model to an asynchronous, queue-driven architecture where HTTP endpoints remain fast and responsive while Fargate handles computationally intensive work in the background.
+---
 
 ## Constraints
 
-- **Lambda migration boundary:** Only operations exceeding 15 minutes or requiring persistent connections move to Fargate. Sub-minute operations remain on Lambda to minimize cold start overhead.
-- **Backward compatibility:** Existing API contracts (request/response shapes, status codes, error formats) must not break. Clients must not require changes to accommodate the async pattern.
-- **Security posture:** Fargate tasks inherit least-privilege IAM roles. No credentials in environment variables. Secrets retrieved from AWS Secrets Manager at runtime.
-- **Cost envelope:** Fargate task definitions must target t4g.small equivalent compute. No provisioned capacity — scale from zero.
-- **Observability floor:** All Fargate tasks emit structured logs to CloudWatch with correlation IDs. Execution traces link SQS message → task → S3 result → WebSocket event.
-- **Non-goals:** This intent does NOT migrate database queries, file uploads, or authentication flows to Fargate. Those remain Lambda-native.
+- **API Contract Preservation:** All existing HTTP endpoints remain unchanged. Response formats, status codes, and error structures must match current implementation.
+- **Latency Budget:** Initial HTTP response acknowledging task submission must return within 500ms. WebSocket connection establishment must complete within 1 second.
+- **Security Boundaries:** Fargate tasks must not access resources outside their designated IAM role scope. SQS message encryption at rest is mandatory. No LLM API keys or secrets may be logged or exposed in CloudWatch.
+- **Cost Control:** Fargate task CPU and memory allocations must not exceed 4 vCPU / 8 GB per task. Tasks must terminate within 30 minutes or be force-stopped.
+- **Backward Compatibility:** Existing Lambda-based endpoints must continue to function during migration. No client-side changes permitted for this orbit.
+- **Non-Goals:** This orbit does NOT include batch processing, scheduled jobs, or migration of artifact retrieval operations. It does NOT introduce new user-facing features beyond reliability improvements.
+
+---
 
 ## Acceptance Boundaries
 
-### Functional Boundaries
+### Reliability
+- **Success Rate:** ≥99.5% of queued tasks complete without unhandled exceptions
+- **Timeout Elimination:** Zero Lambda timeout errors for artifact generation and chat operations
+- **Task Durability:** Fargate tasks survive and complete even when processing takes 20+ minutes
 
-- **Artifact generation completes:** A user requests an Intent Document artifact via API. Within 30 seconds, they receive a `202 Accepted` response with a job ID. Within 5 minutes [inferred], a WebSocket event delivers the artifact URL (S3 presigned link). The artifact content matches the schema defined in the Intent Agent system prompt.
-- **Chat continuity preserved:** A user initiates a multi-turn AI chat. Messages exceeding 2 minutes of LLM processing time are offloaded to Fargate. The user sees typing indicators and receives responses via WebSocket without frontend polling or timeout errors.
-- **Queue depth observable:** SQS queue depth and Fargate task count are exposed via CloudWatch metrics. A dashboard visualizes pending jobs, active tasks, and task duration histogram.
+### Performance
+- **Queue Latency:** SQS message pickup by Fargate occurs within 10 seconds of enqueue
+- **WebSocket Delivery:** Progress updates and completion events arrive at client within 2 seconds of state change
+- **Cold Start Impact:** First Fargate task launch for a deployment completes within 60 seconds
 
-### Performance Boundaries
+### Observability
+- **Trace Coverage:** 100% of tasks emit structured logs with correlation IDs linking HTTP request → SQS message → Fargate execution → WebSocket event
+- **Metric Visibility:** CloudWatch dashboards display queue depth, task duration (p50, p95, p99), failure rate, and cost per task
+- **Error Attribution:** Failed tasks surface actionable error messages distinguishing LLM API failures, timeout exhaustion, and processing errors
 
-- **API latency unchanged:** `POST /intents/{id}/artifacts` responds in <500ms (p99), matching current Lambda-only performance.
-- **Task startup latency:** Fargate tasks begin processing within 60 seconds of SQS message arrival [inferred].
-- **WebSocket delivery latency:** Result notification reaches connected clients within 2 seconds of S3 write completion.
+### Operational
+- **Rollback Safety:** Feature flag or deployment parameter enables instant revert to Lambda-only processing
+- **Manual Intervention:** Tasks stuck in RUNNING state for >30 minutes auto-terminate with clear failure reason in logs
+- **SQS Dead Letter Queue:** Messages failing 3 retries route to DLQ with alerting configured
 
-### Reliability Boundaries
-
-- **Retry and dead-letter handling:** Failed Fargate tasks (non-zero exit code or timeout) trigger SQS message redelivery. After 3 retries, messages move to a dead-letter queue with alerting.
-- **Graceful degradation:** If Fargate task capacity is exhausted, new requests queue in SQS without API failures. Queue age alerts fire at 10 minutes.
-- **Idempotency guarantee:** Duplicate SQS deliveries (due to retries or at-least-once semantics) do not create duplicate artifacts or charge duplicate LLM API calls. Job IDs are deduplication keys.
-
-### Security Boundaries
-
-- **IAM role isolation:** Fargate task role has read/write to specific S3 prefixes and DSQL tables only. No cross-intent data access.
-- **Secrets rotation compatible:** Bedrock API keys (if not using IAM-based auth) are fetched from Secrets Manager on task start, not baked into images.
-- **Network segmentation:** Fargate tasks run in private subnets with egress-only internet access via NAT Gateway for Bedrock API calls. No inbound internet exposure.
-
-### Operational Boundaries
-
-- **Zero manual scaling:** Fargate auto-scales based on SQS queue depth. No capacity planning or reserved instances required.
-- **Cost visibility:** CloudWatch metrics break down Fargate compute cost per intent type. Monthly spend stays under $50 at current trajectory volume [inferred].
-- **Rollback safety:** If Fargate tasks fail >50% of jobs over 10 minutes, automatic rollback to Lambda-based artifact generation (with timeout warnings) activates.
+---
 
 ## Trust Tier Assignment
 
 **Tier 2 — Supervised**
 
-### Rationale
+**Rationale:**  
+This intent introduces a new execution model (asynchronous task processing) into the critical path of AI operations that directly impact user-facing features. While the changes are architecturally isolated (SQS queue, Fargate tasks, IAM roles), they affect:
 
-This intent modifies the execution path of revenue-adjacent workflows (AI artifact generation) and introduces new failure modes (queue delays, Fargate task crashes) that could degrade user experience across multiple sessions. While the blast radius is contained to async operations (synchronous API paths remain unchanged), the introduction of SQS as a message bus and Fargate as a runtime requires human review of:
+1. **Revenue-Adjacent Flows:** AI artifact generation is a core product capability users pay for
+2. **State Management Complexity:** Introduces distributed state across Lambda, SQS, Fargate, S3, and WebSocket APIs
+3. **Failure Mode Expansion:** New failure domains (task scheduling delays, container launch failures, SQS visibility timeouts) that did not exist in synchronous Lambda execution
 
-1. **IAM role definitions** — Overly permissive task roles could leak data across intents or projects.
-2. **Retry and DLQ configuration** — Misconfigured retries could amplify LLM API costs or create infinite loops.
-3. **WebSocket notification payload** — Incorrectly formatted events could break frontend rendering or expose internal job metadata.
+The blast radius is contained to AI operations (does not affect authentication, billing, or data integrity), but the novelty of the async pattern and potential for subtle race conditions or message loss justifies human review of the implementation plan before deployment.
 
-The tier is NOT 3 (Gated) because:
+**Tier 1 (Autonomous)** would be inappropriate because this is not a reversible change — once messages enter SQS, they must be processed reliably. **Tier 3 (Gated)** is unnecessary because the domain is well-understood infrastructure work with clear acceptance criteria, not ambiguous product design.
 
-- The change does not touch authentication, billing, or PII storage.
-- Rollback is automated via feature flags and metric-based cutover.
-- The existing Lambda-based flow remains operational as a fallback.
-
-Supervised approval ensures the AI-proposed infrastructure code (Terraform for Fargate, SQS, CloudWatch alarms) is reviewed for security and cost implications before deployment, while allowing autonomous iteration on task container logic and queue processing behavior within those boundaries.
+---
 
 ## Dependencies
 
-### Upstream Dependencies
-
-- **WebSocket infrastructure (T6-002):** Fargate tasks must emit events to API Gateway WebSocket connections. If T6-002 is incomplete, fallback to polling or email notifications is required.
-- **DSQL schema for job tracking:** A `jobs` table must exist with columns: `job_id`, `intent_id`, `status`, `created_at`, `completed_at`, `result_s3_key`. If the schema is missing, Fargate tasks cannot persist status updates.
-- **S3 bucket for artifacts:** The `prometheus-artifacts-{env}` bucket must exist with lifecycle policies (30-day expiration for draft artifacts). Fargate tasks write generated artifacts here.
-
-### Downstream Dependencies
-
-- **Frontend polling removal (future):** Once Fargate + WebSocket are stable, the frontend can remove HTTP polling for artifact status. This is a follow-on optimization, not blocking.
-- **Cost monitoring dashboard:** A CloudWatch dashboard showing Fargate task duration, SQS queue depth, and per-intent cost breakdown should be created post-deployment to inform future capacity planning.
+### Internal Dependencies
+- **WebSocket Infrastructure:** Requires functional API Gateway WebSocket API with connection management and message routing (assumed to exist based on acceptance criteria referencing WebSocket events)
+- **IAM Roles:** Fargate task execution role with permissions for SQS read, S3 write, DSQL write, CloudWatch Logs, and Bedrock API access
+- **SQS Queue Configuration:** Standard queue (not FIFO) with visibility timeout ≥30 minutes, message retention 4 days, and DLQ configured
 
 ### External Dependencies
+- **AWS Fargate Availability:** Deployment region must support Fargate capacity for 4 vCPU tasks
+- **LLM API Access:** Existing Bedrock or external LLM provider endpoints remain available with unchanged rate limits
+- **S3 Bucket:** Artifact storage bucket exists with lifecycle policies and CORS configured for frontend access
 
-- **Amazon Bedrock API availability:** Fargate tasks call Bedrock for LLM completions. If Bedrock throttles or returns 5xx errors, tasks must retry with exponential backoff and respect service quotas.
-- **AWS Secrets Manager:** Task startup depends on Secrets Manager API availability to fetch Bedrock credentials (if not using IAM roles). Secrets Manager outages delay task execution but do not crash the API.
-
-### Prior Orbit Context
-
-- **Orbit Reference:** This is Orbit 1 for Intent T6-003. No prior orbit learnings exist. Baseline Lambda-based artifact generation lives in `backend/api/artifacts/generate.js` (not present in the provided repo structure but implied by the intent description).
+### Prior Context
+- This orbit assumes Lambda timeout issues have been observed in production (implied by desired outcome). Acceptance criteria for "timeout elimination" depend on baseline metrics from current Lambda-based implementation.
+- The constraint "existing Lambda-based endpoints must continue to function" implies this is a phased migration, not a cut-over. Coordination with frontend team on progressive rollout is required.
