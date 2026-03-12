@@ -1,22 +1,16 @@
-# Proposal Record — T6-003: Migrate long-running LLM tasks to Fargate
+# Proposal Record — T6-003 · Migrate Long-Running LLM Tasks to Fargate
 
-**Proposal ID:** PROP-T6-003-1
-**Generated:** 2024-02-17
-**Intent:** T6-003
-**Context Packages:**
-- Architectural: None provided
-- Intent-specific: T6-003 Context Package
-**Trust Tier:** 2 — Supervised (new infrastructure primitive in critical path)
+**Proposal ID:** PROP-T6-003-1  
+**Generated:** 2026-03-12  
+**Intent:** T6-003  
+**Context Package:** CTX-INT-T6-003  
+**Trust Tier:** 2 — Supervised
 
 ---
 
 ## Interpreted Intent
 
-When users trigger artifact generation or multi-turn AI conversations that involve heavy LLM processing, the current Lambda-based execution hits AWS's 15-minute timeout ceiling and fails. This intent shifts those long-running operations to Fargate tasks that can run indefinitely, while preserving Lambda as the HTTP request handler for fast user feedback. The architecture becomes asynchronous: Lambda accepts the request, immediately enqueues a job message to SQS, and responds with 202 Accepted. A Fargate task polls the queue, processes the job (calling Bedrock APIs for 30+ minutes if needed), writes results to DSQL and S3, and sends a WebSocket notification back to the frontend when complete.
-
-The critical change is **decoupling user-facing HTTP latency from backend LLM processing time**. Users no longer wait minutes for a response — they get immediate confirmation that the job is queued, then receive push notifications as the task progresses through phases. This enables complex workflows (trajectory decomposition, iterative refinement, multi-agent orchestration) that would otherwise be impossible within Lambda's constraints.
-
-What makes this non-trivial: maintaining transactional consistency across Lambda → SQS → Fargate → DSQL → S3 → WebSocket without introducing race conditions, duplicate processing, or orphaned state. The orbit status must always reflect ground truth, even when Fargate tasks crash, SQS visibility timeouts expire, or WebSocket connections go stale.
+Users currently hit Lambda's 15-minute execution limit when generating artifacts or engaging in AI chat for large codebases or complex intent decomposition. This creates a broken experience where the request times out mid-processing, forcing users to split requests artificially or abandon features entirely. The solution decouples the HTTP request-response cycle from the LLM execution by introducing an asynchronous architecture: API Gateway receives the request and immediately returns acknowledgment with a task ID, an SQS message triggers a Fargate task to handle the long-running LLM call (which may take 30+ minutes), and a WebSocket notification informs the user when processing completes. The user never waits synchronously for LLM responses, eliminating timeouts as a constraint. The system must maintain sub-500ms notification latency and gracefully handle failures through retries and dead-letter queuing, while keeping costs bounded through Fargate scaling limits and task resource caps.
 
 ---
 
@@ -24,127 +18,191 @@ What makes this non-trivial: maintaining transactional consistency across Lambda
 
 ### Files to Create
 
-**Infrastructure (CDK)**
-- `infrastructure/cdk/lib/fargate-task-stack.ts` — ECS cluster, Fargate task definition (4 GB memory, 2 vCPU), task role with S3/DSQL/Bedrock/Secrets Manager permissions, execution role for CloudWatch Logs and ECR pull
-- `infrastructure/cdk/lib/sqs-queue-stack.ts` — Standard SQS queue `prometheus-artifact-jobs` with 60-minute visibility timeout, dead-letter queue after 3 retries, server-side encryption enabled
-- `infrastructure/cdk/lib/vpc-endpoints-stack.ts` — VPC endpoints for S3, Secrets Manager, CloudWatch Logs, Bedrock (reduces NAT Gateway data transfer costs)
-- `infrastructure/cdk/lib/monitoring-fargate-stack.ts` — CloudWatch alarms: SQS depth >100 for 5 min, DLQ depth >0, Fargate task failure rate >5%, OOMKilled events
-- `infrastructure/cdk/tests/fargate-task-stack.test.ts` — CDK snapshot tests validating IAM policies, container environment variables, security group rules
+**Lambda Layer (SQS Client):**
+- `infrastructure/lambda/shared/sqs-client.ts` — Typed wrapper around AWS SDK v3 SQS client with methods `publishMessage({ queueUrl, body, messageAttributes })` and `extendVisibilityTimeout({ queueUrl, receiptHandle, timeoutSeconds })`. Handles throttling errors with exponential backoff (base 100ms, max 3 retries). Returns message ID on success, throws typed error on failure. Pattern follows existing `s3-client.ts` structure.
 
-**Fargate Container Application**
-- `services/fargate-worker/src/main.ts` — Entry point: initializes SQS consumer, registers job handlers, implements graceful shutdown on SIGTERM
-- `services/fargate-worker/src/handlers/artifact-generation-handler.ts` — Handler for artifact generation jobs: validates message schema, fetches intent from DSQL, calls Bedrock via shared `packages/bedrock/` client, writes artifact to S3, updates orbit status, sends WebSocket notification
-- `services/fargate-worker/src/handlers/chat-continuation-handler.ts` — Handler for AI chat jobs: fetches conversation history, calls Bedrock, appends response to DSQL chat table, notifies frontend
-- `services/fargate-worker/src/integrations/sqs-consumer.ts` — SQS long polling wrapper with exponential backoff, message visibility extension during processing, idempotency check via DSQL lookup
-- `services/fargate-worker/src/integrations/dsql-client.ts` — Aurora DSQL connection pool (max 10 connections), prepared statements for orbit status updates with optimistic locking
-- `services/fargate-worker/src/integrations/notification-client.ts` — Invokes existing Lambda notification function (`services/websocket/src/handlers/notify.ts`) via AWS SDK Lambda.invoke() with InvocationType=Event (async)
-- `services/fargate-worker/Dockerfile` — Multi-stage build: Node.js 20 Alpine base, installs dependencies, copies source, sets non-root user, exposes no ports (task is a worker, not a server)
-- `services/fargate-worker/package.json` — Dependencies: `@aws-sdk/client-sqs`, `@aws-sdk/client-s3`, `@aws-sdk/client-lambda`, `@aws-sdk/client-secrets-manager`, DSQL client, shared `packages/bedrock` and `packages/observability`
-- `services/fargate-worker/.env.example` — Environment variables template: SQS queue URL, S3 bucket name, DSQL connection string (via Secrets Manager ARN), log level
-- `services/fargate-worker/tests/handlers/artifact-generation-handler.test.ts` — Unit tests: valid message processing, idempotency check prevents duplicate execution, DSQL version conflict handling, S3 write failure rollback
-- `services/fargate-worker/tests/integrations/sqs-consumer.test.ts` — Integration tests: message parsing, visibility timeout extension, DLQ routing after retries
+**Modified Lambda Handler:**
+- `infrastructure/lambda/api-gateway/handlers/artifacts/generate.ts` — Replace synchronous LLM invocation with:
+  1. Validate request using existing Zod schema
+  2. Create `artifact` record in DSQL with `task_status = 'queued'`, `task_id = uuid()`, `user_id`, `workspace_id`, `orbit_id`, `intent_ref`
+  3. Publish SQS message containing `{ taskId, userId, workspaceId, orbitId }` (no sensitive parameters — those are in DSQL)
+  4. Return `202 Accepted` with `{ taskId, status: 'queued', estimatedCompletionSeconds: 300 }`
+  5. Use `ApiResponse` helper, preserve existing `withAuth` middleware
 
-**Lambda HTTP Layer Modifications**
-- `services/api/src/handlers/artifacts/generate.ts` — Add routing logic: if `intent.complexityScore > 5` OR `intent.dependencies.length > 3`, enqueue to SQS and return 202; else process synchronously in Lambda as before
-- `services/api/src/handlers/chat/continue.ts` — Add routing logic: if `conversation.messageCount > 10` OR `estimatedTokens > 50000`, enqueue to SQS; else process in Lambda
-- `services/api/src/shared/sqs-enqueue-client.ts` — Shared utility: constructs SQS message with `{ jobType, payload: { intentId, orbitId, userId }, metadata: { idempotencyKey, enqueuedAt, requestId } }`, sends to queue, logs message ID
-- `services/api/src/shared/job-routing-logic.ts` — Complexity scoring heuristics: intent size, dependency depth, trajectory context size, user tier (free tier forces Fargate for all jobs >1 min to protect Lambda concurrency)
-- `services/api/tests/handlers/artifacts/generate-enqueue.test.ts` — Tests: complex intent triggers SQS enqueue, simple intent uses Lambda, SQS send failure returns 503 with retry-after header
+**Fargate Task Implementation:**
+- `infrastructure/fargate/tasks/artifact-generation/index.ts` — Main entry point:
+  - Infinite loop: poll SQS with 20-second long polling → process message → delete message
+  - Message processing: retrieve artifact parameters from DSQL by `taskId` → invoke Bedrock via `bedrock-client.ts` → store result in S3 with key `artifacts/{workspaceId}/{orbitId}/{taskId}.json` → update DSQL artifact with `task_status = 'completed'`, `content_url = s3SignedUrl` in single transaction → broadcast WebSocket event → delete SQS message
+  - Graceful shutdown: trap `SIGTERM`, finish in-flight message, exit cleanly within 30 seconds
+  - Error handling: on failure, allow SQS visibility timeout to expire (message becomes visible for retry), after 3 retries move to DLQ, update artifact with `task_status = 'failed'`, `task_error = errorMessage`
+  - Structured logging with `taskId`, `userId`, `workspaceId` in every log line
 
-**Database Schema**
-- `database/migrations/V1.6_add_fargate_actor.sql` — Alter `orbit` table: add `actor` varchar(255) field storing Lambda ARN or Fargate task ARN; add `processing_started_at` timestamp; add index on `status` + `processing_started_at` for stuck job monitoring
-- `database/schema/orbit.ts` — Update TypeScript type: `actor: string | null`, `processingStartedAt: Date | null`; add validation: actor format must match `arn:aws:(lambda|ecs):*` pattern
+- `infrastructure/fargate/tasks/artifact-generation/Dockerfile` — Multi-stage build:
+  - Stage 1: `node:20-alpine`, copy package files, `npm ci --production`
+  - Stage 2: `node:20-alpine`, copy built artifacts, set `CMD ["node", "index.js"]`
+  - Install AWS X-Ray daemon as sidecar (ENV `AWS_XRAY_DAEMON_ADDRESS`)
 
-**Monitoring and Operations**
-- `docs/runbooks/fargate-task-troubleshooting.md` — Runbook: how to identify stuck tasks, manual SQS message replay, rollback to Lambda-only mode, cost analysis queries
-- `infrastructure/cdk/config/fargate-task-capacity.json` — Environment-specific configs: dev (max 2 concurrent tasks), staging (max 10), prod (max 50 with autoscaling)
-- `.github/workflows/fargate-worker-deploy.yml` — CI/CD pipeline: build Docker image, push to ECR, update ECS task definition, force new deployment, health check via test SQS message
+- `infrastructure/fargate/tasks/artifact-generation/task-definition.json` — ECS task definition:
+  - Container: image from ECR, 2 vCPU, 4GB RAM
+  - Environment variables: `SQS_QUEUE_URL`, `DSQL_ENDPOINT`, `S3_BUCKET_NAME`, `WEBSOCKET_API_ENDPOINT`, `AWS_REGION`
+  - IAM role: `arn:aws:iam::account-id:role/FargateArtifactGenerationTaskRole`
+  - Network mode: `awsvpc`, requires private subnet assignment
 
-### Files to Modify
+**Fargate Shared Utilities:**
+- `infrastructure/fargate/shared/bedrock-client.ts` — Bedrock API wrapper:
+  - Method `invokeModel({ modelId, prompt, maxTokens, temperature })` with retry logic (exponential backoff, max 3 attempts)
+  - Timeout: 30 minutes (fail task if LLM call exceeds)
+  - Error classification: transient (retry) vs. permanent (fail immediately)
+  - Uses AWS SDK v3 `@aws-sdk/client-bedrock-runtime`
 
-**Shared Libraries**
-- `packages/core/src/entities/orbit.ts` — Add `updateStatusFromFargate(taskArn: string, newStatus: OrbitStatus, reason: string)` method with version increment and actor tracking
-- `packages/observability/src/logger.ts` — Add `fargate` context field to structured logs; ensure secrets redaction applies to DSQL connection strings in Fargate environment
-- `packages/bedrock/src/client.ts` — No changes needed (already supports retry logic and token counting); verify Fargate IAM role has `bedrock:InvokeModel` permission
+- `infrastructure/fargate/shared/websocket-notifier.ts` — WebSocket broadcast utility:
+  - Method `notifyTaskCompletion({ userId, taskId, artifactId, downloadUrl })`:
+    1. Query `websocket_connections` by `userId` to get `connectionId`
+    2. Call API Gateway Management API `postToConnection` with payload `{ type: 'task_completed', taskId, artifactId, downloadUrl }`
+    3. Handle `GoneException` (410) by removing stale connection from registry, do not fail task
+    4. Log broadcast success/failure, never throw (best-effort delivery)
+  - Connection ID caching: in-memory map with 5-minute TTL
 
-**WebSocket Notification Service**
-- `services/websocket/src/handlers/notify.ts` — Add check: if caller is Fargate task (detect via `context.invokedFunctionArn` containing `ecs-tasks`), allow notification dispatch; existing Lambda-to-Lambda invocation already works
+**Infrastructure as Code:**
+- `infrastructure/terraform/fargate-cluster.tf` — ECS cluster, service, task definition:
+  - Cluster: `prometheus-fargate-cluster`
+  - Service: `artifact-generation-service`, desired count 1, max 10, autoscaling policy based on SQS queue depth (target: 5 messages per task)
+  - Task definition reference: `aws_ecs_task_definition.artifact_generation`
+  - Launch type: `FARGATE`, platform version `LATEST`, private subnets with NAT gateway
 
-**API Documentation**
-- `docs/api/artifacts.md` — Update POST `/artifacts/generate` endpoint: add 202 response code documentation, explain async job flow, document WebSocket notification schema for job completion
+- `infrastructure/terraform/sqs-queues.tf` — Main queue and DLQ:
+  - Main queue: `artifact-generation-tasks`, visibility timeout 45 minutes, message retention 7 days
+  - DLQ: `artifact-generation-tasks-dlq`, redrive policy after 3 receive attempts
+  - Encryption at rest: AWS-managed KMS key
+  - Outputs: queue URL, queue ARN for Lambda and Fargate IAM policies
+
+- `infrastructure/terraform/iam-fargate.tf` — IAM role and policy for Fargate tasks:
+  - Role: `FargateArtifactGenerationTaskRole`, trust policy allows `ecs-tasks.amazonaws.com`
+  - Policy statements:
+    - `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility` on `artifact-generation-tasks` queue
+    - `s3:PutObject` on `arn:aws:s3:::artifacts-bucket/artifacts/*`
+    - `dsql:ExecuteStatement` with row-level security constraint (task can only access artifacts in its `workspaceId`)
+    - `bedrock:InvokeModel` on Claude 3 models
+    - `execute-api:ManageConnections` on WebSocket API
+    - `logs:CreateLogStream`, `logs:PutLogEvents` on log group `/ecs/artifact-generation-task`
+    - `xray:PutTraceSegments`, `xray:PutTelemetryRecords`
+
+- `infrastructure/terraform/vpc-endpoints.tf` — Add Bedrock VPC endpoint:
+  - Resource: `aws_vpc_endpoint.bedrock_runtime`, service name `com.amazonaws.us-east-1.bedrock-runtime`
+  - Type: `Interface`, private DNS enabled, security group allows inbound 443 from Fargate task security group
+  - Conditional creation: only if `enable_vpc_endpoints = true` variable is set
+
+**Database Migration:**
+- `infrastructure/dsql/migrations/008_add_task_tracking.sql`:
+  ```sql
+  ALTER TABLE artifacts 
+    ADD COLUMN task_id UUID,
+    ADD COLUMN task_status VARCHAR(20) DEFAULT 'pending' 
+      CHECK (task_status IN ('queued', 'processing', 'completed', 'failed')),
+    ADD COLUMN task_error TEXT,
+    ADD INDEX idx_task_status_created (task_status, created_at);
+  ```
+
+**Observability:**
+- `infrastructure/cloudwatch/dashboards/fargate-tasks.json` — Dashboard with widgets:
+  - Active task count (ECS service metric `RunningTaskCount`)
+  - Queue depth (SQS metric `ApproximateNumberOfMessagesVisible`)
+  - Task duration histogram (custom metric `TaskDuration` from Fargate task)
+  - Failure rate (custom metric `TaskFailureRate`)
+  - WebSocket notification latency (custom metric `NotificationLatency`)
+
+- `infrastructure/cloudwatch/alarms/task-failures.json` — Alarm definitions:
+  - Queue depth > 50 for 5 minutes → alert to Slack
+  - Task failure rate > 1% over 10 minutes → page on-call
+  - p99 task duration > 10 seconds (queue pickup latency) → alert
+  - Active task count ≥ 8 for 10 minutes (80% capacity) → warning
+
+**Tests:**
+- `infrastructure/lambda/api-gateway/handlers/artifacts/generate.test.ts` — Unit tests for modified handler:
+  - Valid request → artifact created with `task_status = 'queued'`, SQS message published, 202 response returned
+  - Invalid request → 400 error, no artifact created, no SQS message
+  - DSQL write fails → 500 error, SQS message not published
+  - SQS publish fails → artifact rolled back (transaction aborted), 500 error
+
+- `infrastructure/fargate/tasks/artifact-generation/index.test.ts` — Integration tests for Fargate task:
+  - Mock SQS `receiveMessage` to return test message, mock Bedrock response, assert DSQL update with `task_status = 'completed'`, S3 write, SQS delete, WebSocket broadcast
+  - Bedrock timeout scenario → task updates artifact with `task_status = 'failed'`, message visibility timeout expires
+  - DSQL transaction failure → message not deleted, retry occurs
+  - WebSocket broadcast failure → task still completes, artifact marked complete
+
+- `tests/integration/fargate-to-websocket.test.ts` — End-to-end test:
+  - Spin up LocalStack with SQS, S3, DSQL mock
+  - POST `/artifacts` via API Gateway → assert 202 response with `taskId`
+  - Fargate task picks up message (simulated with test runner) → invoke mock LLM → write to S3/DSQL
+  - Assert WebSocket connection receives event within 1 second
+  - Teardown: clean up test resources
 
 ### Approach
 
-This implementation follows a **queue-backed job processor pattern** where HTTP responsibilities (request validation, authorization, response formatting) remain in Lambda, and compute-intensive LLM operations move to Fargate. The approach preserves existing code paths for simple operations (no intent left behind) while opening a new execution path for complex workloads.
-
-**Key architectural decisions:**
-1. **Lambda decides routing** — Complexity heuristics run in Lambda before enqueue; Fargate never rejects a job or routes back to Lambda
-2. **SQS as the boundary** — Lambda writes once to SQS then forgets; Fargate owns the message lifecycle; no shared state between Lambda and Fargate except DSQL
-3. **Idempotency at the orbit level** — Before processing, Fargate checks if orbit status is already `in_progress` with a `processing_started_at` timestamp; if found and <90 minutes old, assumes another task is handling it and deletes the SQS message
-4. **Notification via Lambda invocation** — Fargate does not call API Gateway WebSocket API directly; instead, it invokes the existing `notify` Lambda function with the same payload structure Lambda uses; this reuses connection ID lookup and error handling
-5. **Graceful degradation** — If Fargate cluster is at capacity (max concurrent tasks reached), SQS messages queue up; Lambda responds with 202 but includes `Retry-After: 60` header suggesting frontend poll for status
+Follow the established Lambda-SQS-Worker pattern: Lambda acts as a thin request validator and queue publisher, Fargate acts as the worker that consumes messages and performs heavy computation. The implementation reuses existing patterns — Lambda handler follows `orbits/create.ts` structure (request validation, business logic delegation, response formatting), Fargate task follows long-running process conventions (graceful shutdown on `SIGTERM`, structured logging), and WebSocket notification reuses `broadcast.ts` utility from the existing WebSocket infrastructure. The critical architectural decision is to store task parameters in DSQL (not SQS messages) to keep messages small and non-sensitive, requiring Fargate to perform a DSQL lookup before processing. This adds 100-200ms latency but ensures PII and codebase content never appear in CloudWatch Logs or SQS console. All state transitions are transactional — artifact status changes only commit after successful S3 writes — preventing orphaned records.
 
 ### Order of Operations
 
-**Phase 1: Infrastructure Foundation** (1 orbit)
-1. Deploy VPC endpoints stack (if not already exists from prior work)
-2. Deploy SQS queue stack with DLQ and encryption
-3. Deploy Fargate task definition with placeholder container image (hello-world)
-4. Validate: manually send SQS message, observe Fargate task starts and completes
-5. Deploy CloudWatch alarms and dashboards
+**Phase 1 — Infrastructure Provisioning:**
+1. Create Terraform resources: Fargate cluster, SQS queues, IAM roles, VPC endpoints
+2. Apply DSQL migration to add task tracking columns to `artifacts` table
+3. Build and push Fargate container image to ECR
+4. Deploy ECS task definition and service (initial desired count: 1)
+5. Verify: Fargate task starts successfully, logs appear in CloudWatch, task polls SQS queue
 
-**Phase 2: Fargate Worker Application** (2 orbits)
-1. Implement `services/fargate-worker/src/main.ts` SQS polling loop
-2. Implement artifact generation handler with Bedrock integration
-3. Implement DSQL orbit status update with optimistic locking
-4. Implement S3 artifact write with error rollback
-5. Implement WebSocket notification via Lambda invocation
-6. Write unit and integration tests
-7. Build Docker image, push to ECR, update task definition
+**Phase 2 — Fargate Task Implementation:**
+1. Implement `bedrock-client.ts` with retry logic and timeout handling
+2. Implement `websocket-notifier.ts` with connection lookup and broadcast logic
+3. Implement `index.ts` main loop (poll → process → delete)
+4. Write integration tests for task logic (mock SQS, Bedrock, DSQL, WebSocket)
+5. Verify: Task processes test message, writes to S3, updates DSQL, broadcasts event, deletes message
 
-**Phase 3: Lambda Integration** (1 orbit)
-1. Implement `job-routing-logic.ts` complexity scoring
-2. Modify `artifacts/generate.ts` to enqueue SQS message for complex intents
-3. Add 202 response handling in frontend (display "processing" state, listen for WebSocket event)
-4. Write tests for enqueue path
-5. Deploy to staging, validate with test intent
+**Phase 3 — Lambda Handler Modification:**
+1. Implement `sqs-client.ts` wrapper for message publishing
+2. Modify `generate.ts` handler to enqueue SQS message instead of invoking LLM
+3. Update handler tests to assert SQS message structure and 202 response
+4. Deploy handler to staging environment
+5. Verify: POST `/artifacts` returns task ID, SQS message appears in queue
 
-**Phase 4: Database Schema Update** (0.5 orbit)
-1. Run migration `V1.6_add_fargate_actor.sql` in dev/staging
-2. Update TypeScript types
-3. Deploy code that uses new fields
+**Phase 4 — End-to-End Integration:**
+1. Deploy full stack to staging environment (Lambda + Fargate + SQS)
+2. Run integration test: API call → Fargate processing → WebSocket notification
+3. Stress test with 10 concurrent requests, verify queue depth and task scaling
+4. Verify error paths: Bedrock timeout, DSQL failure, WebSocket connection gone
+5. Review CloudWatch metrics and X-Ray traces
 
-**Phase 5: Monitoring and Documentation** (0.5 orbit)
-1. Write runbooks for common failure scenarios
-2. Set up cost monitoring dashboard
-3. Configure PagerDuty alerts for critical alarms
-4. Train on-call engineers on Fargate task debugging
-
-**Phase 6: Production Rollout** (1 orbit)
-1. Deploy to prod with feature flag `enableFargateRouting=false`
-2. Enable for 1% of complex intents (canary)
-3. Monitor error rates, latency, cost for 48 hours
-4. Ramp to 10%, 50%, 100% over 1 week
-5. Remove Lambda fallback code after 2 weeks of stable Fargate operation
+**Phase 5 — Observability and Deployment:**
+1. Create CloudWatch dashboard with task metrics
+2. Configure alarms for queue depth, failure rate, task latency
+3. Enable feature flag `fargate_artifact_generation` in staging, test with real users
+4. Production deployment: Lambda first (gradual rollout), then enable feature flag for 10% traffic
+5. Monitor for 24 hours, expand to 100% if metrics are within SLOs
 
 ### Dependencies
 
-**Must be completed before execution:**
-- VPC with private subnets and NAT Gateway (assumed to exist)
-- Aurora DSQL cluster with `orbit` and `artifact` tables (exists)
-- WebSocket notification Lambda function (exists from T5-001)
-- ECR repository `prometheus-fargate-worker` created
-- Secrets Manager entry with DSQL connection credentials
+**Prerequisite Infrastructure:**
+- Fargate cluster and ECS service configuration (can be created in Phase 1)
+- SQS queue and DLQ (can be created in Phase 1)
+- VPC with private subnets and NAT gateway (assumed to exist, verify in pre-work)
+- IAM roles with appropriate permissions (created in Phase 1)
 
-**External service dependencies:**
-- AWS Fargate availability in us-east-1
-- Bedrock API endpoint reachable from private subnets via NAT Gateway or VPC endpoint
-- SQS FIFO queue (if strict ordering required) or Standard queue (if idempotent operations)
+**Service Dependencies:**
+- AWS Bedrock model access enabled for Claude 3 (verify in AWS Console before starting)
+- Existing WebSocket API and connection management infrastructure (already deployed)
+- S3 bucket `artifacts-bucket` (already exists, no changes needed)
+- DSQL database endpoint and authentication (already configured)
 
-**Assumptions that must be validated:**
-- Bedrock API rate limits per account: if Fargate tasks scale to 50 concurrent, we're making 50 simultaneous Bedrock calls; verify account quota supports this
-- DSQL connection pool sizing: 10 connections per Fargate task; if 50 tasks run concurrently, that's 500 connections; verify DSQL cluster max_connections setting
-- NAT Gateway bandwidth: Bedrock responses can be 100+ KB; 50 concurrent tasks = 5 MB/sec minimum; verify NAT Gateway is not bandwidth-constrained
+**External Services:**
+- Bedrock runtime API availability (monitor AWS Health Dashboard during deployment)
+- API Gateway WebSocket API connection limits (default 500 concurrent connections, sufficient for current user base)
+
+**Prior Work:**
+- T1-005 (WebSocket infrastructure) must be deployed and operational
+- T4-008 (S3 artifact storage) provides the bucket structure Fargate task will use
+
+**Blocking Issues:**
+- If Bedrock model access is not enabled, request via AWS Support (estimated 1-2 business days)
+- If VPC endpoints for Bedrock do not exist and NAT gateway is not provisioned, Phase 1 is blocked until networking is configured
 
 ---
 
@@ -152,178 +210,185 @@ This implementation follows a **queue-backed job processor pattern** where HTTP 
 
 ### Edge Cases
 
-**SQS message size exceeds 256 KB**
-- **Scenario:** Intent with 100+ acceptance criteria and full trajectory context creates a message payload >256 KB
-- **Mitigation:** In Lambda enqueue logic, check payload size; if >200 KB, write full intent data to S3 at `temp/job-payloads/${idempotencyKey}.json`, include only S3 key in SQS message body; Fargate fetches from S3 before processing
-- **Test case:** Generate synthetic intent with 200 acceptance criteria, verify S3 spillover works
+**Authorization code replay during Fargate task processing:**
+- **Scenario:** User submits artifact generation request twice with identical parameters (e.g., browser double-click, network retry). Lambda creates two artifact records with different task IDs, publishes two SQS messages. Fargate processes both, potentially invoking Bedrock twice for the same operation.
+- **Mitigation:** Add idempotency key to artifact creation based on `userId + workspaceId + orbitId + intentRef + hash(parameters)`. Lambda checks for existing `queued` or `processing` artifact with same key before creating new record. If exists, return existing `taskId` in 202 response. Test: Submit identical requests <1 second apart, assert only one SQS message published.
 
-**Idempotency key collision**
-- **Scenario:** Two users simultaneously click "Generate Proposal" for the same intent, both Lambda invocations generate the same `idempotencyKey` based on `intentId + userId`
-- **Mitigation:** Include `requestId` from API Gateway in idempotency key calculation: `uuidv5(intentId + userId + requestId)`; ensures uniqueness even for simultaneous requests
-- **Test case:** Simulate concurrent Lambda invocations with same intentId, verify two separate Fargate tasks process both (no collision)
+**SQS message visibility timeout expires during Bedrock call:**
+- **Scenario:** Fargate task invokes Bedrock with 30-minute expected duration. SQS visibility timeout is 45 minutes. If task processing takes >45 minutes (e.g., extremely large codebase, slow model response), message becomes visible again while task is still running. Second Fargate task picks up message, begins duplicate processing.
+- **Mitigation:** Task must extend visibility timeout periodically during long operations using `sqs:ChangeMessageVisibility` API. Extend by 10 minutes every 5 minutes while Bedrock call is in progress. If extension fails (message already deleted or DLQ'd), abort task gracefully. Test: Mock 50-minute LLM call, assert message visibility extended, no duplicate processing.
 
-**Fargate task receives SQS message after orbit is already completed**
-- **Scenario:** User cancels artifact generation via UI; Lambda marks orbit status=`abandoned`; Fargate task starts processing message queued earlier
-- **Mitigation:** First action in Fargate handler: fetch current orbit status from DSQL; if not `draft` or `in_progress`, delete SQS message without processing and log "orbit state mismatch"
-- **Test case:** Enqueue SQS message, manually update orbit to `completed` in database, observe Fargate task skips processing
+**PKCE verifier mismatch — wait, wrong intent. This is artifact generation, not auth flow.**
+- **Correction:** Ignore auth-specific edge cases. Relevant edge case: **Workspace deletion while task is processing.**
+- **Scenario:** Admin deletes workspace while Fargate task is generating artifact for that workspace. Task completes, attempts to write to S3 and update DSQL, but workspace record no longer exists (foreign key constraint violation).
+- **Mitigation:** DSQL schema uses `ON DELETE CASCADE` for artifact → workspace relationship. When workspace is deleted, all artifacts are also deleted. Fargate task must check for artifact existence before updating (SELECT with row lock). If artifact is missing, log warning and delete SQS message without retrying. Test: Delete workspace during task processing, assert task completes without error, no orphaned S3 objects.
 
-**WebSocket connection expires during long Fargate job**
-- **Scenario:** User closes browser tab 10 minutes into a 30-minute artifact generation; Fargate completes but notification fails with 410 Gone
-- **Mitigation:** In notification client, catch 410 error, delete stale connection from DSQL, log event; fallback: store "unread notification" flag in user preferences, show banner on next login
-- **Test case:** Close WebSocket connection, trigger Fargate job completion, verify 410 is logged but job still marks orbit as completed
+**WebSocket connection closed before notification:**
+- **Scenario:** User closes browser tab while Fargate task is processing. Task completes, attempts to broadcast WebSocket event, but connection no longer exists in registry.
+- **Mitigation:** `websocket-notifier.ts` catches `GoneException`, logs connection closure, does not fail task. Client must poll artifact status endpoint as fallback (already implemented in frontend). Test: Close WebSocket connection, complete task, assert no task failure, artifact marked complete in DSQL.
 
-**DSQL optimistic locking conflict during status update**
-- **Scenario:** Rare case where two processes (Lambda cleanup job + Fargate task) try to update same orbit simultaneously
-- **Mitigation:** Retry update up to 3 times with exponential backoff; if still failing, log error with orbit ID + current version number; CloudWatch alarm triggers for investigation
-- **Test case:** Simulate version conflict by manually incrementing orbit version mid-Fargate execution, verify retry succeeds
+**Concurrent Fargate tasks updating same orbit record:**
+- **Scenario:** User submits two artifact generation requests for different intents in the same orbit. Two Fargate tasks run concurrently, both attempt to update `orbits.updated_at` timestamp, causing DSQL serialization conflict.
+- **Mitigation:** Artifact updates do not touch orbit record — only artifact table is modified. If future requirements add orbit-level aggregation (e.g., "all artifacts completed"), use optimistic locking with retry on serialization failure. Test: Run two tasks concurrently for same orbit, assert both complete without deadlock.
 
 ### Regressions
 
-**Lambda timeout protection weakened**
-- **Current behavior:** Lambda timeout kills long-running LLM calls cleanly; orbit status remains `in_progress` but user sees HTTP 504 error
-- **Risk:** After migration, if routing logic incorrectly sends small intents to Fargate, we add unnecessary latency (Lambda 200ms vs Fargate 10+ seconds cold start)
-- **Mitigation:** Comprehensive unit tests for `job-routing-logic.ts` covering all complexity score edge cases; staging deployment validates latency metrics before prod
-- **Regression test:** Generate 100 simple intents (score <5), verify 0% go to Fargate
+**Existing synchronous artifact generation for small requests:**
+- **Risk:** Modifying `generate.ts` handler breaks the fast path for small requests that complete in <30 seconds. Users who previously got instant responses now wait for Fargate task pickup (2-5 seconds) even for trivial operations.
+- **Mitigation:** Introduce request size heuristic in Lambda handler: if `estimatedLinesOfCode < 1000` AND `conversationTurns < 5`, invoke Bedrock synchronously (existing flow). Otherwise, enqueue SQS message (new flow). Feature flag controls this cutoff threshold. Test: Submit small request, assert synchronous response (<5 seconds). Submit large request, assert async response (202 with task ID).
 
-**S3 artifact path conventions broken**
-- **Current behavior:** Lambda writes artifacts to `s3://prometheus-artifacts-${env}/projects/${projectId}/trajectories/${trajectoryId}/intents/${intentId}/orbits/${orbitId}/artifacts/${artifactId}.md`
-- **Risk:** Fargate implementation uses different path construction, orphaning artifacts or breaking frontend S3 presigned URL generation
-- **Mitigation:** Extract path construction logic to shared `packages/core/src/storage/artifact-paths.ts`, import in both Lambda and Fargate; integration test verifies Fargate-written artifacts are readable by Lambda
-- **Regression test:** Generate artifact via Fargate, fetch via Lambda download endpoint, verify content matches
+**WebSocket broadcast implementation already handles stale connections:**
+- **Risk:** Reusing `broadcast.ts` utility without understanding existing error handling could introduce duplicate connection cleanup or missed `GoneException` handling.
+- **Mitigation:** Review `broadcast.ts` implementation before integration. Existing code already removes stale connections on 410 response — Fargate task needs no additional logic. Test: Reuse integration test from T1-005 (WebSocket notification with closed connection), verify behavior is unchanged.
 
-**WebSocket notification schema drift**
-- **Current behavior:** Notifications have `{ type: 'ORBIT_COMPLETED', orbitId, data: { artifactId } }` schema
-- **Risk:** Fargate adds new fields or changes field types, breaking frontend notification handlers
-- **Mitigation:** Define shared TypeScript interface `NotificationPayload` in `packages/core/src/notifications/types.ts`, validate in both Lambda and Fargate before sending; JSON schema validation tests prevent drift
-- **Regression test:** Send notification from Fargate, verify frontend websocket handler parses correctly
+**S3 bucket structure conventions from T4-008:**
+- **Risk:** Fargate task writes artifacts to S3 with incorrect key structure, breaking frontend's download URL assumptions.
+- **Mitigation:** S3 key MUST follow existing pattern: `artifacts/{workspaceId}/{orbitId}/{artifactId}.json`. Fargate task uses same `s3-client.ts` helper (if exists) or replicates key generation logic. Test: Generate artifact via Fargate, assert S3 key matches pattern, frontend can download via signed URL.
 
-### Security Concerns
+**CloudWatch log retention from T3-012:**
+- **Risk:** Fargate task logs use different retention period than Lambda, causing inconsistent log availability or unexpected cost.
+- **Mitigation:** Set Fargate log group `/ecs/artifact-generation-task` to same retention (7 days) as Lambda functions. Use structured logging format matching existing Lambda logs (JSON with `timestamp`, `level`, `message`, `context`). Test: Verify log entries appear in CloudWatch with correct structure, retention policy is 7 days.
 
-**Fargate task IAM role over-privileged**
-- **Risk:** Task role granted wildcard S3 permissions (`s3:*`) instead of scoped to specific bucket/prefix
-- **Mitigation:** CDK IAM policy builder uses explicit resource ARNs: `arn:aws:s3:::prometheus-artifacts-${env}/projects/${projectId}/*`; PR review checklist includes "no wildcard resource ARNs"
-- **Audit:** Run `aws iam simulate-principal-policy` to verify task role cannot access unrelated S3 buckets
+### Security
 
-**Secrets Manager credentials logged**
-- **Risk:** DSQL connection string (`postgres://user:pass@host/db`) appears in CloudWatch Logs during error logging
-- **Mitigation:** `packages/observability/src/logger.ts` already has redaction logic for password patterns; extend to redact full connection strings matching `postgres://` pattern
-- **Security test:** Trigger DSQL connection error, search CloudWatch Logs for substring `postgres://`, verify 0 results
+**Fargate task IAM role over-permission:**
+- **Risk:** IAM policy grants `s3:*` on entire bucket instead of scoped to `artifacts/*` prefix. Task compromise allows attacker to list, read, or delete unrelated S3 objects (e.g., infrastructure Terraform state, user uploads).
+- **Mitigation:** IAM policy uses resource constraint: `s3:PutObject` only on `arn:aws:s3:::artifacts-bucket/artifacts/*`. No `s3:GetObject` or `s3:ListBucket` permissions granted. Terraform policy resource block explicitly defines allowed actions and resources. Test: Attempt to write object outside `artifacts/` prefix from Fargate task, assert permission denied.
 
-**SQS message replay attack**
-- **Risk:** Attacker with SQS `ReceiveMessage` permission replays old messages to cause duplicate processing
-- **Mitigation:** Enable SQS message deduplication for FIFO queues (5-minute window); for standard queues, idempotency key check in Fargate prevents duplicate execution even if message replayed
-- **Threat model:** Assumes attacker does not have DSQL write access; if they do, replay is least of concerns
+**SQS message contains sensitive data in plain text:**
+- **Risk:** Developer includes `codebaseContent` or `conversationHistory` in SQS message body for convenience. CloudWatch Logs (enabled by default) expose message payload, leaking PII or proprietary code.
+- **Mitigation:** SQS message schema enforced via Zod: `{ taskId: uuid, userId: uuid, workspaceId: uuid, orbitId: uuid }`. No other fields allowed. Fargate task retrieves artifact parameters from DSQL using `taskId`. Code review checklist includes "SQS message contains only IDs". Test: Publish message with extra fields, assert Fargate task rejects invalid schema.
 
-**Bedrock API key exposure**
-- **Risk:** API key stored in container environment variable, visible in ECS task definition JSON
-- **Mitigation:** Store API key in Secrets Manager, reference ARN in task definition, AWS injects secret at runtime; never log API key even in debug mode
-- **Compliance check:** Export task definition JSON, verify no plaintext secrets in `environment` section
+**WebSocket broadcast to wrong connection:**
+- **Risk:** Fargate task looks up connection by `workspaceId` instead of `userId`, broadcasting task completion to all users in workspace (cross-user data exposure if workspace contains PII).
+- **Mitigation:** `websocket-notifier.ts` queries `websocket_connections WHERE user_id = ?`, never by `workspace_id`. Broadcast payload contains only `taskId` (user must authenticate to fetch artifact content via API). Test: User A submits task, User B in same workspace should not receive WebSocket notification.
 
-### Performance Implications
+**Bedrock API key exposure in logs:**
+- **Risk:** Fargate task logs Bedrock request parameters for debugging, accidentally including prompt or model configuration. Prompt may contain user-provided code or instructions, exposing PII.
+- **Mitigation:** Structured logging redacts sensitive fields. Log `{ modelId, taskId, duration }` on success. On error, log `{ taskId, errorCode, retryCount }` without `prompt` or `response`. Use log scrubbing regex to detect accidental PII (email, SSN, credit card) in CloudWatch Logs Insights queries. Test: Generate artifact with PII in intent description, verify CloudWatch logs do not contain raw text.
 
-**SQS polling latency adds overhead**
-- **Expected impact:** Lambda response time increases from 150ms (synchronous) to 180ms (enqueue SQS message); frontend receives 202 Accepted immediately but waits 10-60 seconds for Fargate to start processing
-- **Quantified concern:** P95 end-to-end latency (request → notification) increases from 8 minutes to 9 minutes (1 minute SQS + Fargate cold start overhead)
-- **Acceptable:** Per acceptance boundaries, <10 seconds to job start is acceptable
-- **Optimization:** Pre-warm 1 Fargate task in prod during business hours to reduce cold start frequency
+**Row-level security in DSQL:**
+- **Risk:** Fargate task can update artifacts in any workspace, not just the one it's processing. Task compromise or bug allows attacker to mark another workspace's artifacts as failed or overwrite their content.
+- **Mitigation:** DSQL policy enforces: `WHERE workspace_id = current_user_workspace_id()`. Fargate task authenticates to DSQL with workspace-scoped credentials (separate IAM role per workspace, or dynamic credentials with workspace context). **Critical:** This requires clarification — current DSQL schema may not support row-level security. If not, add application-level check: `UPDATE artifacts WHERE task_id = ? AND workspace_id = ?` (two-condition WHERE clause). Test: Task attempts to update artifact in different workspace, assert update affects 0 rows.
 
-**DSQL connection pool contention**
-- **Expected impact:** Fargate tasks hold DSQL connections for 5-30 minutes (duration of job); at 50 concurrent tasks with 10 connections each = 500 total connections
-- **Quantified concern:** DSQL cluster default max_connections = 1000; at 50% headroom, we're safe until 50 concurrent Fargate tasks
-- **Mitigation:** Set ECS service max tasks = 50; CloudWatch alarm if RunningTaskCount >40; tune DSQL connection pool timeout to 30 seconds idle before close
+### Performance
 
-**NAT Gateway bandwidth bottleneck**
-- **Expected impact:** Each Fargate task makes 1-5 Bedrock API calls with 50-100 KB responses; at 50 concurrent tasks = 2.5-25 MB total payload
-- **Quantified concern:** NAT Gateway supports up to 45 Gbps but bills per GB processed ($0.045/GB); 1000 jobs/day * 500 KB average = 500 MB/day = $0.02/day (negligible)
-- **Optimization:** Use Bedrock VPC endpoint (if available in region) to eliminate NAT Gateway data transfer charges entirely
+**Fargate task cold start accumulates queue backlog:**
+- **Risk:** Queue depth increases from 0 → 20 messages in 2 minutes (burst of user requests). ECS autoscaling policy triggers, but new tasks take 10-15 seconds to start (image pull + task initialization). During cold start, messages wait in queue, p95 latency increases from 2 seconds to 20 seconds.
+- **Mitigation:** Set ECS service `desiredCount = 1` (always keep one task warm). Autoscaling adds tasks beyond baseline, not from zero. Monitor `TimeInQueue` metric (custom metric: `message.sentTimestamp` - `message.receiveTimestamp`). Alert if p95 > 5 seconds. Test: Send 50 messages to empty queue, measure time from first message publish to first message processed, assert <10 seconds.
 
-**S3 PUT request throttling**
-- **Expected impact:** Each artifact generation does 1 S3 PUT (write artifact) + 1 DSQL INSERT (metadata); S3 supports 3500 PUT/second per prefix
-- **Quantified concern:** At 50 concurrent Fargate tasks completing every 10 minutes = 5 requests/second, well below throttle limit
-- **No action needed:** S3 throttling is not a risk at this scale
+**WebSocket notification latency exceeds 500ms:**
+- **Risk:** Fargate task completes, updates DSQL, looks up connection ID (DSQL query: 100-200ms), invokes API Gateway Management API (network call: 50-100ms), total latency 150-300ms. Under load (10 concurrent tasks), DSQL connection pool exhaustion adds 200-500ms, exceeding SLO.
+- **Mitigation:** Index `websocket_connections` on `user_id` (already exists based on T1-005). Cache connection IDs in Fargate task memory (in-memory map with 5-minute TTL, invalidate on `GoneException`). Reduce cache miss rate to <10%. If broadcast latency exceeds 500ms for 3 consecutive tasks, log warning and consider asynchronous broadcast (write to SNS topic, Lambda handles broadcast). Test: Complete 100 tasks concurrently, measure p95 notification latency, assert <500ms.
+
+**DSQL transaction contention on artifacts table:**
+- **Risk:** Multiple Fargate tasks update different artifacts concurrently. DSQL uses row-level locking, but high write volume causes `SerializationFailure` errors (transaction retry required). Task must retry, adding 500-1000ms per retry.
+- **Mitigation:** Artifact updates are isolated by `task_id` (different rows, no contention). Only `updated_at` on shared orbit record could conflict, but orbit updates are not part of this implementation. Monitor `SerializationFailure` error rate in CloudWatch Logs. Alert if >1% of transactions require retry. Test: Update 50 artifacts concurrently, assert <1% retry rate.
+
+**S3 PutObject latency for large artifacts (>5MB):**
+- **Risk:** Artifact content is 10MB JSON (large codebase context package). S3 `PutObject` takes 2-3 seconds at p95. Task completes, but S3 write blocks DSQL transaction commit, increasing end-to-end latency from 300ms to 3 seconds.
+- **Mitigation:** Write to S3 BEFORE starting DSQL transaction. If S3 write fails, do not update DSQL (task will retry). If DSQL update fails after successful S3 write, SQS retry overwrites same S3 key (idempotent). This inverts the risk: S3 may contain orphaned objects if DSQL write fails permanently, but end-to-end latency is minimized. Add S3 lifecycle policy to delete objects not referenced by DSQL after 7 days (cleanup orphans). Test: Generate 10MB artifact, measure S3 write duration, assert <2 seconds at p95.
+
+**Bedrock rate limiting under burst load:**
+- **Risk:** 10 Fargate tasks invoke Bedrock concurrently. Bedrock enforces per-model rate limit (e.g., 10 requests/minute for Claude 3 Opus). Tasks receive `ThrottlingException`, must retry with exponential backoff, adding 5-10 seconds to task duration.
+- **Mitigation:** Implement jitter in retry backoff (random delay 0-1000ms before first retry). Monitor Bedrock API throttle rate in CloudWatch. If throttle rate >5%, consider: (1) request quota increase from AWS Support, (2) implement client-side rate limiting (max 5 concurrent Bedrock calls across all tasks), (3) use cheaper model for non-critical operations. Test: Invoke Bedrock 20 times in 30 seconds, assert retry logic handles throttles without task failure.
 
 ---
 
 ## Scope Estimate
 
-### Complexity Assessment
-
-**Medium-High** — This intent introduces a new asynchronous execution model with cross-service orchestration (Lambda → SQS → Fargate → DSQL → S3 → WebSocket) and requires careful transaction boundary management to maintain data consistency. The individual components (SQS queue, Fargate task, Docker container) are well-understood AWS primitives, but integrating them into an existing Lambda-centric codebase touches multiple layers:
-
-- **Infrastructure:** New CDK stacks for SQS, Fargate, VPC endpoints, monitoring
-- **Application:** New Fargate worker service with SQS consumer, job handlers, notification client
-- **Shared logic:** Modifications to orbit entity, logger, routing heuristics
-- **Database:** Schema migration for new actor field
-- **Testing:** Unit, integration, and end-to-end tests spanning Lambda → Fargate flow
-- **Operations:** Runbooks, monitoring dashboards, rollback procedures, CI/CD pipeline
-
-**Not High complexity:** No new algorithm development, no distributed consensus, no data migration (schema is additive). The risk is primarily operational (what happens when Fargate tasks crash?) rather than architectural (the pattern is proven).
-
-**Not Low complexity:** More than a simple feature add; introduces new failure modes and requires team training on debugging distributed async systems.
-
-### File Count
-
-| Category | Files Created | Files Modified | Total |
-|----------|---------------|----------------|-------|
-| Infrastructure (CDK) | 5 | 1 | 6 |
-| Fargate Worker | 10 | 0 | 10 |
-| Lambda API Layer | 2 | 2 | 4 |
-| Shared Libraries | 0 | 3 | 3 |
-| Database | 1 | 1 | 2 |
-| Tests | 6 | 2 | 8 |
-| Documentation | 2 | 1 | 3 |
-| CI/CD | 1 | 0 | 1 |
-| **Total** | **27** | **10** | **37** |
-
 ### Orbit Breakdown
 
-| Phase | Description | Estimated Orbits | Rationale |
-|-------|-------------|------------------|-----------|
-| **Infrastructure Foundation** | Deploy SQS, Fargate task definition, VPC endpoints, monitoring | 1 | Mostly declarative CDK code; complexity is in IAM policy correctness |
-| **Fargate Worker Application** | Implement SQS consumer, job handlers, integrations with DSQL/S3/Bedrock/WebSocket | 2 | Largest code volume; requires careful error handling and idempotency logic |
-| **Lambda Integration** | Add routing logic, enqueue SQS messages, return 202 responses | 1 | Straightforward Lambda modifications; routing heuristics need validation |
-| **Database Schema Update** | Migration + type updates | 0.5 | Simple additive schema change; zero downtime migration |
-| **Monitoring and Documentation** | Runbooks, dashboards, alerts | 0.5 | Time-consuming but low technical complexity |
-| **Production Rollout** | Canary deploy, ramp up, monitor | 1 | Operational work; multiple observation periods |
-| **Testing and Validation** | Unit, integration, E2E tests across all phases | (embedded) | Testing effort included in each phase's orbit estimate |
-| **Total** | | **6 orbits** | ~2-3 weeks of focused development |
+**Estimated Total: 1 orbit** (this orbit: proposal + context + execution + verification)
 
-### Test Coverage Estimate
+**Rationale:** This is a self-contained architectural change with well-defined boundaries. The implementation follows established patterns (Lambda-SQS-Worker is industry standard), the infrastructure is net-new (no refactoring of existing services), and the risk surface is manageable through feature flags and gradual rollout. All dependencies are either already complete (WebSocket infrastructure, S3 storage) or can be created within this orbit (Fargate cluster, SQS queues). Complexity is medium: the individual components (Lambda handler, Fargate task, Terraform resources) are straightforward, but the integration requires careful coordination across 5 AWS services and correctness testing of failure paths (retry logic, dead-letter queue, WebSocket fallback).
 
-| Test Type | Test Count | Coverage Target |
-|-----------|------------|-----------------|
-| **Unit Tests** | 45 | 80% line coverage for Fargate worker, 90% for routing logic |
-| Lambda routing heuristics | 12 | All edge cases: boundary conditions for complexity score, dependency depth, token count |
-| Fargate job handlers | 15 | Valid message, missing fields, idempotency check, DSQL version conflict, S3 failure rollback |
-| SQS consumer logic | 8 | Message parsing, visibility timeout extension, DLQ routing, graceful shutdown |
-| DSQL client integration | 5 | Connection pooling, prepared statements, optimistic locking retry |
-| Notification client | 5 | Lambda invocation, 410 handling, payload serialization |
-| **Integration Tests** | 20 | End-to-end flows in isolated environment (LocalStack or AWS dev account) |
-| Lambda → SQS → Fargate flow | 8 | Enqueue message, Fargate processes, orbit status updated, WebSocket sent |
-| Error scenarios | 7 | Fargate crashes mid-job, SQS message expires, DSQL connection lost, S3 timeout |
-| Idempotency validation | 5 | Replay message, verify duplicate not processed |
-| **E2E Tests** | 5 | Real AWS infrastructure in staging |
-| Complex intent artifact generation | 2 | Full flow from frontend POST to WebSocket notification receipt |
-| Long-running chat continuation | 2 | Multi-turn conversation exceeding 10 minutes |
-| Canary deployment validation | 1 | 1% of prod traffic routed to Fargate, monitor error rate vs Lambda baseline |
-| **CDK Infrastructure Tests** | 10 | Snapshot tests for all stacks |
-| IAM policy validation | 4 | Least privilege checks, no wildcard permissions |
-| Security group rules | 3 | No inbound from internet, only egress to AWS services |
-| CloudWatch alarm thresholds | 3 | Validate alarm triggers at expected conditions |
-| **Total** | **80** | Comprehensive coverage of happy path, error scenarios, and infrastructure correctness |
+A second orbit would be required only if:
+- Bedrock VPC endpoint provisioning requires additional networking changes (e.g., new subnet CIDR ranges, route table modifications)
+- DSQL row-level security implementation is not supported and requires application architecture redesign
+- Integration testing reveals edge cases not covered in the proposal (e.g., multi-region WebSocket connections, Fargate task memory exhaustion)
 
-### Acceptance Validation Plan
+### Complexity Assessment
 
-| Acceptance Boundary | Validation Method | Success Criteria |
-|---------------------|-------------------|------------------|
-| **Functional: Lambda → SQS → Fargate → WebSocket flow** | E2E test with synthetic intent | Orbit status transitions from `draft` → `in_progress` → `completed`; frontend receives WebSocket event within 5 seconds of completion |
-| **Functional: AI chat >10 minutes completes** | Load test with 20-turn conversation | No Lambda timeouts; conversation completes in Fargate; all turns stored in DSQL |
-| **Performance: Lambda response <500ms** | Artillery load test (100 RPS) | P95 latency for POST `/artifacts/generate` <500ms when SQS enqueue path is used |
-| **Performance: Fargate job start <10 seconds** | Synthetic SQS message, measure time to first log | P95 cold start <60 seconds, P95 warm start <10 seconds |
-| **Reliability: Task failure rate <5%** | Chaos engineering: kill 10% of Fargate tasks mid-execution | ≥95% of killed tasks result in orbit status=`failed` within 2 minutes; SQS message moved to DLQ or retried |
-| **Reliability: No duplicate processing** | Replay SQS messages manually | 0 cases of orbit processed twice (validated via DSQL audit log) |
-| **Observability: X-Ray trace links** | Trigger artifact generation, inspect X-Ray console | Trace segments present for Lambda → SQS → Fargate → Bedrock → DSQL → S3 → WebSocket |
-| **Operational: Rollback succeeds** | Disable Fargate routing via feature flag, redeploy Lambda | All enqueued SQS messages drained (processed by remaining Fargate tasks); new requests route to Lambda synchronous path |
+**Medium Complexity**
+
+**Justification:**
+- **Infrastructure Provisioning (30% of work):** Terraform resources for Fargate, SQS, IAM are standard AWS patterns. Complexity comes from IAM policy scoping (must be least-privilege) and VPC endpoint configuration (requires understanding of subnet routing).
+- **Lambda Handler Modification (20% of work):** Straightforward change — replace synchronous call with SQS publish. Complexity is in idempotency key design (prevent duplicate tasks) and request size heuristic (fast path for small requests).
+- **Fargate Task Implementation (30% of work):** The core logic (poll → process → delete) is standard, but correctness depends on edge case handling: graceful shutdown, visibility timeout extension, transaction rollback on failure, WebSocket broadcast best-effort. Each failure mode must be tested.
+- **Observability and Testing (20% of work):** CloudWatch dashboard and alarms are copy-paste from existing patterns, but integration testing requires end-to-end trace verification (API Gateway → SQS → Fargate → WebSocket) with mocked LLM responses and injected failures.
+
+Not high complexity because:
+- No novel algorithms or domain-specific logic
+- No refactoring of existing services (Lambda handler adds new code path, doesn't replace existing)
+- No multi-region or disaster recovery requirements
+- No user data migration or schema backfilling
+
+### Work Phases
+
+**Phase 1 — Infrastructure (estimated 16 hours):**
+- Terraform: Fargate cluster, SQS queues, IAM roles, VPC endpoints (8 hours)
+- DSQL migration: add task tracking columns, test backward compatibility (2 hours)
+- ECR repository setup, container build pipeline (2 hours)
+- Deploy to staging environment, verify Fargate task starts (2 hours)
+- Smoke test: manually publish SQS message, verify task picks up and processes (2 hours)
+
+**Phase 2 — Fargate Task (estimated 20 hours):**
+- Implement `bedrock-client.ts` with retry and timeout (4 hours)
+- Implement `websocket-notifier.ts` with connection lookup and broadcast (4 hours)
+- Implement `index.ts` main loop with SQS polling, processing, deletion (6 hours)
+- Write integration tests for task logic (4 hours)
+- Local testing with LocalStack (2 hours)
+
+**Phase 3 — Lambda Handler (estimated 12 hours):**
+- Implement `sqs-client.ts` wrapper (2 hours)
+- Modify `generate.ts` handler to enqueue SQS message (4 hours)
+- Add idempotency key logic and request size heuristic (4 hours)
+- Update unit tests for handler (2 hours)
+
+**Phase 4 — Integration (estimated 16 hours):**
+- Deploy full stack to staging (2 hours)
+- End-to-end test: API → Fargate → WebSocket (4 hours)
+- Stress test with 20 concurrent requests (2 hours)
+- Error path testing: Bedrock timeout, DSQL failure, WebSocket gone (4 hours)
+- X-Ray trace validation (2 hours)
+- Fix issues discovered during testing (2 hours)
+
+**Phase 5 — Observability and Rollout (estimated 12 hours):**
+- CloudWatch dashboard and alarms (4 hours)
+- Feature flag configuration and gradual rollout plan (2 hours)
+- Production deployment (4 hours)
+- 24-hour monitoring and on-call readiness (2 hours)
+
+**Total Estimated Hours:** 76 hours (≈2 weeks for one engineer, or 1 week for paired implementation)
+
+**Confidence:** 80% — Estimates assume:
+- No blocking issues with Bedrock model access or VPC endpoint provisioning
+- DSQL supports row-level security or application-level checks are sufficient
+- LocalStack accurately simulates SQS, S3, and DSQL behavior
+- No unexpected edge cases discovered during integration testing
+
+Risk of scope increase (requiring second orbit):
+- Bedrock API behavior differs from documentation (e.g., unexpected timeout handling, throttle rate limits lower than advertised)
+- Fargate task memory exhaustion due to large artifact content (requires optimization or resource limit increase)
+- WebSocket notification delivery rate below 99% (requires fallback architecture redesign, e.g., SNS-based broadcast)
+
+### Estimated Test Coverage
+
+**Target:** 85% code coverage, 100% critical path coverage
+
+**Test Count:**
+- Lambda handler: 8 unit tests (valid request, invalid request, DSQL failure, SQS failure, idempotency key match, request size heuristic, auth failure, rate limit)
+- Fargate task: 12 integration tests (successful processing, Bedrock timeout, DSQL transaction failure, SQS visibility timeout, WebSocket broadcast failure, graceful shutdown, concurrent processing, idempotency on retry, large artifact >5MB, stale connection cleanup, DLQ after max retries, X-Ray trace propagation)
+- End-to-end: 4 integration tests (full flow success, user closes connection mid-processing, workspace deleted during processing, burst load with 20 concurrent tasks)
+
+**Total:** 24 tests
+
+**Critical Paths (must be tested):**
+1. API request → SQS message published → Fargate task processes → WebSocket notifies client (happy path)
+2. Bedrock call times out → task marks artifact failed → message moves to DLQ (failure path)
+3. Duplicate request → idempotency key prevents second task (edge case)
+4. WebSocket connection closed → task completes without error → client polls for status (fallback path)
 
 ---
 
