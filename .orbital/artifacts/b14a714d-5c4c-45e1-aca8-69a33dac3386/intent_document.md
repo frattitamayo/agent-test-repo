@@ -1,83 +1,118 @@
-# T6-003 · Migrate long-running LLM tasks to Fargate
+# T6-003 · Migrate Long-Running LLM Tasks to Fargate
+
+**Generated:** March 12, 2026  
+**Project:** Prometheus V1  
+**Trajectory:** Container Infrastructure (Fargate)  
+**Trust Tier:** 2 — Supervised
+
+---
 
 ## Desired Outcome
 
-Prometheus V1 reliably processes artifact generation and AI chat operations that exceed Lambda's 15-minute timeout limit without user-facing failures, enabling complex multi-step LLM workflows (trajectory decomposition, context synthesis, multi-agent orchestration) to complete successfully. Users experience responsive feedback during long-running operations via real-time WebSocket notifications, eliminating the current failure mode where large intents or deep conversations time out and require manual retry.
+Users can generate artifacts and engage in AI chat sessions without experiencing timeouts or degraded performance, regardless of LLM processing duration. The system handles LLM operations that exceed Lambda's 15-minute execution limit through an asynchronous architecture that provides real-time progress updates via WebSocket and reliably completes operations that may take 30+ minutes.
+
+Business impact: Eliminates the primary constraint preventing users from working with large codebases, complex intent decomposition, and multi-turn AI conversations. Removes the need for users to split large requests or work around timeout limitations.
 
 ## Constraints
 
-- **AWS Lambda remains the entry point** — All HTTP requests continue to be handled by existing Lambda functions; no direct HTTP traffic to Fargate
-- **No breaking changes to existing APIs** — Current Lambda-only endpoints must continue to function unchanged; Fargate is additive
-- **Aurora DSQL transactional guarantees** — All state transitions (intent → orbit → artifact) must maintain ACID properties; no eventual consistency for core entities
-- **WebSocket connection management** — API Gateway WebSocket connections remain owned by Lambda; Fargate cannot directly send to connection IDs
-- **Security boundaries** — Fargate tasks run in private subnets with no inbound internet access; secrets managed via AWS Secrets Manager; IAM roles follow principle of least privilege
-- **Cost containment** — Fargate tasks must terminate after job completion; no idle task charges; SQS visibility timeout prevents duplicate processing
-- **Bedrock rate limits** — Existing per-request throttling and retry logic must be preserved; Fargate does not bypass AWS service quotas
-- **Non-goal: Real-time streaming** — This intent does NOT implement token-by-token streaming of LLM responses; notifications occur at job completion or major phase transitions only
+**Performance Boundaries:**
+- WebSocket notification latency: ≤ 500ms from task completion to frontend update
+- SQS message processing: task pickup within 2 seconds of message arrival
+- Cold start tolerance: ≤ 10 seconds for Fargate task initialization
+
+**Architectural Limits:**
+- Must preserve existing Lambda-based API Gateway endpoints and authentication flow
+- Must maintain current DSQL schema for artifact storage
+- Must not introduce direct client-to-Fargate communication (all client interaction via API Gateway + WebSocket)
+- Must use existing S3 bucket structure for artifact storage
+
+**Security Requirements:**
+- Fargate tasks must execute in private subnets with no direct internet access (NAT gateway only)
+- SQS messages must not contain sensitive data in plain text (use references to DSQL records)
+- WebSocket connections must validate session tokens on every broadcast
+- Task execution logs must not leak API keys or model parameters
+
+**UX Constraints:**
+- Users must receive acknowledgment within 3 seconds that their request is queued
+- Progress updates must be granular enough to distinguish between "starting", "processing", and "completing" phases
+- Failed tasks must surface actionable error messages (not stack traces or internal state)
+
+**Non-Goals:**
+- Real-time streaming of LLM token generation (WebSocket notifies on phase transitions only)
+- Fargate-based execution of sub-1-minute operations (Lambda remains the default)
+- Migration of existing Lambda-based endpoints that operate within timeout limits
 
 ## Acceptance Boundaries
 
-### Functional Completeness
-- Lambda → SQS → Fargate → S3/DSQL → WebSocket notification flow demonstrated for at least one artifact type (Intent Document or Proposal)
-- AI chat conversations exceeding 10 minutes of LLM processing time complete successfully without timeout
-- Fargate task updates orbit status in DSQL at: job start, major phase transitions, completion, and error states
-- WebSocket clients receive notifications within 5 seconds of Fargate job state changes
-- Failed Fargate tasks result in orbit status = 'failed' with error details stored in DSQL
+**Functional Correctness:**
+- ✓ API Gateway endpoint accepts artifact generation request, returns task ID within 2 seconds, and places message on SQS
+- ✓ Fargate task consumes SQS message, invokes LLM, stores result in S3 and DSQL, deletes message on success
+- ✓ WebSocket connection receives notification within 500ms of task completion with artifact ID and download URL
+- ✓ Failed tasks are retried up to 3 times with exponential backoff before moving to DLQ
+- ✓ Task execution logs are queryable in CloudWatch with tracing from request ID through completion
 
-### Performance Thresholds
-- Lambda HTTP response time: <500ms for endpoints that enqueue SQS messages
-- SQS message delivery to Fargate: <10 seconds from enqueue to task start
-- Fargate cold start overhead: <60 seconds from task launch to first LLM API call
-- WebSocket notification latency: <5 seconds from DSQL write to frontend receipt
+**Performance Thresholds:**
+- Task pickup latency (SQS message visible → Fargate begins processing): ≤ 2 seconds at p50, ≤ 5 seconds at p99
+- WebSocket notification latency (task write to DSQL → client receives event): ≤ 500ms at p95
+- Fargate task cold start: ≤ 10 seconds when no warm tasks available
+- End-to-end for 5-minute LLM call: request → acknowledgment → processing → notification ≤ 6 minutes total
 
-### Reliability
-- Fargate task failure rate <5% for transient infrastructure issues (retry logic handles Bedrock throttling separately)
-- SQS visibility timeout prevents duplicate task execution >99.9% of the time
-- Orbit recovery: if Fargate task dies mid-execution, orbit status reflects 'failed' within 2 minutes (via dead-letter queue or timeout monitoring)
+**Reliability:**
+- Message loss rate: 0% (SQS visibility timeout > max task duration, DLQ captures failures)
+- WebSocket delivery rate: ≥ 99% (task completes but notification fails → client can poll DSQL as fallback)
+- Task success rate for non-LLM failures (infra, config, permissions): ≥ 99.5%
 
-### Observability
-- CloudWatch Logs capture: SQS message metadata, Fargate task lifecycle events, LLM token counts, execution duration, error stack traces
-- X-Ray traces link: Lambda request ID → SQS message ID → Fargate task ID → Bedrock invocation ID
-- DSQL audit trail: every orbit status transition includes timestamp, actor (Lambda vs Fargate task ARN), and reason
+**Operational Observability:**
+- CloudWatch dashboard shows: active tasks, queue depth, task duration histogram, failure reasons
+- Alarms trigger when: queue depth > 50, task failure rate > 1%, p99 latency > 10 seconds
+- X-Ray traces connect API Gateway request → SQS message → Fargate execution → WebSocket notification
 
-### Operational
-- Infrastructure-as-code (CDK/Terraform) deploys: SQS queue, Fargate task definition, IAM roles, CloudWatch log groups, and VPC networking
-- Rollback plan documented: how to disable Fargate routing and revert to Lambda-only processing without data loss
-- Cost monitoring dashboard: Fargate vCPU-hours, SQS message volume, S3 PUT requests per orbit
+**Cost Boundaries:**
+- Fargate task scaling: min 1 task, max 10 concurrent tasks (protects against runaway costs)
+- Task resource allocation: 2 vCPU, 4GB RAM per task (sufficient for current LLM call patterns)
+- SQS message retention: 7 days (balance cost vs. recovery window for failed tasks)
 
 ## Trust Tier Assignment
 
-**Tier 2: Supervised** — This intent introduces new infrastructure primitives (Fargate, SQS queues, cross-service orchestration) into the critical path of artifact generation and AI interactions. The blast radius is contained to long-running operations (short tasks remain Lambda-only), but failures affect user-facing workflows and could corrupt orbit state if transaction boundaries are mishandled.
+**Tier 2 — Supervised**
 
-**Rationale:**
-- **Not Tier 1 (Autonomous):** Changes core orchestration patterns; introduces new failure modes (task OOM, SQS poisoned messages, cross-service state desync); requires human validation of infrastructure templates and error-handling logic before production deployment
-- **Not Tier 3 (Gated):** Does not touch authentication, billing, or cross-tenant data; failures are scoped to individual orbits and logged for debugging; rollback path is clear (disable SQS routing); no regulatory or contractual risk
+**Rationale:**  
+This intent introduces a new execution path for user-initiated operations that bypasses Lambda's predictable timeout and cold-start characteristics. Blast radius includes:
 
-**Human approval required for:**
-- CDK/Terraform infrastructure diff before apply
-- Fargate IAM role policies (S3, DSQL, Secrets Manager, Bedrock permissions)
-- SQS dead-letter queue configuration and alarm thresholds
-- First production deploy of Fargate-backed artifact generation
+1. **Data Integrity Risk:** Fargate tasks write directly to DSQL and S3. Bugs in transaction handling or error recovery could corrupt artifact state or leave orphaned records.
+2. **Cost Risk:** Misconfigured scaling policies or retry logic could spawn dozens of long-running Fargate tasks, incurring significant charges before detection.
+3. **Availability Risk:** WebSocket notification failures create a degraded UX where users see "processing" indefinitely unless polling fallback is correctly implemented.
+
+The supervised tier is appropriate because:
+- The implementation is novel to this system (no prior Fargate workloads)
+- The failure modes are not immediately reversible (bad artifacts may be stored, consumed, or presented to users)
+- The operational monitoring and cost controls require human review before production exposure
+
+Autonomous (Tier 1) would be inappropriate because this is not a low-risk, isolated change. Gated (Tier 3) is not required because the domain is well-understood (asynchronous task processing), and the proposed architecture is standard AWS practice.
+
+**Deployment Strategy:**  
+Deploy behind a feature flag (`fargate_artifact_generation`) that gates both the API endpoint and Fargate task registration. Verify in staging with controlled load before enabling for production traffic.
 
 ## Dependencies
 
-### Internal Systems
-- **Lambda HTTP handlers** — Must be updated to enqueue SQS messages for eligible long-running operations; existing logic remains for short tasks
-- **Aurora DSQL schema** — Orbit table must support status updates from Fargate task ARNs (new actor type beyond Lambda function names)
-- **WebSocket notification service** — Existing Lambda-based notification system must accept events from Fargate tasks (requires shared SQS-to-WebSocket adapter or direct Lambda invocation from Fargate)
-- **S3 artifact storage** — Fargate tasks write generated artifacts (markdown, JSON) to the same bucket/prefix structure Lambda uses today
-- **Bedrock integration layer** — Existing prompt management, token counting, and retry logic must be callable from Fargate container runtime
+**Infrastructure:**
+- AWS Fargate cluster with ECS task definition, IAM role, and private subnet configuration
+- SQS queue with DLQ, visibility timeout ≥ max expected task duration (suggested: 45 minutes)
+- Existing WebSocket infrastructure (API Gateway WebSocket API + connection management in DSQL)
+- S3 bucket for artifact storage (already exists, requires no schema changes)
 
-### External Dependencies
-- **AWS Fargate availability** — Tasks run in us-east-1; requires VPC with private subnets, NAT Gateway for Bedrock API egress, and AWS service VPC endpoints (S3, Secrets Manager, CloudWatch)
-- **SQS FIFO queues** (optional) — If processing order matters for multi-step artifact generation, FIFO queue ensures strict sequencing; standard queue acceptable if operations are idempotent
-- **Container image registry** — Fargate task definition pulls from ECR; requires CI/CD pipeline to build and push images on code changes
+**Data Layer:**
+- DSQL tables: `artifacts`, `orbits`, `tasks` (require new `task_id` and `status` columns on `artifacts` table to track async processing state)
+- WebSocket connection registry (stored in DSQL `websocket_connections` table) for broadcast targeting
 
-### Prior Orbits
-- **Orbit T6-002** (if exists) — Any prior Fargate infrastructure work (VPC setup, base container image, monitoring) should be referenced to avoid duplication
-- **Orbit T5-xxx** (WebSocket implementation) — Existing WebSocket connection management must support notifications from non-Lambda sources
+**Services:**
+- Lambda function: existing API Gateway handler must be modified to enqueue SQS message instead of invoking LLM synchronously
+- Bedrock API access from Fargate tasks (requires VPC endpoint or NAT gateway for external LLM calls)
 
-### Assumptions
-- Bedrock API calls from Fargate tasks use the same AWS SDK credentials/retry logic as Lambda
-- SQS message size limit (256 KB) is sufficient for intent metadata; if not, message body references S3 object with full payload
-- Fargate task termination after job completion is handled by ECS task definition (no manual cleanup required)
+**Prior Work:**
+- No direct predecessor orbits
+- Assumes T6-001 (Fargate cluster setup) and T6-002 (SQS queue configuration) are complete or will be addressed in the `context` phase of this orbit
+
+**External Systems:**
+- Bedrock (LLM provider): Fargate tasks must handle rate limits, retries, and model availability errors
+- CloudWatch Logs and X-Ray: required for observability, no changes needed to existing setup
