@@ -1,5 +1,7 @@
 # T6-003 · Migrate Long-Running LLM Tasks to Fargate
 
+**Document Date:** March 13, 2026
+
 ## Desired Outcome
 
 When this orbit completes, Prometheus V1 will handle LLM-powered artifact generation and AI chat sessions without Lambda timeout failures or degraded user experience. Users will submit generation requests through the existing HTTP API and receive real-time progress updates via WebSocket, while the actual LLM processing executes asynchronously on Fargate with sufficient runtime and memory to complete complex operations (30+ minute generations, multi-step reasoning chains, large context windows).
