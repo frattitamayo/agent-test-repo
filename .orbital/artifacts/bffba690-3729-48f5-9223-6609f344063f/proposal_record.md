@@ -1,923 +1,1156 @@
-# Proposal Record: Implement Automated Testing Suite for Property Search API
+# Proposal Record: Implement CI/CD Pipeline with Automated Testing and Deployment
 
 ## Interpreted Intent
 
-This orbit establishes a production-ready automated test suite for the property search API that validates correct behavior without requiring database connectivity or manual setup. The test suite must execute in under 10 seconds via a single command (`npm test`), achieving minimum 60% code coverage with at least one happy path test and one error case test.
+This orbit establishes automated continuous integration and deployment infrastructure that transforms the current manual deployment process into a fully automated pipeline. The implementation creates a GitHub Actions workflow (assuming GitHub hosting based on repository context) that automatically builds, tests, and deploys the property search API whenever code changes are pushed to the repository.
 
-The test suite serves dual purposes: (1) regression detection preventing bugs from reaching production, and (2) onboarding tool enabling new developers to verify their local environment works correctly. Tests must validate that actual API behavior matches the documented contract established in orbit bffba690-3729-48f5-9223-6609f344063f, creating a closed-loop verification system where documentation, implementation, and tests remain synchronized.
+The pipeline operates in stages: Build (install dependencies, verify syntax), Test (execute test suite with coverage reporting), and Deploy (ship to staging environment). Feature branches and pull requests trigger only build and test stages, providing quality gates without deployment. The main branch triggers full pipeline including automated deployment to a staging environment, with production deployment configured as a stretch goal requiring manual approval.
 
-Critical constraint: The existing `backend/api/properties/search.js` implementation must remain completely unchanged. Tests wrap the existing code through HTTP-layer validation or module-level mocking, never modifying production logic to accommodate testing needs. This ensures tests validate real production behavior, not test-specific code paths.
+Success is measured by zero-touch deployment capability where a developer merges a pull request and the code automatically reaches staging within 5 minutes, with all tests passing as a mandatory gate. The pipeline must operate within free tier constraints of GitHub Actions (unlimited minutes for public repositories, 2000 minutes/month for private), preserve existing local development workflows, and provide clear failure feedback when issues occur.
 
-Success is measured by a developer running `npm test` in a fresh checkout and receiving clear pass/fail results within 10 seconds, with test output providing actionable feedback for any failures. The suite must work offline without database servers, external APIs, or network dependencies.
+Critical security requirement: All deployment credentials, API keys, and database connection strings must be stored in GitHub's encrypted secrets management, never committed to the repository. The pipeline configuration must be thoroughly documented so new team members can understand, modify, and troubleshoot it without requiring the original implementer's assistance.
+
+This is a Tier 3 (Gated) orbit requiring explicit human approval before any production deployment capability goes live, given the high blast radius of automated deployments and the security surface of credential management.
 
 ## Implementation Plan
 
-### Phase 0: API Implementation Analysis and Prior Orbit Review
+### Phase 0: Dependency Verification and Platform Confirmation
 
-**Objective:** Understand current API behavior and any modifications from prior orbits before designing tests.
-
-**Actions:**
-
-1. **Read `backend/api/properties/search.js` source code** to determine:
-   - HTTP server implementation pattern (vanilla http.createServer vs. framework)
-   - Exported functions/modules available for testing
-   - Request handling logic (GET/POST methods, query parameters)
-   - Response structure and status codes
-   - Database interaction approach (imported modules, hardcoded data, etc.)
-   - Error handling patterns
-
-2. **Review orbit ffce316e-4d4e-46c6-bb4f-c5310e36a19f artifacts:**
-   - Read `intent_document.md` to understand scope of prior work
-   - Read `proposal_record.md` to identify any API behavior modifications
-   - Determine if API contract changed from original implementation
-
-3. **Review orbit bffba690-3729-48f5-9223-6609f344063f artifacts:**
-   - Extract documented response schema from proposal Phase 1 analysis
-   - Identify documented error scenarios and HTTP status codes
-   - Note any query parameters or request variations documented
-   - Confirm expected API behavior to validate in tests
-
-4. **Document findings** in working notes:
-   - Current API contract (endpoints, methods, parameters, responses)
-   - Testing approach selection (programmatic server vs. module-level)
-   - Mocking strategy based on database interaction pattern
-   - Test scenarios derived from documentation
-
-**Deliverable:** Analysis document (not committed) guiding test implementation decisions.
-
-**Time Estimate:** 45 minutes
-
-### Phase 1: Test Infrastructure Setup
-
-**Objective:** Create minimal package.json and test directory structure with framework selection.
-
-**Framework Decision Logic:**
-```
-IF Node.js version >= 18 AND no existing test framework:
-  → Use Node.js native test runner (node:test) - zero dependencies
-ELSE IF team familiar with Jest:
-  → Use Jest - mature ecosystem, built-in coverage
-ELSE:
-  → Use Mocha + Chai - lightweight, flexible
-```
-
-**Recommended:** Node.js native test runner for zero-dependency simplicity, aligning with repository's minimal dependency philosophy.
+**Objective:** Confirm all prerequisites exist before beginning pipeline implementation.
 
 **Actions:**
 
-1. **Create or update `package.json`:**
-```json
-{
-  "name": "property-search-api",
-  "version": "1.0.0",
-  "description": "Property search API with automated testing",
-  "scripts": {
-    "test": "node --test test/**/*.test.js",
-    "test:coverage": "node --test --experimental-test-coverage test/**/*.test.js",
-    "api": "node backend/api/properties/search.js"
-  },
-  "devDependencies": {
-    "c8": "^8.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
-}
-```
+1. **Verify test suite existence:**
+   - Confirm `package.json` exists with `"test"` script defined
+   - Verify `test/` directory contains test files
+   - Execute `npm test` locally to confirm tests pass
+   - Review test execution time (must be < 5 minutes for pipeline target)
 
-If using Jest alternative:
-```json
-{
-  "scripts": {
-    "test": "jest",
-    "test:coverage": "jest --coverage"
-  },
-  "devDependencies": {
-    "jest": "^29.0.0"
-  }
-}
-```
+2. **Confirm repository hosting platform:**
+   - Identify if repository hosted on GitHub, GitLab, or other platform
+   - Proposal assumes GitHub; alternative implementations documented if different platform
 
-2. **Create test directory structure:**
-```
-test/
-  api/
-    properties/
-      search.test.js
-  fixtures/
-    properties.js
-  helpers/
-    server.js
-```
+3. **Review prior orbit artifacts:**
+   - Read `.orbital/artifacts/ffce316e-4d4e-46c6-bb4f-c5310e36a19f/proposal_record.md` to understand any API modifications affecting deployment
+   - Verify no environment-specific dependencies introduced
 
-3. **Create `.gitignore` entries** (if file doesn't exist, create it):
-```
-node_modules/
-coverage/
-.nyc_output/
-```
+4. **Check Node.js version:**
+   - Identify Node.js version from `package.json` engines field or `.nvmrc`
+   - If not specified, infer from README compatibility or default to Node.js 18 LTS
 
-4. **Create `test/helpers/server.js`** - utility for programmatic server control:
-```javascript
-const { spawn } = require('child_process');
-const http = require('http');
+5. **Document deployment target requirements:**
+   - This proposal provides generic PaaS deployment pattern
+   - Human reviewer must specify actual deployment target (Render, Railway, DigitalOcean, etc.) during approval phase
+   - Deployment stage will be implemented as template requiring target-specific customization
 
-/**
- * Start API server on dynamic port for testing
- * @returns {Promise<{port: number, process: ChildProcess}>}
- */
-async function startTestServer() {
-  const port = await findAvailablePort();
-  // Implementation based on Phase 0 analysis of how server starts
-}
-
-/**
- * Find available port to avoid conflicts
- */
-async function findAvailablePort() {
-  return new Promise((resolve) => {
-    const server = http.createServer();
-    server.listen(0, () => {
-      const port = server.address().port;
-      server.close(() => resolve(port));
-    });
-  });
-}
-
-module.exports = { startTestServer };
-```
-
-**Files Created:**
-- `package.json` (or modified if exists)
-- `test/api/properties/search.test.js` (skeleton)
-- `test/fixtures/properties.js`
-- `test/helpers/server.js`
-- `.gitignore` (updated)
+**Deliverable:** Verified prerequisites checklist and identified blockers if any.
 
 **Time Estimate:** 30 minutes
 
-### Phase 2: Fixture Data Creation
+### Phase 1: GitHub Actions Workflow Structure Creation
 
-**Objective:** Create realistic but synthetic test data based on documented API response structure.
-
-**Actions:**
-
-1. **Create `test/fixtures/properties.js`** with sample property data:
-```javascript
-/**
- * Sample property data for testing
- * Based on documented API response schema from orbit bffba690-3729-48f5-9223-6609f344063f
- */
-
-const sampleProperties = [
-  {
-    id: 'prop-test-001',
-    address: '123 Test Avenue',
-    city: 'Testville',
-    state: 'TS',
-    zipCode: '12345',
-    price: 350000,
-    bedrooms: 3,
-    bathrooms: 2,
-    squareFeet: 1800,
-    propertyType: 'single-family',
-    status: 'available'
-  },
-  {
-    id: 'prop-test-002',
-    address: '456 Example Street',
-    city: 'Sampletown',
-    state: 'EX',
-    zipCode: '67890',
-    price: 525000,
-    bedrooms: 4,
-    bathrooms: 3,
-    squareFeet: 2400,
-    propertyType: 'townhouse',
-    status: 'available'
-  }
-];
-
-const emptyResult = [];
-
-const errorResponse = {
-  error: 'Invalid request',
-  message: 'Query parameters validation failed'
-};
-
-module.exports = {
-  sampleProperties,
-  emptyResult,
-  errorResponse
-};
-```
-
-**Note:** Actual fields must match the structure discovered in Phase 0 analysis.
-
-**Files Created:**
-- `test/fixtures/properties.js`
-
-**Time Estimate:** 15 minutes
-
-### Phase 3: Core Test Implementation
-
-**Objective:** Implement primary test cases covering happy path and error scenarios.
-
-**Testing Approach** (determined by Phase 0 analysis):
-
-**Approach A: Programmatic Server Testing** (if server doesn't export testable functions)
-```javascript
-const assert = require('node:assert');
-const { describe, it, before, after } = require('node:test');
-const http = require('http');
-const { startTestServer } = require('../../helpers/server');
-const { sampleProperties } = require('../../fixtures/properties');
-
-describe('Property Search API', () => {
-  let serverPort;
-  let serverProcess;
-
-  before(async () => {
-    const server = await startTestServer();
-    serverPort = server.port;
-    serverProcess = server.process;
-  });
-
-  after(() => {
-    if (serverProcess) serverProcess.kill();
-  });
-
-  describe('GET /api/properties/search', () => {
-    it('returns array of properties for successful search', async () => {
-      const response = await makeRequest(serverPort, '/api/properties/search');
-      
-      assert.strictEqual(response.statusCode, 200);
-      assert.strictEqual(response.headers['content-type'], 'application/json');
-      
-      const body = JSON.parse(response.body);
-      assert.ok(Array.isArray(body), 'Response should be an array');
-      assert.ok(body.length > 0, 'Response should contain properties');
-      
-      // Validate structure of first property
-      const property = body[0];
-      assert.ok(property.id, 'Property should have id');
-      assert.ok(property.address, 'Property should have address');
-      assert.ok(typeof property.price === 'number', 'Price should be number');
-    });
-
-    it('returns 400 for invalid query parameters', async () => {
-      const response = await makeRequest(
-        serverPort, 
-        '/api/properties/search?invalid=param'
-      );
-      
-      assert.strictEqual(response.statusCode, 400);
-      const body = JSON.parse(response.body);
-      assert.ok(body.error, 'Error response should contain error field');
-    });
-  });
-});
-
-/**
- * Make HTTP request to test server
- */
-function makeRequest(port, path) {
-  return new Promise((resolve) => {
-    http.get(`http://localhost:${port}${path}`, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        resolve({
-          statusCode: res.statusCode,
-          headers: res.headers,
-          body
-        });
-      });
-    });
-  });
-}
-```
-
-**Approach B: Module-Level Testing** (if server exports handler functions)
-```javascript
-const assert = require('node:assert');
-const { describe, it } = require('node:test');
-const { handlePropertySearch } = require('../../../backend/api/properties/search');
-const { sampleProperties } = require('../../fixtures/properties');
-
-describe('Property Search Handler', () => {
-  it('returns properties for valid request', async () => {
-    const mockReq = { method: 'GET', url: '/api/properties/search' };
-    const mockRes = createMockResponse();
-    
-    await handlePropertySearch(mockReq, mockRes);
-    
-    assert.strictEqual(mockRes.statusCode, 200);
-    const body = JSON.parse(mockRes.body);
-    assert.ok(Array.isArray(body));
-  });
-});
-
-function createMockResponse() {
-  return {
-    statusCode: 200,
-    headers: null,
-    body: '',
-    setHeader(name, value) { this.headers[name] = value; },
-    end(data) { this.body = data; }
-  };
-}
-```
-
-**Implementation Decision:** Use whichever approach Phase 0 analysis determines is feasible. Approach A is more comprehensive but slower; Approach B is faster but requires exported functions.
+**Objective:** Create basic CI/CD pipeline configuration with build and test stages.
 
 **Actions:**
 
-1. **Implement `test/api/properties/search.test.js`** with structure from appropriate approach above
-
-2. **Add test cases covering acceptance criteria:**
-   - ✅ Happy path: Successful property search returns array
-   - ✅ Error case: Invalid request returns appropriate error
-   - ➕ Edge case: Empty result set (if API supports filtering)
-   - ➕ Edge case: Large result set handling
-   - ➕ Edge case: Special characters in parameters
-
-3. **Ensure descriptive test names and assertions:**
-```javascript
-it('returns 200 status code with valid JSON array for successful search', async () => {
-  // Clear description of expected behavior
-  const response = await makeRequest(serverPort, '/api/properties/search');
-  
-  assert.strictEqual(
-    response.statusCode, 
-    200, 
-    'Successful search should return HTTP 200'
-  );
-  
-  assert.strictEqual(
-    response.headers['content-type'],
-    'application/json',
-    'Response should be JSON content type'
-  );
-});
+1. **Create `.github/workflows/` directory structure:**
+```bash
+mkdir -p .github/workflows
 ```
+
+2. **Create `.github/workflows/ci-cd.yml`** with initial structure:
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  NODE_VERSION: '18'  # Update based on Phase 0 findings
+
+jobs:
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Verify installation
+        run: node --version && npm --version
+      
+      # Persist node_modules for subsequent jobs
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+```
+
+3. **Add test stage:**
+
+```yaml
+  test:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+      
+      - name: Generate coverage report
+        run: npm run test:coverage || echo "Coverage script not found, skipping"
+        continue-on-error: true
+      
+      - name: Upload coverage to artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+```
+
+4. **Optimize with parallel execution** (if multiple test suites exist):
+
+```yaml
+  test:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        test-suite: [api, integration]  # Adjust based on actual test structure
+      fail-fast: false  # Continue other tests even if one fails
+    
+    steps:
+      # ... checkout and setup steps ...
+      
+      - name: Run ${{ matrix.test-suite }} tests
+        run: npm test -- test/${{ matrix.test-suite }}
+```
+
+**Note:** Matrix strategy only if test suite structure discovered in Phase 0 supports splitting.
 
 **Files Created:**
-- `test/api/properties/search.test.js` (complete implementation)
-
-**Time Estimate:** 2 hours
-
-### Phase 4: Database Mocking Strategy
-
-**Objective:** Implement mocking approach that satisfies zero external dependencies constraint without modifying production code.
-
-**Strategy Selection** (based on Phase 0 analysis):
-
-**Option 1: Environment-Based Fixture Injection**
-If API checks for test environment, inject fixture data through environment variable:
-```javascript
-// In test setup
-process.env.USE_TEST_FIXTURES = 'true';
-process.env.TEST_FIXTURE_DATA = JSON.stringify(sampleProperties);
-```
-
-**Option 2: Module Mock/Stub**
-If API imports database module, use test framework mocking:
-```javascript
-// Using Node.js mock (Node 18+)
-const { mock } = require('node:test');
-const dbModule = require('../../../backend/database/client');
-
-mock.method(dbModule, 'query', () => {
-  return Promise.resolve(sampleProperties);
-});
-```
-
-**Option 3: No Mocking Required**
-If API already returns hardcoded sample data (suggested by README), tests validate actual responses without mocking.
-
-**Implementation:**
-
-1. **Analyze database interaction pattern** from Phase 0 findings
-
-2. **Implement appropriate mocking strategy** in test setup
-
-3. **Verify mock isolation:** Each test should get fresh mock state
-
-4. **Document mocking approach** in test file comments for future maintainers
-
-**Files Modified:**
-- `test/api/properties/search.test.js` (add mocking setup)
-- `test/helpers/server.js` (if mocking requires helper utilities)
+- `.github/workflows/ci-cd.yml`
 
 **Time Estimate:** 1 hour
 
-### Phase 5: Coverage Analysis and Gap Filling
+### Phase 2: Quality Gates and Coverage Thresholds
 
-**Objective:** Measure code coverage and add tests to reach target acceptance criteria.
-
-**Actions:**
-
-1. **Run coverage analysis:**
-```bash
-npm run test:coverage
-```
-
-2. **Review coverage report** identifying uncovered branches:
-   - Error handling paths
-   - Edge case validation
-   - Response formatting logic
-
-3. **Add tests for uncovered paths** prioritizing:
-   - Critical error handling (should reach 100%)
-   - Input validation logic
-   - Response transformation code
-
-4. **Example gap-filling test:**
-```javascript
-it('handles server errors gracefully with 500 status', async () => {
-  // Force error condition by mocking database failure
-  mock.method(dbModule, 'query', () => {
-    throw new Error('Database connection failed');
-  });
-  
-  const response = await makeRequest(serverPort, '/api/properties/search');
-  
-  assert.strictEqual(response.statusCode, 500);
-  const body = JSON.parse(response.body);
-  assert.ok(body.error, 'Server error should return error object');
-  assert.ok(
-    !body.error.includes('Database'), 
-    'Error message should not expose internal details'
-  );
-});
-```
-
-5. **Stop when target coverage reached** (80% target, 60% minimum acceptable)
-
-**Files Modified:**
-- `test/api/properties/search.test.js` (additional test cases)
-
-**Time Estimate:** 1.5 hours
-
-### Phase 6: Performance Optimization
-
-**Objective:** Ensure test suite completes within 10 second constraint.
+**Objective:** Implement test coverage reporting and quality thresholds per target acceptance criteria.
 
 **Actions:**
 
-1. **Measure baseline execution time:**
-```bash
-time npm test
+1. **Add coverage quality gate to test job:**
+
+```yaml
+      - name: Check coverage thresholds
+        run: |
+          # Extract coverage percentage from report
+          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          echo "Test coverage: ${COVERAGE}%"
+          
+          # Fail if below minimum threshold (60% from test suite orbit)
+          if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below minimum threshold of 60%"
+            exit 1
+          fi
+          
+          echo "✅ Coverage threshold met: ${COVERAGE}%"
 ```
 
-2. **If exceeding 10 seconds, optimize:**
+**Note:** This assumes coverage report generates `coverage/coverage-summary.json`. Adjust path based on actual test framework configuration discovered in Phase 0.
 
-**Optimization A: Parallel Execution**
-```json
-// package.json
-{
-  "scripts": {
-    "test": "node --test --test-concurrency=4 test/**/*.test.js"
-  }
-}
+2. **Add test result annotation for PR feedback:**
+
+```yaml
+      - name: Annotate test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Results
+          path: 'test-results/*.xml'  # Adjust based on test framework
+          reporter: jest-junit
+          fail-on-error: true
 ```
 
-**Optimization B: Shared Server Instance**
-```javascript
-// Move server startup to outer describe block
-describe('Property Search API', () => {
-  let server;
-  
-  before(async () => {
-    server = await startTestServer();
-  });
-  
-  after(() => {
-    server.process.kill();
-  });
-  
-  // All tests share single server instance
-});
-```
-
-**Optimization C: Reduce Server Startup Overhead**
-- Use module-level testing instead of programmatic server if possible
-- Mock HTTP layer instead of actual server
-- Cache server instance across test files
-
-3. **Re-measure after optimizations** to confirm < 10 second target
-
-4. **Document performance characteristics** in README
+3. **Configure GitHub status checks:**
+   - Document in deployment guide that repository settings should require "test" job to pass before merging
+   - This enforces quality gate at PR level
 
 **Files Modified:**
-- `package.json` (if adding parallelization flags)
-- `test/api/properties/search.test.js` (if restructuring for shared resources)
-- `test/helpers/server.js` (if optimizing server startup)
+- `.github/workflows/ci-cd.yml` (add coverage gate)
 
 **Time Estimate:** 45 minutes
 
-### Phase 7: README Documentation Update
+### Phase 3: Deployment Stage Configuration (Template)
 
-**Objective:** Document test execution instructions for developers.
+**Objective:** Create deployment stage with generic pattern requiring human customization for actual target.
 
 **Actions:**
 
-1. **Add "Running Tests" section to `README.md`:**
+1. **Add deployment job to workflow:**
+
+```yaml
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: test
+    # Only deploy from main branch, not PRs
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    environment:
+      name: staging
+      url: ${{ secrets.STAGING_URL }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install production dependencies
+        run: npm ci --omit=dev
+      
+      # DEPLOYMENT STEP - REQUIRES CUSTOMIZATION
+      - name: Deploy to staging
+        env:
+          DEPLOY_KEY: ${{ secrets.STAGING_DEPLOY_KEY }}
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: |
+          echo "⚠️  DEPLOYMENT TEMPLATE - CUSTOMIZE FOR YOUR PLATFORM"
+          echo "This step must be configured based on your deployment target:"
+          echo "  - PaaS (Render/Railway): Use platform-specific deploy action"
+          echo "  - IaaS (DigitalOcean/AWS): SSH deployment script"
+          echo "  - Serverless: Function deployment command"
+          exit 1  # Fail until customized
+      
+      - name: Verify deployment
+        run: |
+          # Wait for deployment to stabilize
+          sleep 10
+          
+          # Smoke test: Hit health endpoint
+          curl -f ${{ secrets.STAGING_URL }}/api/properties/search || exit 1
+          
+          echo "✅ Deployment verified successfully"
+```
+
+2. **Create deployment script templates** for common platforms:
+
+**`scripts/deploy-render.sh`** (PaaS example):
+```bash
+#!/bin/bash
+set -e
+
+echo "Deploying to Render..."
+
+# Render uses Git-based deployment
+# Trigger deploy via API
+curl -X POST "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" 
+  -H "Authorization: Bearer ${RENDER_API_KEY}" 
+  -H "Content-Type: application/json"
+
+echo "Deployment triggered successfully"
+```
+
+**`scripts/deploy-ssh.sh`** (IaaS example):
+```bash
+#!/bin/bash
+set -e
+
+echo "Deploying via SSH..."
+
+# Copy files to server
+rsync -avz --delete 
+  --exclude 'node_modules' 
+  --exclude '.git' 
+  --exclude 'test' 
+  ./ ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}
+
+# SSH into server and restart application
+ssh ${DEPLOY_USER}@${DEPLOY_HOST} << 'EOF'
+  cd ${DEPLOY_PATH}
+  npm ci --omit=dev
+  pm2 restart property-search-api || pm2 start backend/api/properties/search.js --name property-search-api
+EOF
+
+echo "Deployment completed successfully"
+```
+
+3. **Document deployment customization requirements** in workflow comments:
+
+```yaml
+      # ==============================================================================
+      # DEPLOYMENT CUSTOMIZATION REQUIRED
+      # ==============================================================================
+      # This template deployment step must be customized for your infrastructure.
+      # 
+      # Required GitHub Secrets (add via repo Settings → Secrets and variables → Actions):
+      #   STAGING_URL - Full URL to staging environment (e.g., https://staging.example.com)
+      #   STAGING_DEPLOY_KEY - Authentication credential for deployment
+      #   STAGING_DATABASE_URL - Database connection string for staging
+      #
+      # Platform-Specific Examples:
+      #   Render: See scripts/deploy-render.sh
+      #   SSH/IaaS: See scripts/deploy-ssh.sh
+      #   Serverless: Use platform's deploy action from marketplace
+      # ==============================================================================
+```
+
+**Files Created:**
+- `.github/workflows/ci-cd.yml` (add deploy job)
+- `scripts/deploy-render.sh`
+- `scripts/deploy-ssh.sh`
+
+**Files Modified:**
+- `.github/workflows/ci-cd.yml` (continued)
+
+**Time Estimate:** 1.5 hours
+
+### Phase 4: Production Deployment with Manual Approval
+
+**Objective:** Add production deployment stage with manual approval gate per stretch goal.
+
+**Actions:**
+
+1. **Add production deployment job with environment protection:**
+
+```yaml
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    # Only deploy from main branch
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    # GitHub Environment protection provides manual approval gate
+    environment:
+      name: production
+      url: ${{ secrets.PRODUCTION_URL }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install production dependencies
+        run: npm ci --omit=dev
+      
+      - name: Create release tag
+        run: |
+          VERSION=$(date +%Y%m%d-%H%M%S)
+          git tag "release-${VERSION}"
+          git push origin "release-${VERSION}"
+      
+      - name: Deploy to production
+        env:
+          DEPLOY_KEY: ${{ secrets.PRODUCTION_DEPLOY_KEY }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          # Use same deployment script as staging with different secrets
+          bash scripts/deploy.sh  # Customize per platform
+      
+      - name: Verify production deployment
+        run: |
+          sleep 15
+          curl -f ${{ secrets.PRODUCTION_URL }}/api/properties/search || exit 1
+          echo "✅ Production deployment verified"
+      
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "🚀 Production deployment completed successfully"
+          echo "Version: release-$(date +%Y%m%d-%H%M%S)"
+```
+
+2. **Configure GitHub Environment protection rules** (documented in setup guide):
+   - Navigate to repository Settings → Environments → New environment
+   - Create "production" environment
+   - Enable "Required reviewers" - select team members who must approve
+   - Enable "Wait timer" - optional delay before deployment proceeds
+   - Configure environment secrets separately from staging
+
+3. **Add rollback capability:**
+
+```yaml
+  rollback-production:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    # Manual workflow_dispatch trigger only
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+      
+      - name: Deploy previous version
+        env:
+          DEPLOY_KEY: ${{ secrets.PRODUCTION_DEPLOY_KEY }}
+        run: |
+          echo "Rolling back to tag: ${{ github.event.inputs.tag }}"
+          bash scripts/deploy.sh
+```
+
+**Files Modified:**
+- `.github/workflows/ci-cd.yml` (add production deploy and rollback jobs)
+
+**Time Estimate:** 1 hour
+
+### Phase 5: Documentation and Setup Guide
+
+**Objective:** Create comprehensive documentation enabling team members to understand and modify pipeline.
+
+**Actions:**
+
+1. **Create `/docs/deployment/` directory structure:**
+```bash
+mkdir -p docs/deployment
+```
+
+2. **Create `docs/deployment/README.md`** with complete setup guide:
 
 ```markdown
-## Running Tests
+# CI/CD Pipeline Setup Guide
 
-This repository includes an automated test suite for the property search API.
+## Overview
 
-### Prerequisites
+This repository uses GitHub Actions for automated testing and deployment. The pipeline consists of three stages:
 
-- Node.js 18.0.0 or higher
+1. **Build** - Install dependencies and verify code
+2. **Test** - Run automated test suite with coverage reporting
+3. **Deploy** - Ship to staging/production environments
+
+## Pipeline Triggers
+
+| Event | Branches | Stages Executed |
+|-------|----------|-----------------|
+| Push to `main` | main | Build → Test → Deploy Staging → Deploy Production (manual approval) |
+| Push to `develop` | develop | Build → Test → Deploy Staging |
+| Pull Request | any → main/develop | Build → Test only |
+
+## Required Secrets Configuration
+
+### Setting Up Secrets
+
+1. Navigate to repository Settings → Secrets and variables → Actions
+2. Click "New repository secret"
+3. Add the following secrets:
+
+### Staging Environment
+
+- `STAGING_URL` - Full URL to staging server (e.g., `https://staging-api.example.com`)
+- `STAGING_DEPLOY_KEY` - Deployment credential (API key, SSH key, etc.)
+- `STAGING_DATABASE_URL` - Database connection string
+
+### Production Environment
+
+- `PRODUCTION_URL` - Full URL to production server
+- `PRODUCTION_DEPLOY_KEY` - Deployment credential
+- `PRODUCTION_DATABASE_URL` - Database connection string
+
+**⚠️ Security Note:** Never commit secrets to repository. Never echo secrets in logs.
+
+## Deployment Target Configuration
+
+The workflow includes template deployment steps that must be customized for your infrastructure.
+
+### Option A: Platform-as-a-Service (Render, Railway, Heroku)
+
+1. Edit `.github/workflows/ci-cd.yml`
+2. Replace template deployment step with platform-specific action:
+
+```yaml
+- name: Deploy to Render
+  uses: render-deploy/deploy@v1
+  with:
+    api-key: ${{ secrets.RENDER_API_KEY }}
+    service-id: ${{ secrets.RENDER_SERVICE_ID }}
+```
+
+3. See platform documentation for specific action syntax
+
+### Option B: SSH Deployment (DigitalOcean, AWS EC2, VPS)
+
+1. Generate SSH key pair for deployment
+2. Add public key to target server `~/.ssh/authorized_keys`
+3. Add private key as `STAGING_DEPLOY_KEY` secret
+4. Configure deployment script variables:
+   - `DEPLOY_HOST` - Server hostname or IP
+   - `DEPLOY_USER` - SSH username
+   - `DEPLOY_PATH` - Application directory on server
+
+5. Use provided `scripts/deploy-ssh.sh` template
+
+## Manual Approval for Production
+
+Production deployments require manual approval:
+
+1. Push to `main` branch triggers staging deployment
+2. After staging succeeds, production job waits for approval
+3. Designated reviewers receive notification
+4. Reviewer approves via GitHub Actions UI
+5. Production deployment proceeds automatically
+
+### Configuring Reviewers
+
+1. Repository Settings → Environments → production
+2. Enable "Required reviewers"
+3. Select team members who can approve production deploys
+
+## Monitoring Pipeline Status
+
+### GitHub Actions UI
+
+- Repository → Actions tab
+- View all workflow runs, logs, and artifacts
+- Download coverage reports from artifacts
+
+### Status Badges
+
+Add to README.md:
+
+```markdown
+![CI/CD Pipeline](https://github.com/USERNAME/REPO/workflows/CI%2FCD%20Pipeline/badge.svg)
+```
+
+## Troubleshooting
+
+See [troubleshooting.md](./troubleshooting.md) for common issues and solutions.
+
+## Rollback Procedure
+
+If production deployment introduces issues:
+
+1. Identify last known good release tag (format: `release-YYYYMMDD-HHMMSS`)
+2. Navigate to Actions → Rollback Production workflow
+3. Click "Run workflow"
+4. Enter tag name of previous version
+5. Workflow redeploys specified version
+
+## Local Development
+
+CI/CD does not change local development workflow:
+
+```bash
+# Run API locally
+node backend/api/properties/search.js
+
+# Run tests locally
+npm test
+
+# Run tests with coverage
+npm run test:coverage
+```
+```
+
+3. **Create `docs/deployment/secrets.md`** as template for teams:
+
+```markdown
+# Required Secrets Reference
+
+This document lists all secrets required for CI/CD pipeline operation.
+
+⚠️ **DO NOT commit actual secret values to this file**
+
+## Staging Environment
+
+| Secret Name | Description | Example Value (Not Real) | Where to Get It |
+|-------------|-------------|--------------------------|-----------------|
+| `STAGING_URL` | Staging server URL | `https://staging.example.com` | Hosting provider dashboard |
+| `STAGING_DEPLOY_KEY` | Deployment credential | `sk_test_abc123...` | Hosting provider API keys section |
+| `STAGING_DATABASE_URL` | Database connection | `postgres://user:pass@host:5432/db` | Database provider connection info |
+
+## Production Environment
+
+| Secret Name | Description | Example Value (Not Real) | Where to Get It |
+|-------------|-------------|--------------------------|-----------------|
+| `PRODUCTION_URL` | Production server URL | `https://api.example.com` | Hosting provider dashboard |
+| `PRODUCTION_DEPLOY_KEY` | Deployment credential | `sk_live_xyz789...` | Hosting provider API keys section |
+| `PRODUCTION_DATABASE_URL` | Database connection | `postgres://user:pass@host:5432/db` | Database provider connection info |
+
+## Security Best Practices
+
+- Rotate credentials every 90 days
+- Use separate credentials for staging and production
+- Grant minimum required permissions to deployment keys
+- Monitor secret access logs in hosting provider
+- Never share secrets via email, Slack, or insecure channels
+```
+
+4. **Create `docs/deployment/troubleshooting.md`:**
+
+```markdown
+# CI/CD Pipeline Troubleshooting Guide
+
+## Build Stage Failures
+
+### "npm ci" fails with package-lock.json mismatch
+
+**Symptom:** Error message about package-lock.json being out of sync
+
+**Cause:** package-lock.json doesn't match package.json
+
+**Solution:**
+```bash
+rm package-lock.json
+npm install
+git add package-lock.json
+git commit -m "Regenerate package-lock.json"
+```
+
+### Node version mismatch
+
+**Symptom:** "Unsupported Node.js version" or compatibility errors
+
+**Solution:** Update `NODE_VERSION` in `.github/workflows/ci-cd.yml` to match local development version
+
+## Test Stage Failures
+
+### Tests pass locally but fail in CI
+
+**Cause:** Environment differences (file paths, timezones, missing env vars)
+
+**Solution:**
+1. Check test assumes specific file paths - use `path.join(__dirname, ...)`
+2. Check test depends on timezone - use UTC explicitly
+3. Check test requires environment variable - add to workflow env section
+
+### Coverage threshold not met
+
+**Symptom:** "Coverage X% is below minimum threshold"
+
+**Solution:**
+1. Add tests for uncovered code paths
+2. OR adjust threshold in workflow if current coverage is acceptable
+3. Review coverage report artifact to identify gaps
+
+## Deployment Stage Failures
+
+### "DEPLOYMENT TEMPLATE" error
+
+**Symptom:** Deployment fails with template customization message
+
+**Cause:** Deployment step not yet configured for your infrastructure
+
+**Solution:** Follow deployment target configuration in README.md
+
+### "curl: (7) Failed to connect" during verification
+
+**Symptom:** Deployment completes but verification fails
+
+**Causes:**
+1. Server not fully started yet - increase sleep duration
+2. Wrong URL in secrets - verify STAGING_URL/PRODUCTION_URL
+3. Firewall blocking GitHub Actions IPs - whitelist GitHub IP ranges
+
+**Solution:** Add longer wait time:
+```yaml
+sleep 30  # Increase from 10 seconds
+```
+
+### Secrets not available
+
+**Symptom:** "Error: Secret 'XXX' not found"
+
+**Solution:**
+1. Verify secret added to correct repository
+2. Check secret name matches exactly (case-sensitive)
+3. For environment-specific secrets, ensure environment configured
+
+## Performance Issues
+
+### Pipeline exceeds 10 minute target
+
+**Cause:** Slow dependency installation or test execution
+
+**Solutions:**
+1. Enable npm caching (already configured)
+2. Split tests into parallel jobs
+3. Profile slow tests and optimize
+4. Consider caching node_modules between runs
+
+### Rate limiting errors
+
+**Symptom:** "API rate limit exceeded"
+
+**Cause:** Too many GitHub API calls
+
+**Solution:** Add authentication token to API calls or reduce call frequency
+
+## Getting Help
+
+If troubleshooting doesn't resolve the issue:
+
+1. Check workflow run logs in GitHub Actions UI
+2. Review full error message and stack trace
+3. Search GitHub Actions community forum
+4. Contact DevOps team with workflow run URL
+```
+
+5. **Update main `README.md`** with CI/CD section:
+
+```markdown
+## CI/CD Pipeline
+
+This repository uses automated continuous integration and deployment via GitHub Actions.
+
+### Pipeline Status
+
+![CI/CD Pipeline](https://github.com/USERNAME/REPO/workflows/CI%2FCD%20Pipeline/badge.svg)
 
 ### Quick Start
 
-1. Install dependencies (if not already installed):
-   ```bash
-   npm install
-   ```
+- **Push to feature branch:** Runs tests only
+- **Open pull request:** Tests must pass before merge
+- **Merge to main:** Automatically deploys to staging, requires approval for production
 
-2. Run the test suite:
-   ```bash
-   npm test
-   ```
+### Documentation
 
-3. Run tests with coverage report:
-   ```bash
-   npm run test:coverage
-   ```
+- [Complete Setup Guide](docs/deployment/README.md)
+- [Required Secrets](docs/deployment/secrets.md)
+- [Troubleshooting](docs/deployment/troubleshooting.md)
 
-### Test Structure
+### Local Development
 
-Tests are organized in the `test/` directory mirroring the source code structure:
+CI/CD does not change your local workflow:
 
-- `test/api/properties/search.test.js` - Property search endpoint tests
-- `test/fixtures/` - Sample test data
-- `test/helpers/` - Testing utilities
+```bash
+# Run API locally
+node backend/api/properties/search.js
 
-### Expected Output
-
-All tests should pass with output similar to:
-
+# Run tests
+npm test
 ```
-✔ Property Search API > GET /api/properties/search > returns array of properties (45ms)
-✔ Property Search API > GET /api/properties/search > returns 400 for invalid parameters (12ms)
-
-Tests: 2 passed, 2 total
-Time: 1.23s
 ```
 
-### Troubleshooting
-
-**Tests fail with "EADDRINUSE" error:**
-- Another process is using port 3000
-- Tests use dynamic port allocation and should avoid this issue
-- If persists, check for zombie processes: `lsof -i :3000`
-
-**Coverage reports not generating:**
-- Ensure Node.js version >= 18.0.0
-- Check that `c8` is installed in devDependencies
-```
-
-2. **Update existing "Running the sample API" section** if needed to clarify difference between running API for development vs. testing
-
-3. **Add test command to "Structure" section** if appropriate
+**Files Created:**
+- `docs/deployment/README.md`
+- `docs/deployment/secrets.md`
+- `docs/deployment/troubleshooting.md`
 
 **Files Modified:**
-- `README.md` (add testing documentation)
+- `README.md` (add CI/CD section)
 
-**Time Estimate:** 20 minutes
+**Time Estimate:** 2 hours
 
-### Phase 8: Final Validation
+### Phase 6: Pipeline Testing and Validation
 
-**Objective:** Verify all acceptance criteria met through fresh checkout simulation.
+**Objective:** Verify pipeline executes correctly before considering orbit complete.
 
 **Actions:**
 
-1. **Simulate fresh developer checkout:**
+1. **Create feature branch for testing:**
 ```bash
-# In temporary directory
-git clone [repository-url] fresh-test
-cd fresh-test
-npm install
-npm test
+git checkout -b test/ci-cd-pipeline
+git add .github/ docs/ scripts/ README.md
+git commit -m "Add CI/CD pipeline configuration"
+git push origin test/ci-cd-pipeline
 ```
 
-2. **Verify acceptance criteria checklist:**
-   - ✅ Test suite executes via single command without manual setup
-   - ✅ At least one test validates successful property search response structure
-   - ✅ At least one test validates error handling for invalid requests
-   - ✅ Test output clearly identifies passed/failed tests with actionable messages
-   - ✅ README includes test execution instructions
-   - ✅ All tests pass on current implementation without code changes
-   - ✅ Execution completes in < 10 seconds
-   - ✅ Coverage reaches minimum 60% (target 80%)
+2. **Verify build and test stages trigger:**
+   - Navigate to repository Actions tab
+   - Confirm workflow started automatically on push
+   - Monitor build stage completion
+   - Monitor test stage execution
+   - Verify deployment stage skipped (not main branch)
 
-3. **Test output quality review:**
-```javascript
-// Good: Descriptive failure message
-assert.strictEqual(
-  response.statusCode, 
-  200, 
-  'Expected HTTP 200 for successful search, got ${response.statusCode}. Response: ${response.body}'
-);
-
-// Bad: Generic failure message
-assert.strictEqual(response.statusCode, 200);
+3. **Validate workflow file syntax:**
+```bash
+# Use GitHub's workflow validator (requires gh CLI)
+gh workflow view ci-cd.yml
 ```
 
-4. **Security scan of test fixtures:**
-- Confirm no real addresses, names, or data patterns
-- Verify test IDs use obvious prefixes: "prop-test-001"
-- Check for accidental PII in comments or variable names
+4. **Test failure scenarios:**
+   - Temporarily introduce failing test
+   - Push and verify pipeline fails at test stage
+   - Verify deployment stage doesn't execute
+   - Revert failing test
 
-5. **Create validation checklist document** for human reviewer
+5. **Verify secrets documentation accuracy:**
+   - Review secrets.md template
+   - Confirm all referenced secrets documented
+   - Verify secret names match workflow usage exactly
 
-**Deliverable:** Confidence that all acceptance criteria met and tests ready for review.
+6. **Create pull request for human review:**
+   - Open PR from test branch to main
+   - Verify status checks appear
+   - Verify test results visible in PR
+   - Document for reviewer: "Deployment stage requires customization with actual infrastructure details"
 
-**Time Estimate:** 30 minutes
+**Deliverable:** Validated pipeline configuration ready for human review and deployment target customization.
+
+**Time Estimate:** 1 hour
 
 ### Execution Order and Dependencies
 
 ```
-Phase 0 (Analysis) → Phase 1 (Infrastructure) → Phase 2 (Fixtures)
-                                                      ↓
-Phase 7 (README) ← Phase 6 (Performance) ← Phase 5 (Coverage) ← Phase 4 (Mocking) ← Phase 3 (Core Tests)
-                                                                                             ↓
-                                                                                      Phase 8 (Validation)
+Phase 0 (Verification) → Phase 1 (Workflow Structure) → Phase 2 (Quality Gates)
+                                                              ↓
+Phase 6 (Testing) ← Phase 5 (Documentation) ← Phase 4 (Production) ← Phase 3 (Deployment Template)
 ```
 
-**Critical Path:** Phase 0 → Phase 1 → Phase 3 → Phase 5 → Phase 8
+**Critical Path:** Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 5 → Phase 6
 
-Phases 2, 4, 6, 7 can be parallelized or reordered based on findings from critical path phases.
+Phase 4 (production deployment) can be implemented in parallel with Phase 5 (documentation) if time constraints exist.
 
 ### Files Summary
 
 | File | Operation | Purpose |
 |------|-----------|---------|
-| `package.json` | CREATE/MODIFY | Define test scripts and dev dependencies |
-| `test/api/properties/search.test.js` | CREATE | Main test suite for property search endpoint |
-| `test/fixtures/properties.js` | CREATE | Sample test data for API responses |
-| `test/helpers/server.js` | CREATE | Utility for programmatic server control |
-| `.gitignore` | MODIFY | Exclude test artifacts from version control |
-| `README.md` | MODIFY | Document test execution instructions |
+| `.github/workflows/ci-cd.yml` | CREATE | GitHub Actions pipeline configuration with build, test, deploy stages |
+| `scripts/deploy-render.sh` | CREATE | PaaS deployment template (Render example) |
+| `scripts/deploy-ssh.sh` | CREATE | IaaS deployment template (SSH example) |
+| `docs/deployment/README.md` | CREATE | Complete CI/CD setup and usage guide |
+| `docs/deployment/secrets.md` | CREATE | Required secrets documentation template |
+| `docs/deployment/troubleshooting.md` | CREATE | Common issues and solutions reference |
+| `README.md` | MODIFY | Add CI/CD section with status badge and documentation links |
 
-**Total: 4-5 files created, 2 files modified**
+**Total: 6 files created, 1 file modified**
+
+### Human Review Requirements (Tier 3 Gated)
+
+This proposal delivers a functional CI/CD pipeline with build and test automation, but requires human decisions and approvals before production use:
+
+**Required Human Inputs:**
+
+1. **Deployment Target Selection:**
+   - Specify actual hosting platform (Render, Railway, DigitalOcean, AWS, etc.)
+   - Provide access credentials for deployment
+   - Customize deployment step in workflow for chosen platform
+
+2. **Secret Configuration:**
+   - Create GitHub secrets with actual values per secrets.md template
+   - Configure separate staging and production environments
+   - Set up environment protection rules for production
+
+3. **Production Approval Process:**
+   - Designate team members authorized to approve production deploys
+   - Configure GitHub environment protection settings
+   - Establish approval policy (single reviewer, multiple reviewers, etc.)
+
+4. **Infrastructure Verification:**
+   - Confirm staging environment exists and accessible
+   - Verify database connectivity from deployment environment
+   - Test manual deployment once before enabling automation
+
+5. **Security Review:**
+   - Audit deployment credential permissions
+   - Verify secrets stored securely
+   - Confirm no credentials committed to repository
+
+**Approval Gate:** Human reviewer must explicitly approve this proposal and complete the customization steps in Phase 3 (deployment target configuration) before the pipeline can deploy to any environment.
 
 ## Risk Surface
 
-### Risk: Test Framework Selection Misalignment
+### Risk: Deployment Template Not Customized
 
-**Scenario:** Chosen test framework (Node.js native test runner) incompatible with team's existing tooling or CI/CD pipeline expectations.
+**Scenario:** Pipeline merged without customizing deployment step; workflow fails at deploy stage with template error message.
 
-**Impact:** Medium — Tests work locally but fail in automated pipeline, or team cannot run tests due to unfamiliarity with framework.
-
-**Mitigation:**
-- Phase 0 analysis includes checking for existing test framework hints in repository
-- Proposal recommends Node.js native (zero dependency) as default but provides Jest/Mocha alternatives
-- Human reviewer (Tier 2 Supervised) validates framework choice before implementation
-- Framework selection isolated to Phase 1; changing it later requires minimal rework
-
-**Detection:** Human review flags framework choice as inappropriate for project context.
-
-### Risk: Incorrect API Behavior Assumptions
-
-**Scenario:** Phase 0 analysis misinterprets API implementation, leading to tests that validate incorrect behavior.
-
-**Impact:** High — Tests pass but don't actually verify correct API functionality; false confidence in broken code.
+**Impact:** Medium — Deployment blocked but no production impact; build and test stages function correctly.
 
 **Mitigation:**
-- Phase 0 explicitly requires reading actual implementation code, not assumptions
-- Tests must execute against running API and compare actual responses to documented expectations
-- Phase 8 validation includes manual API testing to confirm test assertions match reality
-- Cross-reference with documentation orbit artifacts (bffba690-3729-48f5-9223-6609f344063f) for expected behavior
+- Deployment step explicitly fails with instructional error message
+- Documentation clearly marks deployment customization as required
+- Phase 6 validation includes testing on feature branch first
+- Human review checklist includes "deployment target configured" item
 
-**Detection:** 
-- Human review identifies mismatch between test assertions and documented API contract
-- Phase 8 fresh checkout test fails because tests don't match actual API behavior
+**Detection:** Workflow run fails with clear "DEPLOYMENT TEMPLATE - CUSTOMIZE FOR YOUR PLATFORM" message in logs.
 
-### Risk: Database Mocking Bypasses Production Logic
+### Risk: GitHub Secrets Not Configured
 
-**Scenario:** Mocking strategy replaces so much of the API stack that tests validate mock behavior instead of real code paths.
+**Scenario:** Workflow executes but secrets referenced in deployment step don't exist, causing cryptic failure.
 
-**Impact:** Critical — Tests become meaningless; production bugs slip through because tests never exercise actual logic.
+**Impact:** Medium — Deployment fails but error message may not clearly indicate missing secret.
 
 **Mitigation:**
-- Mocking constrained to data layer only (database queries), not business logic
-- Prefer testing at HTTP boundary (Approach A) over deep module mocking
-- Phase 3 includes validation that mocked paths still execute core API logic
-- If API returns hardcoded data (Option 3), no mocking required - test actual responses
-- Human reviewer validates mocking strategy doesn't over-isolate system under test
+- Comprehensive secrets.md documentation lists all required secrets
+- Deployment verification step catches missing API URLs immediately
+- Troubleshooting guide includes "secrets not available" section
+- First deployment should be tested on staging before production enabled
 
-**Detection:**
-- Coverage report shows large sections of production code never executed during tests
-- Tests pass even when obvious bugs introduced in unmocked code paths
+**Detection:** Deployment fails with "Error: Secret 'XXX' not found" or similar message; deployment verification step fails with connection error.
 
-### Risk: Port Conflicts in CI/CD Environment
+### Risk: Test Suite Flakiness Blocks Deployments
 
-**Scenario:** Multiple test suites run in parallel on CI server attempting to bind to same port, causing "EADDRINUSE" failures.
+**Scenario:** Intermittent test failures unrelated to code changes cause legitimate deployments to be blocked.
 
-**Impact:** Medium — Tests fail intermittently in CI despite passing locally; unreliable pipeline.
+**Impact:** High — Developers lose trust in pipeline; workarounds introduced that bypass quality gates.
 
 **Mitigation:**
-- `test/helpers/server.js` implements dynamic port allocation using port 0
-- Each test run gets unique ephemeral port from OS
-- Alternative: Use module-level testing (Approach B) avoiding server startup entirely
-- Document port conflict troubleshooting in README
+- Tests must be reliably passing before CI/CD implementation begins (Phase 0 verification)
+- Test stage configured with retry logic for transient failures (can add `uses: nick-invision/retry@v2`)
+- Troubleshooting guide differentiates test failures from infrastructure issues
+- Monitor test pass rate; investigate any test that fails more than once in 10 runs
 
-**Detection:** CI logs show "EADDRINUSE" or port binding errors; tests pass when run individually but fail in parallel.
+**Detection:** Same test fails inconsistently across multiple runs; logs show timeout or race condition patterns.
 
-### Risk: Test Execution Time Exceeds Constraint
+### Risk: Concurrent Deployments Cause Race Conditions
 
-**Scenario:** Programmatic server startup overhead causes test suite to exceed 10 second execution constraint.
+**Scenario:** Multiple commits pushed rapidly causing overlapping deployment workflows, creating inconsistent state.
 
-**Impact:** Medium — Violates acceptance criteria; developers skip running tests locally due to slowness.
-
-**Mitigation:**
-- Phase 6 explicitly focuses on performance optimization
-- Shared server instance across tests reduces startup overhead
-- Parallel test execution (`--test-concurrency`) speeds up suite
-- Module-level testing (if available) eliminates server startup entirely
-- Continuous monitoring: Phase 8 validation measures actual execution time
-
-**Detection:** `time npm test` shows execution > 10 seconds during Phase 6 or Phase 8.
-
-### Risk: Fixture Data Diverges from Production Schema
-
-**Scenario:** API response structure changes but test fixtures not updated, causing tests to validate outdated contract.
-
-**Impact:** Medium — Tests pass but validate wrong schema; integration issues not caught.
+**Impact:** Medium-High — Production environment in unknown state; unclear which version actually deployed.
 
 **Mitigation:**
-- Fixtures based on actual documented schema from orbit bffba690-3729-48f5-9223-6609f344063f
-- Tests validate structure not just values (e.g., `assert.ok(property.id)` checks field exists)
-- Phase 8 includes cross-reference with latest documentation
-- Future: JSON schema validation (stretch goal) provides automated schema drift detection
+- GitHub Actions has built-in concurrency control: `concurrency: { group: "deploy-${{ github.ref }}", cancel-in-progress: true }`
+- Add to deployment jobs to ensure only one deployment per environment at a time
+- Document in troubleshooting guide that rapid commits may cancel in-progress deployments
 
-**Detection:** API changes merged without corresponding fixture updates; integration tests or production issues reveal schema mismatch.
+**Detection:** Multiple workflow runs shown as "cancelled" in Actions UI; deployment logs show overlapping timestamps.
 
-### Risk: Tests Pass with Backward Compatibility Violation
+### Risk: Secrets Exposed in Workflow Logs
 
-**Scenario:** Tests accidentally modify production code (violating constraint) and pass only because of those modifications.
+**Scenario:** Deployment script echoes environment variables for debugging, accidentally logging secret values.
 
-**Impact:** High — Constraint violation; tests don't validate actual production behavior.
-
-**Mitigation:**
-- Phase 8 validation explicitly checks no changes to `backend/api/properties/search.js`
-- Git diff review confirms only test files and README modified
-- Human reviewer (Tier 2 Supervised) validates backward compatibility maintained
-- Test implementation documented to never require production code changes
-
-**Detection:** 
-- Git diff shows modifications to files outside test directory
-- Proposal violation identified during human review
-
-### Risk: Inadequate Error Scenario Coverage
-
-**Scenario:** Tests only cover happy path, missing critical error handling paths needed for 80% coverage target.
-
-**Impact:** Medium — Acceptance criteria not met; error handling bugs slip through.
+**Impact:** Critical — Credentials exposed in publicly-visible workflow logs; immediate security breach.
 
 **Mitigation:**
-- Phase 5 explicitly focuses on gap filling after coverage analysis
-- Minimum acceptance requires at least one error case test
-- Target acceptance requires 3 error cases + 2 edge cases
-- Coverage report guides additional test creation prioritization
+- GitHub Actions automatically masks registered secrets in logs
+- Never use `echo $SECRET_NAME` or similar debugging statements
+- Deployment scripts sanitize error messages to avoid leaking values
+- Security review checkpoint in human approval process
+- Troubleshooting guide explicitly warns against echoing secrets
 
-**Detection:** Coverage report in Phase 5 shows < 60% coverage or large uncovered error handling branches.
+**Detection:** Security audit finds credential values visible in workflow run logs.
 
-### Risk: Test Output Not Actionable for Developers
+### Risk: Deployment Succeeds But Application Non-Functional
 
-**Scenario:** Tests fail with generic error messages that don't help developers understand what went wrong.
+**Scenario:** Code deploys successfully but database connection fails, environment variables missing, or service doesn't start.
 
-**Impact:** Low-Medium — Increased debugging time; frustrated developers.
-
-**Mitigation:**
-- All assertions include descriptive failure messages with context
-- Example in Phase 3: `assert.strictEqual(actual, expected, 'Reason why this matters')`
-- Test names describe expected behavior: "returns 200 status for successful search"
-- Phase 8 validation includes manual review of failure message quality
-
-**Detection:** Developers report difficulty understanding test failures; support questions about test output.
-
-### Risk: Security Information Exposure in Test Fixtures
-
-**Scenario:** Test fixtures accidentally include real property addresses, names, or sensitive data patterns.
-
-**Impact:** Low-Medium — Privacy concern; potential data exposure if tests committed to public repository.
+**Impact:** High — Application deployed but returning errors; users affected.
 
 **Mitigation:**
-- Phase 2 explicitly uses obviously fictional data with "test" prefixes
-- Phase 8 security scan checks for PII patterns (SSN, email, phone)
-- Fixtures use synthetic data: "123 Test Avenue", "prop-test-001"
-- Human reviewer validates no real data in test artifacts
+- Deployment verification step includes smoke test hitting actual endpoint
+- Verification curl uses `-f` flag to fail on HTTP error codes
+- Health check endpoint (future enhancement) provides detailed status
+- Rollback procedure documented and tested for quick recovery
 
-**Detection:** Automated pattern scanning or human review identifies realistic-looking data in fixtures.
+**Detection:** Deployment verification step fails with connection error or non-200 status code; automatic rollback triggered if configured.
+
+### Risk: Pipeline Exceeds Free Tier Minutes
+
+**Scenario:** Frequent commits and long-running tests consume GitHub Actions free tier quickly, causing pipeline throttling or unexpected costs.
+
+**Impact:** Medium — Deployments blocked when minutes exhausted; requires paid plan or month wait.
+
+**Mitigation:**
+- Public repositories have unlimited minutes (confirm repository visibility)
+- Private repositories: 2000 minutes/month typically sufficient for small teams
+- Aggressive dependency caching reduces build time (implemented in Phase 1)
+- Monitor usage via GitHub Settings → Billing
+- Document cost considerations in deployment guide
+
+**Detection:** Workflow runs queued indefinitely; GitHub email notification about minutes exhausted.
+
+### Risk: Database Migration Coordination Failures
+
+**Scenario:** Code deployment includes database schema changes but pipeline doesn't coordinate migration execution, causing version mismatch.
+
+**Impact:** High — Application crashes on startup or returns errors due to schema incompatibility.
+
+**Mitigation:**
+- Intent explicitly excludes database migrations from scope (non-goals constraint)
+- Documentation notes assumption that deployments don't require schema changes
+- Backward-compatible schema changes recommended as separate process
+- Future enhancement: Add migration step before deployment if needed
+
+**Detection:** Application logs show SQL errors referencing missing columns or tables after deployment.
+
+### Risk: Manual Approval Gate Becomes Bottleneck
+
+**Scenario:** Production deployments stalled waiting for approver availability, delaying critical fixes.
+
+**Impact:** Medium — Reduced deployment frequency defeats purpose of CI/CD automation.
+
+**Mitigation:**
+- Configure multiple approved reviewers (not single point of failure)
+- Document approval SLA (e.g., within 4 business hours)
+- Emergency hotfix procedure for bypassing approval in critical situations (manual deployment)
+- Monitor approval wait times and adjust process if bottleneck identified
+
+**Detection:** Production deployments consistently waiting hours for approval; metrics show approval as longest stage.
+
+### Risk: Rollback Procedure Not Tested
+
+**Scenario:** Bad deployment reaches production; team attempts rollback but procedure fails or incomplete.
+
+**Impact:** High — Extended outage while team scrambles to recover; rollback supposed to be safety net.
+
+**Mitigation:**
+- Rollback workflow included in Phase 4 implementation
+- Documentation includes step-by-step rollback procedure
+- Recommend testing rollback in staging environment
+- Git tags provide clear version history for identifying rollback target
+- Human review should include "rollback procedure tested" verification
+
+**Detection:** Rollback attempted but fails with configuration error or missing components.
 
 ## Scope Estimate
 
-### Complexity Assessment: Medium
+### Complexity Assessment: High
 
 **Justification:**
-- **Moderate Technical Challenge:** Requires understanding existing API implementation, designing mocking strategy, and selecting appropriate testing approach without modifying production code
-- **Architectural Decision:** Framework selection and mocking strategy have long-term maintenance implications requiring human validation (Tier 2 Supervised)
-- **Multiple Unknowns:** Phase 0 analysis required before concrete implementation decisions; API structure discovery may reveal unexpected complexity
-- **Clear Boundaries:** Scope well-defined (single endpoint, no integration tests); constraints eliminate ambiguity
-- **Low Production Risk:** Tests don't affect running systems; errors impact only development workflow
+- **High Security Stakes:** Credential management and deployment automation introduce significant security surface requiring careful design
+- **Infrastructure Uncertainty:** No visibility into actual deployment target requires generic template approach with human customization
+- **Cross-System Integration:** Pipeline integrates GitHub Actions, test suite, deployment platform, and secret management across organizational boundaries
+- **Operational Impact:** Automated deployments affect production systems state with potential for cascading failures
+- **Documentation Intensity:** Tier 3 gating requires comprehensive documentation for human reviewer to make informed decisions
 
 **Complexity Drivers:**
-- Understanding undocumented API implementation
-- Database mocking without code modification
-- Performance optimization to meet 10-second constraint
-- Coverage target achievement (80%) may require extensive edge case testing
+- Multiple deployment platform patterns must be documented
+- Security best practices for secret management
+- Quality gates and coverage threshold integration
+- Manual approval workflow configuration
+- Comprehensive troubleshooting documentation
+- Rollback procedure design and testing
 
-### Estimated Duration: 6.5-8 hours
+### Estimated Duration: 7-8 hours
 
 **Time Breakdown:**
 
 | Phase | Estimated Time | Confidence | Notes |
 |-------|---------------|-----------|-------|
-| Phase 0: API Analysis | 45 min | High | Reading code and prior orbit artifacts |
-| Phase 1: Infrastructure Setup | 30 min | High | Straightforward package.json and directory creation |
-| Phase 2: Fixture Creation | 15 min | High | Simple data structures |
-| Phase 3: Core Tests | 2 hours | Medium | Main implementation work; may extend if API complex |
-| Phase 4: Database Mocking | 1 hour | Low | Depends heavily on Phase 0 findings |
-| Phase 5: Coverage Analysis | 1.5 hours | Medium | Iterative gap-filling; time varies with coverage gaps |
-| Phase 6: Performance Optimization | 45 min | Medium | May not be needed if tests already fast |
-| Phase 7: README Updates | 20 min | High | Straightforward documentation |
-| Phase 8: Final Validation | 30 min | High | Checklist-driven verification |
-| **Total** | **7.25 hours** | **Medium** | Mid-range estimate |
+| Phase 0: Dependency Verification | 30 min | High | Straightforward checklist validation |
+| Phase 1: Workflow Structure | 1 hour | High | Standard GitHub Actions YAML |
+| Phase 2: Quality Gates | 45 min | Medium | Depends on test framework coverage output format |
+| Phase 3: Deployment Template | 1.5 hours | Medium | Multiple platform examples require research |
+| Phase 4: Production Deployment | 1 hour | Medium | Approval workflow and rollback design |
+| Phase 5: Documentation | 2 hours | High | Comprehensive guides and troubleshooting |
+| Phase 6: Testing & Validation | 1 hour | High | Pipeline execution and PR creation |
+| **Total** | **7.75 hours** | **Medium-High** | Upper end of estimate range |
 
 **Variability Factors:**
-- **+1-2 hours:** Complex API implementation requiring extensive mocking
-- **+1 hour:** Low initial coverage requiring many additional tests
-- **-1 hour:** Simple API with exported functions enabling fast module-level testing
-- **-30 min:** Performance already meets constraint without optimization
+- **+1-2 hours:** Complex test framework integration requiring custom coverage parsing
+- **+1 hour:** Multiple deployment targets requiring platform-specific research
+- **-1 hour:** Deployment target specified upfront eliminating template approach
+- **-30 min:** Test suite already generates coverage reports in expected format
 
-### Work Phases: Single Orbit
+### Work Phases: Single Orbit with Human Gate
 
-**This proposal represents a complete orbit** — all phases execute in one continuous session. No natural breakpoints for multi-orbit decomposition exist because:
+**This proposal represents a single orbit with mandatory human review gate before completion.** The technical implementation can be completed autonomously, but the orbit cannot be marked "complete" until human reviewer:
 
-- Test suite value realized only when complete and passing
-- Partial test coverage creates false impression of validation
-- Mocking strategy must be consistent across all tests
-- Infrastructure setup (Phase 1) enables all subsequent phases
+1. Approves the pipeline configuration
+2. Specifies deployment target and customizes deployment step
+3. Configures GitHub secrets with actual credentials
+4. Sets up environment protection rules
+5. Tests first deployment manually
 
-**Milestone Checkpoints Within Orbit:**
-1. **Phase 0 Complete:** API analysis finalized; implementation approach selected
-2. **Phase 3 Complete:** Minimum acceptance criteria met (happy path + 1 error test)
-3. **Phase 5 Complete:** Target acceptance criteria met (80% coverage)
-4. **Phase 8 Complete:** All done criteria validated; ready for human review
+**Orbit Flow:**
+```
+Technical Implementation (Phases 0-6) → Human Review & Customization → Deployment Testing → Orbit Complete
+```
+
+The orbit deliverable is a functional CI/CD pipeline infrastructure with documentation, but activation of deployment capability requires human decisions outside the AI agent's authority.
 
 ### Acceptance Criteria Targeting
 
 **Minimum Acceptable (Guaranteed):**
-- ✓ 60% code coverage of API handlers
-- ✓ Happy path + 1 error case
-- ✓ < 10 seconds full suite execution
-- ✓ Single test file
-- ✓ Basic equality checks with failure messages
+- ✓ Build + Test stages functional
+- ✓ Tests run on every push
+- ✓ Pipeline configuration file with comments
+- ✓ Manual deployment trigger capability
+- ✓ Results within 10 minutes (target: < 5 minutes with caching)
 
 **Target (Planned):**
-- ✓ 80% code coverage including error paths
-- ✓ Happy path + 3 error cases + 2 edge cases
-- ✓ < 5 seconds full suite execution
-- ✓ Organized test structure with clear naming
-- ✓ Descriptive assertions with meaningful failure messages
+- ✓ Build + Test + Deploy to staging
+- ✓ Tests + coverage reporting
+- ✓ Automatic deploy on main branch merge
+- ✓ Setup guide in repository
+- ✓ Results within 5 minutes
 
-**Stretch (Opportunistic):**
-- ? 90% coverage with edge cases and validation logic — Time permitting after target achieved
-- ? Comprehensive parameter combination matrix — Deferred; diminishing returns
-- ? < 2 seconds with parallel execution — Implemented if Phase 6 optimization needed
-- ? Test utilities and fixtures in reusable modules — Created if code duplication emerges
-- ? Custom matchers for API patterns — Lower priority; standard assertions sufficient
+**Stretch (Conditional on Human Approval):**
+- ✓ Production deployment with manual approval gate
+- ✓ Coverage quality gates with minimum thresholds
+- ✓ Rollback capability
+- ✓ Parallel job execution (if test suite supports splitting)
+- ✓ Troubleshooting guide and common issues documented
+
+**Stretch (Future Enhancements - Not This Orbit):**
+- ❌ Blue-green or zero-downtime deployment (requires infrastructure support)
+- ❌ Automated rollback on health check failure
+- ❌ Deployment notifications via Slack/Discord
+- ❌ Database migration coordination
+- ❌ Infrastructure-as-code integration
 
 ### Deliverable Artifacts
 
-**Test Implementation:**
-- `test/api/properties/search.test.js` — 200-300 lines with 5-8 test cases
-- `test/fixtures/properties.js` — 50-75 lines of sample data
-- `test/helpers/server.js` — 75-100 lines of test utilities
-
-**Configuration:**
-- `package.json` — Test scripts and dependencies
-- `.gitignore` — Coverage exclusions
+**CI/CD Infrastructure:**
+- `.github/workflows/ci-cd.yml` — 250-300 lines comprehensive pipeline
+- `scripts/deploy-render.sh` — 30-40 lines PaaS deployment template
+- `scripts/deploy-ssh.sh` — 50-60 lines IaaS deployment template
 
 **Documentation:**
-- `README.md` — Testing section (50-75 lines added)
+- `docs/deployment/README.md` — 300-400 lines complete setup guide
+- `docs/deployment/secrets.md` — 100-150 lines secrets reference template
+- `docs/deployment/troubleshooting.md` — 200-250 lines issue resolution guide
+- `README.md` updates — 30-40 lines CI/CD section added
 
-**Total Implementation Volume:** ~450-550 lines across 6 files
+**Total Documentation Volume:** ~900-1100 lines across 7 files
 
-**Validation Evidence:**
-- Test execution output showing all tests pass
-- Coverage report showing 60-80% coverage achieved
-- Performance measurement confirming < 10 second execution
-- Fresh checkout validation log
+**Human Review Package:**
+- Completed pipeline configuration ready for customization
+- Deployment target decision matrix
+- Security checklist for secret configuration
+- Testing verification results from Phase 6
+- Customization instructions for chosen infrastructure
 
 ## Human Modifications
 
 Pending human review.
+
+Human reviewer must:
+1. Specify deployment target platform
+2. Customize deployment step in `.github/workflows/ci-cd.yml`
+3. Configure GitHub secrets with actual credentials
+4. Set up environment protection rules
+5. Test first deployment to staging
+6. Approve production deployment capability activation
+
+Human reviewer should validate:
+- Security best practices followed in secret management
+- Deployment credentials have minimum required permissions
+- Test suite provides adequate quality gate
+- Rollback procedure understood and tested
+- Team trained on pipeline operation and troubleshooting
