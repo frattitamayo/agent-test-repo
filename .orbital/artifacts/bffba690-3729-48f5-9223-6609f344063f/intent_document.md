@@ -1,58 +1,69 @@
-# Implement CI/CD Pipeline with Automated Testing and Deployment
+# Implement User Authentication System
 
 ## Desired Outcome
 
-Engineering teams gain automated deployment capabilities that eliminate manual release processes, reducing deployment time from hours to minutes while increasing deployment frequency and reliability. Every code change pushed to the repository automatically triggers test execution, and upon success, deploys to appropriate environments based on branch strategy. Developers receive immediate feedback on test failures or deployment issues through automated notifications, enabling rapid iteration cycles. The pipeline serves as a quality gate preventing broken code from reaching production while providing deployment audit trails for compliance and debugging.
+Engineers can authenticate users securely through a JWT-based system integrated with the existing property search API. When complete, the API endpoints require valid authentication tokens, user sessions persist across requests, and unauthorized access attempts are rejected with appropriate HTTP responses. The property search functionality remains fully operational for authenticated users while gaining protection against unauthorized access.
 
 ## Constraints
 
-- **Platform Selection:** Must use GitHub Actions, GitLab CI, or CircleCI; no proprietary CI/CD platforms requiring vendor lock-in or special licensing
-- **Deployment Target:** Pipeline must support deployment to standard Node.js hosting environments (AWS, Heroku, DigitalOcean, or similar); no assumptions about specific infrastructure
-- **Security Requirements:** No secrets or credentials committed to repository; all sensitive values must use CI/CD platform's secret management; deployment keys must have minimum required permissions
-- **Cost Constraints:** Pipeline must operate within free tiers of CI/CD platforms for small projects; no configurations requiring paid enterprise features
-- **Existing Workflow Preservation:** Developers must retain ability to run API locally via `node backend/api/properties/search.js` and tests via `npm test`; CI/CD supplements not replaces local development
-- **Non-Goals:** This orbit does NOT implement infrastructure-as-code, container orchestration, monitoring/observability, or multi-region deployments; focus is on basic CI/CD automation only
-- **Backward Compatibility:** Existing codebase and test suite must continue functioning without modification; pipeline wraps existing capabilities
+- **Technology Stack:** Must use Node.js with Express framework to match existing backend/api structure. JWT implementation must use industry-standard libraries (jsonwebtoken, bcrypt).
+- **Database:** Authentication tables must integrate with existing SQL database infrastructure visible in backend/database/queries pattern. No MongoDB or external auth services.
+- **API Compatibility:** Existing property search endpoint (backend/api/properties/search.js) must remain functional with minimal breaking changes. Response schemas cannot change.
+- **Security Baseline:** Passwords must be hashed with bcrypt (minimum 10 rounds). JWTs must expire within 24 hours. No plaintext credential storage. No authentication logic in frontend until backend is proven stable.
+- **Performance Budget:** Authentication middleware must add less than 50ms latency to existing API calls. Token validation must not require database queries for every request.
+- **Non-Goals:** User registration UI, password reset flows, OAuth integration, role-based access control beyond basic authenticated/unauthenticated states.
 
 ## Acceptance Boundaries
 
-| Criterion | Minimum Acceptable | Target | Stretch |
-|-----------|-------------------|--------|---------|
-| Pipeline Stages | Build + Test | Build + Test + Deploy to staging | Build + Test + Deploy to staging and production |
-| Test Integration | Runs test suite on push | Runs tests + reports coverage | Tests + coverage + quality gates (minimum coverage threshold) |
-| Deployment Automation | Manual trigger for deployment | Automatic deploy on main branch merge | Automatic deploy with rollback capability |
-| Feedback Speed | Results within 10 minutes | Results within 5 minutes | Results within 2 minutes with parallel jobs |
-| Documentation Completeness | Pipeline configuration file with comments | Setup guide in repository | Troubleshooting guide and common issues documented |
+**Minimum Viable (Must Have):**
+- JWT token generation endpoint accepting username/password returns valid tokens
+- Token validation middleware successfully blocks unauthenticated requests to /api/properties/search
+- Valid tokens allow full access to property search with identical response format
+- User credentials table created with hashed passwords
+- Authentication failures return 401 status with error messages
+- Token expiration enforced (24-hour window)
 
-**Done Criteria:**
-- Pipeline executes automatically on every push to repository
-- Test suite runs in CI environment and reports pass/fail status
-- Failed tests block further pipeline progression with clear error messages
-- At least one deployment target configured (staging environment minimum)
-- Pipeline configuration file committed to repository and documented in README
-- New contributors can understand and modify pipeline without external assistance
+**Target State (Should Have):**
+- Token refresh mechanism to extend sessions without re-authentication
+- Authentication middleware response time under 20ms (P95)
+- Login endpoint rate limiting (max 5 attempts per minute per IP)
+- Graceful error handling for expired, malformed, or missing tokens with distinct error codes
+- Basic audit logging for authentication events (login, logout, token refresh)
+
+**Stretch (Nice to Have):**
+- Token revocation capability for logout/security events
+- Multiple concurrent sessions per user with session tracking
+- Authentication metrics endpoint showing active sessions and auth rate
+- Integration tests covering happy path and edge cases with >80% coverage
 
 ## Trust Tier Assignment
 
-**Tier: 3 (Gated)**
+**Tier 2: Supervised**
 
-**Rationale:**
-- **High Blast Radius:** Automated deployment pipelines can push broken code to production if misconfigured, affecting all users and potentially causing data loss or service outages
-- **Security Surface:** Pipeline requires access to deployment credentials, API keys, and production infrastructure; improper secret handling creates critical security vulnerabilities
-- **Infrastructure Changes:** Deployment automation modifies production systems state; errors cascade beyond code into infrastructure affecting availability and reliability
-- **Compliance Impact:** Automated deployments must maintain audit trails and approval workflows required for regulatory compliance; incorrect implementation risks compliance violations
-- **Irreversible Actions:** Deployment scripts may execute database migrations, infrastructure changes, or configuration updates that are difficult or impossible to reverse
-- **Multiple Stakeholders:** DevOps, security, and compliance teams typically have approval requirements for CI/CD pipeline changes that touch production systems
+**Rationale:** Authentication systems have high blast radius affecting all API consumers and introduce security attack surfaces (token forgery, session hijacking, credential exposure). While the implementation pattern is well-established, integration with the existing codebase requires careful review of:
 
-Tier 2 (Supervised) is insufficient given the production deployment authority and security credential access involved. Tier 1 (Autonomous) would be reckless for changes with this level of operational impact. Human review and explicit approval gates are essential before any automated production deployment capability goes live.
+- Middleware injection points that don't break existing functionality
+- Database schema changes that align with current query patterns
+- Error handling that doesn't leak sensitive information
+- Token generation/validation logic that follows security best practices
+
+The supervised tier allows autonomous execution with mandatory human review before deployment. A junior-to-mid level engineer should verify the implementation matches security standards and doesn't introduce vulnerabilities. This is not tier 3 (gated) because the patterns are standard and testable, but requires more scrutiny than routine feature work.
 
 ## Dependencies
 
-- **Test Suite Availability:** Requires completed automated test suite from prior testing orbit; pipeline executes `npm test` and relies on test coverage to validate code quality
-- **Repository Hosting Platform:** Assumes code hosted on GitHub, GitLab, or Bitbucket with CI/CD integration capabilities; pipeline configuration depends on platform-specific features
-- **Deployment Target Access:** Requires credentials and access to target deployment environment (staging/production servers, cloud platform accounts); cannot implement deployment without infrastructure access
-- **Node.js Runtime Compatibility:** Pipeline must support Node.js version specified in existing codebase (documented in README or package.json engines field)
-- **Package Dependencies:** Pipeline must install and cache npm dependencies defined in package.json; assumes package-lock.json exists for reproducible builds
-- **API Documentation:** References documentation from orbit bffba690-3729-48f5-9223-6609f344063f to verify deployed API matches documented contract
-- **Test Implementation:** Depends on test suite from prior orbit providing reliable quality gate for deployment decisions
-- **No Database Schema Management:** This orbit does NOT implement database migration pipelines; assumes API deployment doesn't require coordinated schema changes or migrations
+**Codebase Dependencies:**
+- Existing backend/api structure and routing patterns
+- Current SQL database connection configuration (referenced by backend/database/queries pattern)
+- Express server initialization and middleware chain (inferred from search.js structure)
+
+**External Dependencies:**
+- npm packages: jsonwebtoken (^9.0.0), bcrypt (^5.1.0), express-rate-limit (^6.0.0)
+- SQL database engine compatible with existing property-search.sql patterns (PostgreSQL or MySQL assumed)
+
+**Knowledge Dependencies:**
+- Database connection string and credentials for schema migration
+- Current API deployment process and environment configuration
+- Existing logging infrastructure to integrate auth events
+
+**Prior Orbit References:**
+- None identified in current repository structure. This appears to be the first authentication implementation.
