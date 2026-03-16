@@ -34,10 +34,10 @@ This orbit establishes the foundational C# console calculator application with a
 **Purpose:** Define the project as a .NET 6.0 console executable with modern C# features enabled.
 
 **Technical Details:**
-- `OutputType>Exe</OutputType>` creates a console application
-- `TargetFramework>net6.0</TargetFramework>` uses .NET 6 LTS (cross-platform, stable)
-- `ImplicitUsings>enable</ImplicitUsings>` auto-includes common namespaces like `System`
-- `Nullable>enable</Nullable>` enforces null safety at compile time
+- `<OutputType>Exe</OutputType>` creates a console application
+- `<TargetFramework>net6.0</TargetFramework>` uses .NET 6 LTS (cross-platform, stable)
+- `<ImplicitUsings>enable</ImplicitUsings>` auto-includes common namespaces like `System`
+- `<Nullable>enable</Nullable>` enforces null safety at compile time
 
 ### Phase 2: Core Application Structure
 
