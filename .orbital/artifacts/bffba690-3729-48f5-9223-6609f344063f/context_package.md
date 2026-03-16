@@ -1,127 +1,240 @@
-# Context Package: Add Comprehensive API Documentation and Usage Examples
+# Context Package: Implement Automated Testing Suite for Property Search API
 
 ## Codebase References
 
-### Primary Implementation Files
-- **`backend/api/properties/search.js`** — The Node.js HTTP server implementation providing the `/api/properties/search` endpoint; contains request handling logic, response formatting, and current API behavior that must be documented
-- **`backend/database/queries/property-search.sql`** — SQL query definition for property search operations; represents database interaction patterns that should NOT be exposed in documentation per security constraints
-- **`README.md`** — Current repository documentation entry point; section 4 contains "nathan here" placeholder suggesting incomplete documentation; must be updated to reference new API documentation location
+### Primary Implementation File (Test Target)
+- **`backend/api/properties/search.js`** — The Node.js HTTP server providing `/api/properties/search` endpoint; this is the system under test that must be validated without modification per backward compatibility constraint
 
-### Documentation Target Locations
-- **`/docs/api/`** — Target directory for dedicated API documentation (does not currently exist; needs creation)
-- **`/docs/api/properties-search.md`** — Proposed location for detailed endpoint documentation
-- **`/docs/api/openapi.yaml`** — Proposed location for OpenAPI 3.0 specification
-- **`README.md` (sections to modify)** — Must add API documentation reference after "Structure" section, replace or complete section 4 placeholder content
+### Database Layer (Analysis Only - Do Not Mock Directly)
+- **`backend/database/queries/property-search.sql`** — SQL query definition that should NOT be exposed or directly mocked in tests; tests must operate at HTTP API layer above the database interaction
 
-### Files Requiring Analysis (No Modification)
-- **`.orbital/artifacts/ffce316e-4d4e-46c6-bb4f-c5310e36a19f/*`** — Prior orbit artifacts indicating previous work on this repository; may contain relevant context about property search enhancements
+### Documentation References (Validation Source)
+- **`.orbital/artifacts/bffba690-3729-48f5-9223-6609f344063f/proposal_record.md`** — Contains detailed API behavior analysis from documentation orbit including expected response structures, parameters, and error cases that tests must validate
+- **`.orbital/artifacts/bffba690-3729-48f5-9223-6609f344063f/context_package.md`** — Describes current API implementation patterns and observable behavior that tests should verify
+
+### Repository Configuration
+- **`README.md`** — Must be updated with test execution instructions per acceptance criteria; currently documents API startup via `node backend/api/properties/search.js`
+- **`package.json`** — Likely does not exist yet; may need creation to define `npm test` command and testing framework dependencies
+
+### Test Artifact Target Locations
+- **`test/`** or **`tests/`** — Standard Node.js convention for test directory (does not currently exist)
+- **`test/api/properties/search.test.js`** — Proposed location for property search endpoint tests following codebase structure mirroring
+- **`test/fixtures/`** — Proposed location for test data fixtures if needed
+- **`test/helpers/`** — Proposed location for shared test utilities if complexity justifies extraction
+
+### Prior Orbit Analysis Required
+- **`.orbital/artifacts/ffce316e-4d4e-46c6-bb4f-c5310e36a19f/*`** — Must review to understand what API modifications (if any) were made that tests need to reflect
 
 ## Architecture Context
 
 ### Current System Design
-**Single-Tier Node.js Application:** The repository implements a minimal standalone Node.js HTTP server with no framework dependencies visible in the structure. The API layer (`backend/api/`) directly handles HTTP requests without middleware abstractions.
+**Standalone Node.js HTTP Server:** The implementation uses Node.js built-in `http` module (confirmed by README instructions showing direct `node` execution without framework). No Express, Fastify, or other web framework detected in repository structure, suggesting vanilla HTTP server implementation.
 
-**Database Access Pattern:** SQL queries are externalized to separate `.sql` files in `backend/database/queries/`, suggesting a separation between query definition and execution. The documentation must not expose this implementation detail but should document observable API behavior only.
-
-**Deployment Model:** README instructions indicate local development execution via `node backend/api/properties/search.js` with server listening on `localhost:3000`. Documentation examples must work against this local execution model.
-
-**API Contract:** The endpoint `/api/properties/search` exists as documented in README; current implementation returns "sample JSON response" per README description. Actual response structure must be discovered by analyzing `backend/api/properties/search.js` to ensure documentation accuracy per the Intent's "Accuracy Guarantee" constraint.
-
-### Data Flow
+**Server Architecture Pattern:**
 ```
 HTTP Request → backend/api/properties/search.js → backend/database/queries/property-search.sql → JSON Response
 ```
 
-Documentation must describe the request→response flow from an external consumer perspective without exposing the SQL layer.
+Tests must intercept at the HTTP layer without requiring actual database connectivity per zero external dependencies constraint.
 
-### Infrastructure Constraints
-- **No External Dependencies:** Documentation cannot assume API gateway, authentication layer, or load balancer; must document direct HTTP interaction with Node.js server
-- **Local Development Focus:** Examples must work against `localhost:3000` as documented in README
-- **No Version Management:** Single version deployment model means no API versioning concerns for this orbit
+### Testing Strategy Implications
+
+**Option 1: Programmatic Server Testing** — Start the HTTP server in test process, make actual HTTP requests using Node.js `http` or `fetch`, validate responses. Pros: High fidelity to production behavior. Cons: Requires port management, slower execution.
+
+**Option 2: Module-Level Testing** — If `backend/api/properties/search.js` exports handler functions, test them directly without HTTP layer. Pros: Fast execution, easier mocking. Cons: May not exist if file only contains server startup code.
+
+**Option 3: HTTP Mocking** — Use libraries like `nock` or `supertest` to intercept HTTP without actual server. Pros: Fast, no port conflicts. Cons: Adds dependency, may not match actual server behavior perfectly.
+
+**Recommended Approach:** Analyze `backend/api/properties/search.js` structure to determine if handler functions are exported. If yes, use Option 2 for speed. If no, use Option 1 with dynamic port allocation to avoid conflicts.
+
+### Database Mocking Strategy
+
+The Intent's "Zero External Dependencies" constraint prohibits tests requiring actual database connections. Three mocking approaches:
+
+1. **Module-Level Mock:** If API code imports/requires database query executor, replace that import with mock implementation returning fixture data
+2. **Fixture Responses:** If API returns hardcoded sample data (suggested by README "sample JSON response"), tests validate this actual behavior without mocking
+3. **Conditional Logic:** Wrap database calls in environment-aware logic (e.g., `if (process.env.NODE_ENV === 'test')`) — violates backward compatibility constraint, NOT ALLOWED
+
+**Decision Required:** Must analyze `backend/api/properties/search.js` to determine current data sourcing approach before selecting mocking strategy.
+
+### CI/CD Integration Model
+
+Tests must support headless automated execution via single command. Standard Node.js patterns:
+
+```json
+// package.json
+{
+  "scripts": {
+    "test": "node --test test/**/*.test.js"  // Node.js native test runner
+    // OR
+    "test": "jest"  // Jest framework
+    // OR  
+    "test": "mocha test/**/*.test.js"  // Mocha framework
+  }
+}
+```
+
+Pipeline execution: `npm install && npm test` must succeed with exit code 0 if all tests pass, non-zero if any fail.
 
 ## Pattern Library
 
-### Documentation Patterns (To Be Established)
-**No existing documentation patterns identified** in repository structure. This orbit establishes the baseline documentation approach for future endpoints.
+### Code Organization Patterns (Inferred)
 
-**Proposed Pattern Establishment:**
-- **OpenAPI 3.0 as Machine-Readable Source of Truth** — YAML specification in `/docs/api/openapi.yaml`
-- **Human-Readable Markdown Per Endpoint** — Detailed guides in `/docs/api/{endpoint-name}.md`
-- **Co-Location Principle** — All documentation in `/docs/api/` directory within repository, not external wikis
-- **Example-Driven Format** — Each documented endpoint includes curl examples that execute successfully
+**Directory Structure Convention:**
+- Backend code in `backend/` directory with subdirectories by layer (`api/`, `database/`)
+- Mirrored structure suggests tests should follow: `test/backend/api/properties/search.test.js` OR simplified `test/api/properties/search.test.js`
 
-### Code Organization Patterns
-- **Separation of Concerns:** API handlers in `backend/api/`, queries in `backend/database/queries/`
-- **File Naming:** Kebab-case with descriptive names (e.g., `property-search.sql`)
-- **No Module Bundler:** Direct Node.js execution without build step evident
+**File Naming:**
+- Kebab-case: `property-search.sql` pattern observed
+- Tests should follow: `{feature}.test.js` or `{feature}.spec.js` convention
 
-### Naming Conventions
-- **Endpoint Paths:** Lowercase with hyphens `/api/properties/search`
-- **File Extensions:** `.js` for JavaScript, `.sql` for queries, `.md` for documentation
+**Module Pattern:**
+Since repository shows direct Node.js execution without build tooling, assume CommonJS (`require`/`module.exports`) rather than ES modules unless `package.json` specifies `"type": "module"`.
+
+### Testing Patterns (To Be Established)
+
+**No existing test patterns identified** — this orbit creates the baseline. Recommended patterns:
+
+**Test Structure:**
+```javascript
+// Arrange-Act-Assert pattern
+describe('Property Search API', () => {
+  describe('GET /api/properties/search', () => {
+    it('returns array of properties for valid request', async () => {
+      // Arrange: Set up test conditions
+      // Act: Execute the operation
+      // Assert: Verify expected outcome
+    });
+  });
+});
+```
+
+**Naming Conventions:**
+- Test files: `*.test.js` suffix
+- Test descriptions: Start with verb ("returns", "throws", "validates")
+- Grouped by HTTP method and endpoint path
+
+**Assertion Style:**
+- Prefer strict equality (`strictEqual`, `===`) over loose equality
+- Use deep equality for object/array comparisons
+- Include descriptive failure messages: `assert.equal(actual, expected, 'Response should contain property array')`
+
+### Error Handling Patterns
+
+Based on simple repository structure, API likely uses basic error handling:
+- HTTP 200 for success
+- HTTP 400/404/500 for errors
+- JSON error responses with `{ error: "message" }` structure (common pattern)
+
+Tests should validate both happy path and error responses with appropriate HTTP status codes.
 
 ## Prior Orbit References
 
-### Orbit ffce316e-4d4e-46c6-bb4f-c5310e36a19f
+### Orbit bffba690-3729-48f5-9223-6609f344063f (API Documentation)
+
+**Relevance:** HIGH — This orbit produced comprehensive API documentation including exact request/response formats, error cases, and curl examples.
+
+**Key Artifacts to Review:**
+- **`proposal_record.md`** — Phase 1 "API Behavior Discovery" section contains actual tested API responses that tests must validate
+- **`context_package.md`** — "Architecture Context" section describes current API implementation patterns
+- Likely created `/docs/api/properties-search.md` with documented behavior that tests should verify matches reality
+
+**Testing Implications:**
+- Tests should validate that actual API behavior matches documented behavior (regression detection)
+- Documented error cases provide test scenarios to implement
+- Documented response schema provides assertion structure
+
+**Action Required:** Parse documentation orbit artifacts to extract:
+1. Expected successful response structure
+2. All documented error scenarios
+3. Query parameter handling (if any)
+4. HTTP status codes for each scenario
+
+### Orbit ffce316e-4d4e-46c6-bb4f-c5310e36a19f (Unknown Scope)
+
 **Artifacts Present:**
 - `intent_document.md`
-- `context_package.md`
+- `context_package.md` 
 - `proposal_record.md`
 
-**Likely Scope:** Based on artifact presence and file structure, this prior orbit likely worked on the property search API implementation or enhancement. These artifacts should be reviewed to understand:
-- What API behavior was implemented or modified
-- What response structure was defined
-- Any documented constraints or patterns from that orbit
+**Status:** Complete (all core artifacts present)
 
-**Documentation Gap:** The prior orbit produced implementation artifacts but no API documentation artifacts, confirming the current orbit addresses a genuine gap.
+**Action Required:** Review these artifacts to determine:
+- Did this orbit modify `backend/api/properties/search.js` behavior?
+- What is the current expected API contract?
+- Were new features or parameters added?
 
-### Orbit 93d08324-efe3-4d8d-bbfd-abe2bed1568c
+**Testing Impact:** If API behavior was modified, tests must reflect post-modification behavior, not original implementation.
+
+### Orbit 93d08324-efe3-4d8d-bbfd-abe2bed1568c (Incomplete)
+
 **Artifacts Present:**
 - `intent_document.md`
 - `orbit_log.md`
 
-**Status:** Incomplete (no context package, proposal, or verification protocol present). May represent failed or abandoned work. Should be reviewed to avoid repeating unsuccessful approaches.
+**Status:** Incomplete/Failed (missing context, proposal, verification)
 
-### README Section 4 Anomaly
-The presence of "nathan here" in README section 4 suggests:
-- Incomplete documentation effort by a developer named Nathan
-- A placeholder indicating awareness of documentation gaps
-- Potential merge conflict or unfinished work
+**Relevance:** LOW — No completed work to reference, but orbit log may contain useful failure context to avoid repeating.
 
-This orbit completes what appears to be an acknowledged but unfinished documentation task.
+### README "nathan here" Placeholder
+
+Section 4 anomaly suggests prior incomplete documentation effort. The documentation orbit (bffba690-3729-48f5-9223-6609f344063f) likely addressed this. Tests should not reference or depend on this placeholder.
 
 ## Risk Assessment
 
-### Documentation Accuracy Risks
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Documented response schema does not match actual API behavior | Medium | High — developers build against incorrect contract leading to integration failures | Validate all examples by executing them against running API instance; include actual response JSON in documentation |
-| API implementation changes after documentation | Low | Medium — documentation becomes outdated | Co-locate documentation in repository; include "Last Updated" timestamp; establish policy that API changes require documentation updates |
-| Examples contain syntax errors or incorrect curl flags | Medium | Medium — developers copy-paste broken examples causing frustration | Test every curl example in a fresh shell before committing; use `-v` flag in examples to show expected HTTP headers |
+### Test Design Risks
 
-### Security Risks
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
-| Documentation exposes SQL query structure or table names | Low | High — reveals database schema to potential attackers | Review documentation to ensure no references to `.sql` files, table names, or query patterns; document only HTTP interface |
-| Examples include real property data or PII | Low | Medium — potential data exposure or privacy violation | Use obviously fictional data in examples (e.g., "123 Example St", "property-id-1234"); review all example responses for realistic but synthetic data |
-| Internal implementation details leaked in error examples | Medium | Low — marginal information disclosure | Document only HTTP status codes and user-facing error messages; no stack traces or internal error codes |
+| Tests validate mock behavior instead of actual API logic | High | Critical — False confidence; tests pass but real API broken | Ensure mocks only replace external dependencies (database), not API logic; validate against actual HTTP responses where possible |
+| Test fixtures diverge from production data formats | Medium | High — Tests pass in dev, fail in production with real data | Base fixtures on actual production response samples from documentation orbit; include edge cases like null fields, empty arrays |
+| Flaky tests due to timing issues or port conflicts | Medium | Medium — Unreliable CI/CD pipeline, developer frustration | Use dynamic port allocation; await async operations properly; avoid `setTimeout` for synchronization |
+| Over-mocking creates brittle tests requiring frequent updates | Medium | Medium — Tests break on refactoring even when behavior unchanged | Mock at architectural boundaries (database layer), not internal implementation details |
+
+### Framework Selection Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| Chosen framework becomes unmaintained or has security issues | Low | High — Long-term maintenance burden | Prefer Node.js native test runner (no external dependency) or battle-tested frameworks (Jest, Mocha) with large communities |
+| Framework adds significant dependencies bloating node_modules | Medium | Low — Slower installs, larger disk usage | Use `--save-dev` for test dependencies; prefer lightweight frameworks; Node.js native test runner has zero dependencies |
+| Team unfamiliar with chosen framework requires training | Low | Medium — Slowed initial adoption | Select framework with extensive documentation; include test examples in PR; prefer common patterns over framework-specific magic |
+
+### Coverage Metric Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| High coverage percentage masks untested critical paths | Medium | High — False security; bugs in uncovered edge cases | Focus on branch coverage, not just line coverage; manually identify critical error paths and ensure explicit tests |
+| Coverage tools report inflated numbers due to test setup code | Low | Low — Metrics slightly misleading | Configure coverage tools to exclude test files and setup utilities from coverage calculations |
+| Chasing 100% coverage leads to testing implementation details | Medium | Medium — Brittle tests; wasted effort | Stop at 80-90% coverage per target acceptance; remaining gaps likely trivial (error messages, logging) |
+
+### Execution Speed Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| Test suite exceeds 10 second constraint as more tests added | High | Medium — Developers skip running tests locally | Implement parallel test execution; avoid actual network I/O; use fast assertion libraries; monitor suite duration in CI |
+| Programmatic server startup adds 2-3 seconds per test file | Medium | Medium — Violates individual test <100ms constraint | Share single server instance across all tests in file; use `before`/`after` hooks for setup/teardown |
+| Database mocking overhead slows test execution | Low | Low — Tests run in 1-2 seconds instead of milliseconds | Use in-memory fixtures instead of mock libraries; cache fixture data between tests |
 
 ### Maintenance Risks
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Documentation diverges from code over time | High | High — documentation becomes unreliable and developers stop trusting it | Establish `/docs/api/` as canonical location referenced from README; consider future automation to detect drift |
-| OpenAPI spec and Markdown documentation become inconsistent | Medium | Medium — conflicting sources of truth confuse developers | Generate one format from the other, OR establish clear precedence (e.g., "OpenAPI spec is authoritative") |
-| Multi-file documentation becomes fragmented and hard to navigate | Low | Medium — developers can't find information | Create `/docs/api/README.md` as index with links to all endpoint documentation |
 
-### Usability Risks
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
-| Documentation assumes too much prior knowledge | Medium | Medium — new developers still need to contact team for help | Include "Getting Started" section with prerequisites, how to run local server, and first successful request walkthrough |
-| Examples don't cover common integration patterns | Medium | Medium — developers make preventable mistakes | Include at least one error scenario example per acceptance criteria; document common pitfalls in dedicated section |
-| OpenAPI spec is technically correct but unreadable by humans | Low | Low — developers skip machine-readable spec | Ensure OpenAPI spec includes `description` fields for all elements; consider tooling like Swagger UI for future orbits |
+| Tests break when API behavior legitimately changes | High | Low — Expected outcome requiring test updates | Co-locate tests with code; include test updates in same PR as API changes; clear test descriptions make updates obvious |
+| Test code duplicates production code logic | Medium | Medium — Bugs replicated in both, reducing test effectiveness | Tests should validate outputs for given inputs, not reimplement the logic; focus on black-box testing at HTTP boundary |
+| Fixture data becomes stale as schema evolves | Medium | Medium — Tests validate outdated contracts | Reference documentation orbit artifacts as source of truth; automated schema validation if stretch goals allow |
 
-### Scope Creep Risks
+### Security Risks
+
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
-| Temptation to document aspirational future API features | Medium | High — documentation describes non-existent behavior | Strict adherence to "document only current deployed behavior" constraint; no future endpoint templates in first iteration |
-| Over-engineering documentation tooling | Low | Medium — complexity burden without delivering core value | Resist urge to set up automated spec generation or documentation sites; focus on core markdown and OpenAPI files this orbit |
-| Expanding scope to other endpoints beyond property search | Low | Low — delays delivery of primary intent | Acceptance criteria explicitly scopes to property search as minimum; other endpoints are stretch goals only |
+| Test fixtures accidentally contain real user data or PII | Low | High — Privacy violation, potential data breach | Use obviously synthetic data; automated scan for patterns (SSN, email, phone) in test files; code review checkpoint |
+| Tests expose security vulnerabilities by documenting attack vectors | Low | Medium — Test code becomes attack playbook | Balance security testing with responsible disclosure; avoid documenting SQL injection or XSS patterns in test names |
+| Mocking disables security checks making tests pass incorrectly | Medium | Medium — Security regressions undetected | Ensure authentication/authorization checks (if any) remain active in tests; mock data layer, not security layer |
+
+### Integration Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| Tests require npm but repository doesn't use package.json | Medium | High — Cannot execute tests via `npm test` | Create minimal `package.json` if needed; ensure backward compatible with direct Node.js execution for API |
+| CI/CD pipeline lacks Node.js or incompatible version | Low | High — Tests cannot run in pipeline | Document required Node.js version; tests should work on LTS versions; add version check to test runner |
+| Tests pass locally but fail in CI due to environment differences | Medium | Medium — Blocked deployments, debugging burden | Avoid file system or OS-specific operations; use same Node.js version locally and CI; explicit dependency versions |
