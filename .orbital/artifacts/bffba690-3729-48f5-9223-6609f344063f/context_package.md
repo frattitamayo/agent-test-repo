@@ -1,237 +1,537 @@
-# Context Package: Add Property Filtering to Search API
+# Context Package: Implement Settings Page
 
 ## Codebase References
 
+### Critical Context Gap: Frontend Structure Unknown
+
+The repository structure provided shows only backend files (`backend/api/properties/search.js`, `backend/database/queries/property-search.sql`). **No frontend code is visible.** This is a React + TypeScript application per the Intent, but the following critical files cannot be located:
+
+**Missing Frontend References:**
+- React application entry point (e.g., `src/index.tsx`, `app/page.tsx`)
+- Routing configuration (React Router setup)
+- Zustand theme store implementation
+- Current "Coming Soon" placeholder location
+- Navigation/header component with user menu
+- Existing component patterns and styling approach
+- TypeScript configuration and type definitions
+
+**Impact:** Without frontend structure visibility, implementation plan must make assumptions about:
+- File organization (pages, components, hooks directories)
+- Import paths and module resolution
+- Component architecture (functional components, hooks patterns)
+- Styling approach (CSS modules, styled-components, Tailwind, etc.)
+- State management integration points
+
+### Backend Files from Prior Orbits
+
+**Existing Infrastructure (from Authentication Orbit):**
+- **backend/database/connection.js** — Database connection pool (PostgreSQL/MySQL). Settings queries will use this same pool via `await pool.query(sql, params)` pattern.
+- **backend/middleware/authenticate.js** — JWT authentication middleware. Settings endpoints must be protected: `router.get('/settings', authenticate, handler)`.
+- **backend/api/auth/login.js** — Reference pattern for password hashing with bcrypt, error handling structure, validation approach.
+- **backend/database/queries/auth-*.sql** — Pattern for parameterized SQL queries stored as separate files.
+
+**User Schema Reference:**
+Based on authentication orbit patterns, `users` table likely contains:
+```sql
+CREATE TABLE users (
+  user_id SERIAL PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE,  -- May need to add if missing
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Assumption:** Email column may not exist yet (authentication orbit used username for login). Settings orbit may need to add email column via migration.
+
+### Files to Create (Backend)
+
+- **backend/api/settings/profile.js** — User profile update endpoint (name, email)
+- **backend/api/settings/password.js** — Password change endpoint with current password verification
+- **backend/api/settings/preferences.js** — Theme and notification preferences CRUD
+- **backend/api/settings/github-accounts.js** — Read-only endpoint for connected GitHub accounts
+- **backend/database/queries/settings-get-profile.sql** — Fetch user profile data
+- **backend/database/queries/settings-update-profile.sql** — Update user name/email
+- **backend/database/queries/settings-update-password.sql** — Update password hash
+- **backend/database/queries/settings-get-preferences.sql** — Fetch user preferences
+- **backend/database/queries/settings-upsert-preferences.sql** — Insert or update preferences
+- **backend/database/migrations/003-add-user-settings.sql** — Create user_settings table and add email column to users if missing
+
+### Files to Create (Frontend - Assumed Structure)
+
+**Assumption:** Standard React project structure. Actual paths depend on build tool (Vite, Next.js, CRA).
+
+- **src/pages/Settings.tsx** (or `app/settings/page.tsx` for Next.js) — Main settings page component
+- **src/components/settings/ProfileSection.tsx** — User profile editing form
+- **src/components/settings/PasswordChangeForm.tsx** — Password change form with validation
+- **src/components/settings/ThemePreferences.tsx** — Theme toggle connected to Zustand
+- **src/components/settings/NotificationPreferences.tsx** — Notification toggles
+- **src/components/settings/GitHubAccounts.tsx** — Read-only display of GitHub connections
+- **src/hooks/useSettings.ts** — Custom hook for settings API calls
+- **src/types/settings.ts** — TypeScript types for settings data structures
+
 ### Files to Modify
-- **backend/api/properties/search.js** — Current property search endpoint. Must be extended to:
-  - Parse query parameters from `req.query` (Express standard)
-  - Validate filter parameters (minPrice, maxPrice, location, propertyType)
-  - Pass validated parameters to SQL query execution
-  - Return 400 errors for invalid inputs with descriptive messages
-  - Maintain existing response format and authentication flow
 
-- **backend/database/queries/property-search.sql** — Current SQL query returning all properties. Must be modified to:
-  - Accept optional filter parameters via parameterized query ($1, $2, $3, $4, etc.)
-  - Build conditional WHERE clause that applies filters only when parameters are non-null
-  - Use AND logic to combine multiple filters
-  - Maintain query structure compatible with existing connection pool
+**Backend:**
+- **backend/server.js** — Register new settings routes: `app.use('/api/settings', authenticate, settingsRouter)`
 
-### Files to Create
-- **backend/database/migrations/002-add-property-indexes.sql** — Migration to create database indexes on filterable columns (price, location, property_type) for target state performance requirement
-
-- **backend/validation/property-filters.js** (optional) — Dedicated validation module for filter parameters if validation logic becomes complex. Can be inline in search.js for minimum viable implementation.
-
-### Existing Infrastructure (from Auth Orbit)
-- **backend/database/connection.js** — Database connection pool already established. Query execution pattern: `await pool.query(sqlQuery, [param1, param2, ...])`. Must use this same pattern for filtered queries.
-
-- **backend/middleware/authenticate.js** — JWT authentication middleware already protecting /api/properties/search. No changes required but must remain in place (all search requests go through authentication first).
-
-- **backend/server.js** (or search.js if standalone) — Express server setup with body parsing and authentication middleware chain. Filter logic integrates after authentication middleware runs.
-
-### Unknown/Missing Context
-- **properties table schema** — Exact column names not visible in repository structure. Common patterns would be:
-  - `price` (NUMERIC/DECIMAL) or `listing_price`
-  - `location` (VARCHAR/TEXT) or `city`, `address`, `region`
-  - `property_type` (VARCHAR/TEXT) or `type`, `category`
-  - Need to inspect actual database schema or query existing property-search.sql for column references
-
-- **Current property-search.sql content** — File exists but content not provided. Likely contains `SELECT * FROM properties` or similar base query. Must examine to understand current structure before adding WHERE clause.
+**Frontend (locations unknown):**
+- **Zustand theme store** — Identify current implementation, ensure settings page can read/write theme preference
+- **Navigation component** — Add settings link in user menu dropdown
+- **Routing configuration** — Add `/settings` route mapping to Settings page component
 
 ## Architecture Context
 
-### Current System State
-Based on prior authentication orbit and repository structure:
-- **API Layer:** Express-based REST API with JWT authentication protecting all endpoints
-- **Routing:** Property search exposed at GET /api/properties/search
-- **Authentication Flow:** Client → JWT Bearer token → authenticate middleware → search endpoint → database query → JSON response
-- **Database Layer:** SQL database (PostgreSQL or MySQL) with connection pooling, parameterized queries stored as .sql files
+### Current System Architecture (Inferred)
 
-### Filter Integration Data Flow
+**Frontend Tier:**
+- React + TypeScript single-page application
+- Client-side routing (React Router assumed)
+- Zustand for global state management (theme at minimum)
+- Component-based UI architecture
+- Authentication state managed via JWT tokens (stored in localStorage or cookies)
+
+**Backend Tier:**
+- Express.js REST API
+- JWT authentication middleware protecting routes
+- SQL database (PostgreSQL or MySQL) with connection pooling
+- Parameterized queries stored as .sql files (security pattern from auth orbit)
+- Error handling with consistent response format: `{ error: 'CODE', message: '...' }`
+
+**Data Persistence:**
+- User authentication data in `users` table (user_id, username, password_hash)
+- User settings data in new `user_settings` table (to be created)
+- Theme preference could be stored in users table or user_settings table (decision needed)
+
+### Settings Page Data Flow
+
 ```
-1. Client Request: GET /api/properties/search?minPrice=100000&location=Seattle
-2. Authentication Middleware: Validates JWT, sets req.user
-3. Search Endpoint Handler:
-   a. Parse req.query (Express automatic parsing)
-   b. Validate filter parameters (type checking, range validation)
-   c. Build parameter array for SQL [minPrice, location, ...]
-   d. Load property-search.sql (modified with conditional WHERE)
-   e. Execute: await pool.query(sql, params)
-   f. Return filtered results as JSON
-4. Client receives filtered property list
+┌─────────────────────────────────────────────────────────────────┐
+│                         FRONTEND                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  Settings Page Component                                         │
+│    ├─ ProfileSection: Fetch/update name, email                  │
+│    ├─ PasswordChangeForm: Submit current + new password         │
+│    ├─ ThemePreferences: Read/write Zustand + DB                 │
+│    ├─ NotificationPreferences: Toggle settings                  │
+│    └─ GitHubAccounts: Display connected accounts (read-only)    │
+│                                                                  │
+│  Zustand Theme Store                                             │
+│    ├─ Read: theme preference (light/dark)                       │
+│    └─ Write: update theme + persist to backend                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                    JWT Bearer Token in Headers
+                              │
+┌─────────────────────────────────────────────────────────────────┐
+│                         BACKEND API                              │
+├─────────────────────────────────────────────────────────────────┤
+│  Authentication Middleware                                       │
+│    └─ Validate JWT → set req.user                              │
+│                                                                  │
+│  Settings Routes (/api/settings/*)                              │
+│    ├─ GET  /profile       → Return user name, email            │
+│    ├─ PUT  /profile       → Update name, email (validate)      │
+│    ├─ POST /password      → Verify current, update hash        │
+│    ├─ GET  /preferences   → Return theme, notifications        │
+│    ├─ PUT  /preferences   → Update preferences                 │
+│    └─ GET  /github        → Return connected accounts          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                    Parameterized SQL Queries
+                              │
+┌─────────────────────────────────────────────────────────────────┐
+│                         DATABASE                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  users table                                                     │
+│    ├─ user_id (PK)                                              │
+│    ├─ username                                                   │
+│    ├─ email (nullable, may need migration to add)              │
+│    ├─ password_hash                                              │
+│    └─ updated_at                                                 │
+│                                                                  │
+│  user_settings table (NEW)                                      │
+│    ├─ setting_id (PK)                                           │
+│    ├─ user_id (FK → users.user_id)                             │
+│    ├─ theme_preference (light/dark)                             │
+│    ├─ email_notifications (boolean)                             │
+│    ├─ push_notifications (boolean)                              │
+│    ├─ activity_summaries (boolean)                              │
+│    └─ updated_at                                                 │
+│                                                                  │
+│  github_connections table (FUTURE - read placeholder for now)   │
+│    └─ Returns empty array or mock data                          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Query Construction Pattern
-Since SQL must be parameterized but WHERE clause is conditional, two approaches:
+### Theme Synchronization Challenge
 
-**Approach A: Dynamic WHERE with conditional parameters (recommended)**
-```sql
-SELECT * FROM properties
-WHERE 
-  ($1::numeric IS NULL OR price >= $1)
-  AND ($2::numeric IS NULL OR price <= $2)
-  AND ($3::text IS NULL OR LOWER(location) = LOWER($3))
-  AND ($4::text IS NULL OR property_type = $4);
+**Problem:** Theme preference exists in Zustand (frontend state) and must now persist to database. Two sources of truth must stay synchronized.
+
+**Synchronization Pattern:**
+1. **Initial Load:** Settings page fetches preferences from backend → updates Zustand store
+2. **User Changes Theme:** 
+   - Update Zustand immediately (instant UI feedback)
+   - POST to backend to persist
+   - On success: no-op (already updated)
+   - On failure: revert Zustand to previous value
+3. **Concurrent Tab Issue:** If user has multiple tabs open, theme change in one tab won't auto-update others (acceptable limitation for MVP)
+
+**Implementation Decision:**
+- Store theme in `user_settings` table (not `users` table) to keep authentication data separate
+- On login, fetch preferences and populate Zustand
+- Settings page becomes single point for modifying theme (don't allow theme toggle elsewhere until sync pattern established)
+
+### Password Change Security Flow
+
 ```
-Pass `null` for unused filters. Database evaluates `IS NULL` check first, short-circuits unused conditions.
+1. User submits: { currentPassword, newPassword, confirmPassword }
+2. Backend receives authenticated request (req.user.userId set)
+3. Fetch password_hash for req.user.userId from database
+4. bcrypt.compare(currentPassword, stored_hash)
+   └─ If false: return 401 "Current password incorrect"
+5. Validate newPassword requirements (length, complexity)
+6. Validate newPassword === confirmPassword
+7. hash = await bcrypt.hash(newPassword, 10)
+8. UPDATE users SET password_hash = $1, updated_at = NOW() WHERE user_id = $2
+9. Return 200 "Password updated successfully"
+```
 
-**Approach B: String concatenation with parameterized values (NOT RECOMMENDED)**
-Build WHERE clause dynamically in JavaScript based on present parameters. Violates constraint against dynamic SQL and increases SQL injection risk.
-
-**Decision:** Use Approach A. Cleaner, safer, consistent with parameterized query requirement.
-
-### Performance Considerations
-- **Without Indexes:** Sequential table scan on 10,000 rows. Estimated query time: 100-300ms for filtered queries.
-- **With Indexes:** Index seek on price range, location, property_type. Estimated query time: 10-50ms for typical filters.
-- **Index Strategy:** Composite index vs separate indexes. For filters combined with AND logic, separate single-column indexes likely sufficient (database can use index intersection). Composite index (price, location, property_type) would be faster but less flexible.
-
-### Backward Compatibility Strategy
-- **No parameters:** Call endpoint as `/api/properties/search` (no query string)
-- **Validation logic:** Treat missing parameters as `null` or `undefined`, not as empty strings
-- **SQL behavior:** `$1 IS NULL` evaluates to true when parameter is null → condition is skipped → no filtering applied
-- **Testing:** Must verify existing clients (no parameters) still receive full result set
+**Security Considerations:**
+- Current password verification prevents unauthorized changes even if token stolen
+- Bcrypt comparison timing-safe (no username enumeration risk)
+- No password in response body or logs
+- Rate limiting inherited from auth middleware (if implemented)
 
 ## Pattern Library
 
-### File Organization Patterns (Established in Auth Orbit)
-- **API Endpoints:** `backend/api/{domain}/{action}.js`
-  - Property search follows this: `backend/api/properties/search.js`
-  - Maintain this structure (do not move to `/api/search` or `/api/properties`)
+### Backend API Patterns (from Auth Orbit)
 
-- **Database Queries:** `backend/database/queries/{domain}-{action}.sql`
-  - Current: `property-search.sql`
-  - Modified file should remain at same path with same name (backward compatibility)
-
-- **Database Migrations:** `backend/database/migrations/{number}-{description}.sql`
-  - Auth orbit used `001-create-users-table.sql`
-  - Next migration should be `002-add-property-indexes.sql`
-
-- **Naming Conventions:** Kebab-case for files, SQL files follow `{table}-{operation}` pattern
-
-### Query Execution Pattern (from Auth Orbit)
+**Route Structure:**
 ```javascript
+// backend/api/settings/profile.js
+const express = require('express');
+const router = express.Router();
+const pool = require('../../database/connection');
 const fs = require('fs');
 const path = require('path');
-const pool = require('../../database/connection');
 
-// Load SQL query from file
-const searchQuery = fs.readFileSync(
-  path.join(__dirname, '../../database/queries/property-search.sql'),
+// Load SQL queries
+const getProfileQuery = fs.readFileSync(
+  path.join(__dirname, '../../database/queries/settings-get-profile.sql'),
   'utf8'
 );
 
-// Execute with parameterized values
-const result = await pool.query(searchQuery, [param1, param2, param3]);
-res.json(result.rows);
-```
-**Filter implementation must follow this pattern.** Do not inline SQL strings in JavaScript.
+// GET /api/settings/profile
+router.get('/profile', async (req, res) => {
+  try {
+    const result = await pool.query(getProfileQuery, [req.user.userId]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch profile' });
+  }
+});
 
-### Error Handling Pattern (from Auth Orbit)
-```javascript
-// Input validation errors: 400 status
-if (!isValidInput) {
-  return res.status(400).json({
-    error: 'INVALID_PARAMETER',
-    message: 'Descriptive error message',
-    field: 'minPrice' // field-level validation for target state
-  });
-}
-
-// Database errors: 500 status
-try {
-  const result = await pool.query(searchQuery, params);
-  res.json(result.rows);
-} catch (error) {
-  console.error('Search error:', error);
-  res.status(500).json({
-    error: 'SERVER_ERROR',
-    message: 'Property search failed'
-  });
-}
-```
-**Consistent error structure:** `{ error: 'ERROR_CODE', message: '...' }`
-
-### Validation Patterns
-Based on auth orbit validation in login.js:
-```javascript
-// Type validation
-if (minPrice !== undefined && isNaN(Number(minPrice))) {
-  return res.status(400).json({
-    error: 'INVALID_PARAMETER',
-    message: 'minPrice must be a number'
-  });
-}
-
-// Range validation (target state)
-if (minPrice && maxPrice && Number(minPrice) > Number(maxPrice)) {
-  return res.status(400).json({
-    error: 'INVALID_RANGE',
-    message: 'minPrice cannot exceed maxPrice'
-  });
-}
+module.exports = router;
 ```
 
-### Logging Pattern (from Auth Orbit)
-Auth orbit logs authentication events. Search filtering should log:
+**Error Response Format:**
 ```javascript
-console.log('Property search filters:', {
-  userId: req.user.userId,
-  filters: { minPrice, maxPrice, location, propertyType },
-  resultCount: result.rows.length
+// Validation errors: 400
+res.status(400).json({
+  error: 'INVALID_INPUT',
+  message: 'Email format is invalid',
+  field: 'email'  // Field-level errors for target state
+});
+
+// Authentication errors: 401
+res.status(401).json({
+  error: 'UNAUTHORIZED',
+  message: 'Current password is incorrect'
+});
+
+// Server errors: 500
+res.status(500).json({
+  error: 'SERVER_ERROR',
+  message: 'Settings update failed'
 });
 ```
-Do not log full query results (PII/performance concern), only filter parameters and counts.
+
+**Validation Pattern:**
+```javascript
+function validateEmail(email) {
+  if (!email || typeof email !== 'string') {
+    throw { error: 'INVALID_INPUT', message: 'Email is required', field: 'email' };
+  }
+  const emailRegex = /^[^s@]+@[^s@]+.[^s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw { error: 'INVALID_INPUT', message: 'Invalid email format', field: 'email' };
+  }
+  return email.trim().toLowerCase();
+}
+
+// Usage in route handler:
+try {
+  const validatedEmail = validateEmail(req.body.email);
+  // Proceed with database update
+} catch (validationError) {
+  return res.status(400).json(validationError);
+}
+```
+
+### Frontend Patterns (Assumed - React Best Practices)
+
+**Component Structure:**
+```typescript
+// src/components/settings/ProfileSection.tsx
+import React, { useState, useEffect } from 'react';
+import { useSettings } from '@/hooks/useSettings';
+
+export const ProfileSection: React.FC = () => {
+  const { profile, updateProfile, loading, error } = useSettings();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    if (profile) {
+      setName(profile.name || '');
+      setEmail(profile.email || '');
+    }
+  }, [profile]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await updateProfile({ name, email });
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* Form fields */}
+    </form>
+  );
+};
+```
+
+**Custom Hook Pattern:**
+```typescript
+// src/hooks/useSettings.ts
+import { useState, useEffect } from 'react';
+import { getProfile, updateProfile as apiUpdateProfile } from '@/api/settings';
+
+export const useSettings = () => {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    setLoading(true);
+    try {
+      const data = await getProfile();
+      setProfile(data);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProfile = async (updates) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const updated = await apiUpdateProfile(updates);
+      setProfile(updated);
+      return updated;
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { profile, updateProfile, loading, error };
+};
+```
+
+**Zustand Store Integration (Theme):**
+```typescript
+// Assumed existing theme store location: src/stores/themeStore.ts
+import create from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface ThemeStore {
+  theme: 'light' | 'dark';
+  setTheme: (theme: 'light' | 'dark') => void;
+}
+
+// Current implementation (to be enhanced with backend sync):
+export const useThemeStore = create<ThemeStore>()(
+  persist(
+    (set) => ({
+      theme: 'light',
+      setTheme: (theme) => set({ theme }),
+    }),
+    { name: 'theme-storage' }
+  )
+);
+
+// Settings page will need to:
+// 1. Import useThemeStore
+// 2. Call setTheme to update Zustand
+// 3. Also POST to backend to persist
+```
+
+### Database Schema Patterns
+
+**Migration File Structure:**
+```sql
+-- backend/database/migrations/003-add-user-settings.sql
+
+-- Add email column to users table if it doesn't exist
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE,
+ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+
+-- Create user_settings table
+CREATE TABLE IF NOT EXISTS user_settings (
+  setting_id SERIAL PRIMARY KEY,
+  user_id INTEGER UNIQUE NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  theme_preference VARCHAR(20) DEFAULT 'light',
+  email_notifications BOOLEAN DEFAULT true,
+  push_notifications BOOLEAN DEFAULT false,
+  activity_summaries BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_user_settings_user_id ON user_settings(user_id);
+```
+
+**Query File Pattern:**
+```sql
+-- backend/database/queries/settings-get-profile.sql
+SELECT 
+  user_id,
+  username,
+  email,
+  name,
+  created_at,
+  updated_at
+FROM users
+WHERE user_id = $1;
+```
+
+```sql
+-- backend/database/queries/settings-upsert-preferences.sql
+INSERT INTO user_settings (user_id, theme_preference, email_notifications, push_notifications, activity_summaries)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (user_id) 
+DO UPDATE SET
+  theme_preference = EXCLUDED.theme_preference,
+  email_notifications = EXCLUDED.email_notifications,
+  push_notifications = EXCLUDED.push_notifications,
+  activity_summaries = EXCLUDED.activity_summaries,
+  updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+```
+
+### Naming Conventions
+
+**Backend:**
+- API routes: `backend/api/{feature}/{action}.js` (e.g., `settings/profile.js`)
+- SQL queries: `{feature}-{action}-{entity}.sql` (e.g., `settings-update-profile.sql`)
+- Migration files: `{number}-{description}.sql` (e.g., `003-add-user-settings.sql`)
+- Route paths: `/api/{feature}/{resource}` (e.g., `/api/settings/profile`)
+
+**Frontend (assumed):**
+- Pages: `src/pages/{PageName}.tsx` (e.g., `Settings.tsx`)
+- Components: `src/components/{feature}/{ComponentName}.tsx` (e.g., `settings/ProfileSection.tsx`)
+- Hooks: `src/hooks/use{Feature}.ts` (e.g., `useSettings.ts`)
+- Types: `src/types/{feature}.ts` (e.g., `settings.ts`)
 
 ## Prior Orbit References
 
-### Authentication System Orbit
-**Artifacts:** Complete set in `.orbital/artifacts/bffba690-3729-48f5-9223-6609f344063f/`
+### Authentication System Orbit (Complete)
 
-**Key Patterns Established:**
-1. **Middleware Chain:** Body parser → public routes → authentication → protected routes
-   - Property search already protected by authenticate middleware
-   - Filter logic runs AFTER authentication (req.user available)
+**Artifacts:** `.orbital/artifacts/bffba690-3729-48f5-9223-6609f344063f/`
 
-2. **Database Connection Pool:**
-   - Created in `backend/database/connection.js`
+**Established Patterns Relevant to Settings:**
+
+1. **Password Hashing with bcrypt:**
+   - Used in `backend/api/auth/login.js` for password verification
+   - Settings password change must use same `bcrypt.compare()` for current password verification
+   - Use `bcrypt.hash(newPassword, 10)` for new password storage
+   - Async operations: `await bcrypt.compare()` and `await bcrypt.hash()`
+
+2. **JWT Authentication Middleware:**
+   - `backend/middleware/authenticate.js` validates tokens
+   - Settings endpoints must apply middleware: `router.get('/settings', authenticate, handler)`
+   - `req.user` populated with `{ userId, username }` after authentication
+   - All settings operations scoped to `req.user.userId`
+
+3. **Error Handling Consistency:**
+   - 400 for validation errors with `{ error: 'CODE', message: '...', field: '...' }`
+   - 401 for authentication failures
+   - 500 for server errors (generic message, detailed logging)
+   - Pattern established in `backend/api/auth/login.js`
+
+4. **Database Connection Pool:**
+   - `backend/database/connection.js` exports pool
    - Max 20 concurrent connections
-   - Connection timeout 2 seconds
-   - Property filtering queries will share this pool
+   - Query pattern: `await pool.query(sqlString, [param1, param2])`
+   - Settings queries will share this pool
 
-3. **SQL File Management:**
-   - Queries stored as .sql files, loaded via fs.readFileSync
-   - Parameterized queries only ($1, $2, etc.)
-   - No string concatenation or dynamic SQL
+5. **SQL Query Organization:**
+   - Queries stored as separate .sql files in `backend/database/queries/`
+   - Loaded via `fs.readFileSync(path.join(__dirname, '../../database/queries/...'))`
+   - Parameterized queries only ($1, $2, etc.) for SQL injection prevention
 
-4. **Performance Targets:**
-   - Auth middleware adds <50ms latency (hard requirement), <20ms target
-   - Property search filtering must stay within 200ms total (includes auth overhead)
-   - Net filter query budget: ~150-180ms after auth middleware
+6. **Users Table Schema:**
+   ```sql
+   CREATE TABLE users (
+     user_id SERIAL PRIMARY KEY,
+     username VARCHAR(50) UNIQUE NOT NULL,
+     password_hash VARCHAR(255) NOT NULL,
+     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+     last_login TIMESTAMP,
+     login_attempts INTEGER DEFAULT 0,
+     locked_until TIMESTAMP
+   );
+   ```
+   **Note:** `email` and `name` columns likely missing, need migration to add.
 
-5. **Error Response Format:**
-   - Consistent `{ error: 'CODE', message: '...' }` structure
-   - 400 for client errors (validation)
-   - 401 for auth errors (not applicable here, handled by middleware)
-   - 500 for server errors (database failures)
+### Property Search Filtering Orbit (Proposal Only)
 
-### Other Prior Orbits
-**Incomplete Orbit:** `.orbital/artifacts/ffce316e-4d4e-46c6-bb4f-c5310e36a19f/`
-- Contains intent, context, and proposal but no verification protocol
-- Topic unknown (artifacts not accessible)
-- **Implication:** May indicate a failed or abandoned orbit. Check for lessons learned in proposal or orbit log if accessible.
+**Artifacts:** `.orbital/artifacts/ffce316e-4d4e-46c6-bb4f-c5310e36a19f/`
 
-**Early Orbit:** `.orbital/artifacts/93d08324-efe3-4d8d-bbfd-abe2bed1568c/`
-- Contains only intent and orbit log
-- Predates complete artifact structure
-- Likely early testing or initialization orbit
+**Status:** Incomplete (intent, context, proposal exist but no verification protocol)
 
-### Lessons from Auth Orbit (Applicable to Filtering)
-1. **Security Review Critical:** Auth orbit required human review for SQL injection prevention. Filter queries also manipulate SQL WHERE clauses → same scrutiny required.
+**Relevant Patterns (if implemented):**
+- Validation helper functions for input sanitization
+- Query parameter parsing from `req.query`
+- Inline validation vs dedicated validation module decision
+- Performance considerations for database queries
 
-2. **Performance Benchmarking:** Auth orbit included load testing for latency targets. Filter implementation must include similar benchmarking with various filter combinations.
+**Lessons Learned (speculative):**
+- Orbit may have stalled due to missing database schema information
+- Importance of verifying actual column names before implementation
+- Need for comprehensive test coverage (proposal mentioned but verification missing)
 
-3. **Backward Compatibility Testing:** Auth orbit maintained property search functionality. Filter implementation must verify both filtered AND unfiltered requests work.
+### Other Prior Orbit
 
-4. **Incremental Deployment:** Auth orbit used phased rollout with feature flags. Consider similar approach: deploy filtering logic but make it opt-in initially before enforcing.
+**Artifacts:** `.orbital/artifacts/93d08324-efe3-4d8d-bbfd-abe2bed1568c/`
+
+**Status:** Early orbit (only intent and orbit log, predates full artifact structure)
+
+**Relevance:** None directly applicable to settings implementation.
 
 ## Risk Assessment
 
@@ -239,77 +539,104 @@ Do not log full query results (PII/performance concern), only filter parameters 
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| **SQL Injection via Filter Parameters** | CRITICAL — Database compromise, data theft | MEDIUM — Dynamic WHERE clause construction vulnerable if not parameterized | Use parameterized queries exclusively ($1 IS NULL pattern). Validate all inputs before query execution. Code review SQL construction logic. Never concatenate user input into SQL strings. |
-| **Backward Compatibility Break** | HIGH — Existing clients fail, production outage | MEDIUM — Unfiltered requests might return different results or errors | Test endpoint without query parameters extensively. Ensure null/undefined parameters skip filtering. Compare unfiltered results before and after deployment. Add automated regression test for zero-parameter case. |
-| **Performance Regression on Unfiltered Queries** | HIGH — Slower baseline query impacts all users | MEDIUM — Added WHERE clause logic might slow unoptimized queries | Use `IS NULL` checks that short-circuit efficiently. Test unfiltered query performance before/after. Monitor P95 latency in production. Ensure database query planner optimizes IS NULL conditions correctly. |
-| **Missing Database Indexes** | HIGH — 200ms performance target unachievable | HIGH — Target state requires indexes that may not exist | Check current database schema for indexes on price, location, property_type. Create migration script for indexes. Use CREATE INDEX CONCURRENTLY (PostgreSQL) to avoid blocking production queries. Test query plans with EXPLAIN ANALYZE. |
-| **Parameter Validation Bypass** | MEDIUM — Malformed inputs cause database errors or unexpected results | MEDIUM — Type coercion edge cases (empty strings, NaN, negative numbers) | Strict validation: check typeof, isNaN, range constraints. Reject empty strings (convert to null). Validate maxPrice >= minPrice. Test with fuzzing inputs (special characters, SQL keywords, extremely large numbers). |
+| **Password Change Without Current Password Verification** | CRITICAL — Unauthorized password changes via stolen token | HIGH — Easy to forget verification step | Enforce bcrypt.compare(currentPassword, storedHash) before allowing update. Code review must verify this step present. Add integration test that fails password change with wrong current password. |
+| **Email Uniqueness Not Validated** | HIGH — User can hijack another user's email | MEDIUM — May assume uniqueness constraint sufficient | Check email uniqueness in application code before UPDATE. Handle UNIQUE constraint violation gracefully. Return 400 "Email already in use" error. |
+| **Zustand Store Out of Sync with Database** | MEDIUM — Theme appears changed but not persisted, or vice versa | HIGH — Race conditions between frontend state and backend | Update Zustand immediately (optimistic), POST to backend, revert on failure. On settings page load, fetch from backend and override Zustand. Document sync pattern for future features. |
+| **Missing Email Column in Users Table** | HIGH — Settings page crashes on load | MEDIUM — Auth orbit may not have included email | Run migration to add email column before deploying settings code. Test with actual database schema, not assumptions. Add email column as nullable initially, make required later if needed. |
+| **SQL Injection via Settings Input** | CRITICAL — Database compromise | LOW — Parameterized queries should prevent | Use parameterized queries exclusively. Never concatenate user input into SQL. Code review all .sql files. Add SQL injection test cases. |
+| **Plaintext Password in Logs or Responses** | CRITICAL — Credential exposure | MEDIUM — Easy to accidentally log req.body | Never log password fields. Explicitly exclude password from response objects. Review all console.log and error messages. |
 
 ### Medium-Priority Risks
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| **Case Sensitivity Issues** | Users expect case-insensitive location search | Use LOWER() in SQL query for location comparison. Document behavior in API docs. Consider stretch goal for multiple location values. |
-| **Query Parameter Injection** | Non-SQL injection (e.g., NoSQL, XSS if logged) | Validate parameter names (only accept minPrice, maxPrice, location, propertyType). Reject unknown parameters. Sanitize logged values. |
-| **Filter Combination Explosion** | Many combinations to test (4 filters = 16 scenarios) | Prioritize testing common combinations. Use property-based testing for validation logic. Document expected behavior for edge cases. |
-| **Database Connection Exhaustion** | Filtered queries might be slower, hold connections longer | Monitor connection pool usage. Consider query timeout (inherit from pool config). Add query performance logging to identify slow filters. |
-| **Empty Result Sets** | Overly restrictive filters return no results | Return empty array (not error). Include filter metadata in response for debugging. Log zero-result filter combinations for analytics. |
+| **Settings Page Load Performance >500ms** | User perceives sluggishness | Optimize queries (use indexes on user_id). Fetch profile and preferences in parallel. Lazy load GitHub accounts section. Monitor P95 latency. |
+| **No Loading State During API Calls** | Poor UX, multiple form submissions | Implement loading state (disabled submit button, spinner). Debounce rapid submissions. Show success/error messages. |
+| **Password Strength Not Enforced** | Weak passwords allowed | Target state validation: min 8 chars, 1 number, 1 uppercase. Add password strength indicator (stretch goal). Consider rejecting common passwords. |
+| **Theme Change Doesn't Update Nav Bar Without Refresh** | Inconsistent UI state | Zustand store should trigger re-render of nav component. Test theme toggle updates all themed components immediately. |
+| **Connected GitHub Accounts Section Breaks If No Data** | UI crashes or shows error | Return empty array from endpoint. Handle empty state gracefully ("No connected accounts"). Add PropTypes or TypeScript validation. |
+| **Email Change Without Confirmation** | Account takeover risk | Minimum viable: validate email format and uniqueness. Target state: send confirmation to old email before applying. Stretch: implement confirmation token flow. |
 
 ### Low-Priority Risks
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| **Inconsistent Property Type Values** | Database has "apartment", "Apartment", "APARTMENT" | Normalize property_type values in database (migration). Use case-insensitive comparison. Stretch goal: validate against enum of allowed types. |
-| **Price Precision Issues** | Floating point comparison for currency | Use database NUMERIC/DECIMAL type for price. Avoid JavaScript floating point arithmetic in validation. |
-| **Location Format Ambiguity** | "Seattle" vs "Seattle, WA" vs "Seattle, Washington" | Document expected format in API docs. Stretch goal: normalize location input (trim, lowercase). Consider location hierarchy (city, state, country) in future orbit. |
+| **Settings Not Responsive on Mobile** | Poor mobile UX | Use responsive CSS (flexbox, grid). Test on mobile viewport. Target state requirement includes mobile responsiveness. |
+| **No Validation Error on Empty Profile Fields** | User can save blank name | Validate required fields. Trim whitespace. Provide inline error messages. |
+| **Notification Preferences Not Affecting Actual Notifications** | User confusion (toggles don't do anything) | Document that notification preferences are UI-only for now. Implement actual notification logic in future orbit. |
+| **TypeScript Type Mismatches** | Runtime errors, build failures | Define settings types explicitly. Use API response types. Validate with TypeScript strict mode. |
 
-### Performance Risks
+### Security Edge Cases
 
 | Scenario | Risk | Mitigation |
 |----------|------|------------|
-| **Full Table Scan Without Indexes** | Query time >1 second on 10,000 rows | Create indexes before deployment. Monitor query plans. Consider partial indexes for common filters. |
-| **Index Bloat** | Indexes on text columns (location, property_type) grow large | Monitor index size. Consider prefix indexes for long text values. Use VACUUM (PostgreSQL) or OPTIMIZE TABLE (MySQL) regularly. |
-| **Multiple Index Lookups** | Database uses separate indexes for each filter, slow intersection | Test with EXPLAIN ANALYZE. Consider composite index if single-filter queries rare. Benchmark worst-case: all 4 filters applied simultaneously. |
-| **Expensive String Operations** | LOWER() function prevents index usage | Use functional index: `CREATE INDEX idx_location_lower ON properties (LOWER(location))`. Test query plan with function. |
+| User changes email to admin's email | Email hijacking | Validate email uniqueness before update. Check UNIQUE constraint. |
+| Stolen JWT token used to change password | Unauthorized access | Require current password verification (token alone insufficient). |
+| XSS via malicious name/email stored in database | Script injection in UI | Sanitize inputs on backend. Escape outputs in frontend (React does this by default). |
+| SQL injection via name field | Database compromise | Use parameterized queries. Never concatenate user input. |
+| CSRF attack on settings endpoints | Unauthorized settings changes | CSRF protection inherited from auth middleware (if implemented). SameSite cookies. |
+| Timing attack on current password verification | Password enumeration | Use bcrypt.compare (constant-time). Don't reveal whether user exists vs wrong password. |
 
-### Edge Cases to Test
+### Performance Concerns
 
-| Edge Case | Expected Behavior |
-|-----------|-------------------|
-| minPrice = 0 | Valid (free properties), apply filter |
-| maxPrice = 0 | Invalid (illogical), return 400 error (target state) |
-| minPrice > maxPrice | Invalid, return 400 error with clear message (target state) |
-| location = "" (empty string) | Treat as null/no filter, not literal empty string match |
-| location = "null" | Treat as string literal "null", not null filter |
-| propertyType with SQL keywords | "SELECT", "DROP", etc. → validate as string, parameterized query prevents injection |
-| Very large numbers | minPrice = 999999999999 → validate max safe integer, prevent overflow |
-| Negative prices | minPrice = -1000 → validate positive numbers only (minimum viable: allow and let SQL handle; target state: explicit validation) |
-| Special characters in location | "Seattle; DROP TABLE--" → parameterized query prevents injection, validate as string |
-| Unicode in location | "Zürich", "北京" → ensure database encoding supports, test UTF-8 handling |
-| Multiple query parameters with same name | ?location=Seattle&location=Portland → Express req.query behavior (last value wins unless array), document behavior |
+| Concern | Impact | Mitigation |
+|---------|--------|------------|
+| Multiple database queries on settings page load | Slow initial render | Use JOIN to fetch profile + preferences in single query. Or fetch in parallel with Promise.all(). |
+| Theme change triggers full page re-render | Janky UI | Zustand should only re-render components that subscribe to theme. Optimize with React.memo if needed. |
+| Password hash computation blocks event loop | API response slow | bcrypt.hash is already async (10 rounds ~100ms). Don't use hashSync. Monitor P95 latency. |
+| GitHub accounts query slow (future) | Settings page load delay | Lazy load GitHub section (fetch after initial render). Show skeleton loader. |
 
-### Security Attack Vectors
+### Data Integrity Risks
 
-| Attack Vector | Defense |
-|--------------|---------|
-| **SQL Injection via minPrice** | Type validation (must be number), parameterized query ($1), no string concatenation |
-| **SQL Injection via location** | Parameterized query ($3), no string operations outside SQL, LOWER() function in SQL only |
-| **Parameter Pollution** | Validate only expected parameters, reject unknown keys, use explicit parameter extraction |
-| **Denial of Service via Expensive Queries** | Query timeout (connection pool default 2 seconds), rate limiting (inherited from auth), monitor slow query log |
-| **Information Disclosure via Error Messages** | Generic error messages (no stack traces), don't reveal table/column names, log detailed errors server-side only |
-| **Authentication Bypass** | Impossible (authenticate middleware runs first), verify middleware remains in place during testing |
+| Risk | Mitigation |
+|------|------------|
+| Concurrent updates from multiple tabs | Optimistic locking or last-write-wins (acceptable for settings). Display "Settings may be out of date" if updated_at changed. |
+| Partial update failure (profile saved but preferences failed) | Use database transactions for atomic updates. Or handle partial failures gracefully with detailed error messages. |
+| user_settings row not created on signup | Create default settings row on user registration (in auth orbit follow-up). Or use UPSERT in settings endpoint (INSERT ON CONFLICT). |
+| Theme preference in Zustand conflicts with database | On settings page mount, fetch from database and override Zustand. Database is source of truth. |
 
-### Monitoring and Observability
+### Frontend-Specific Risks (Assumed React Patterns)
+
+| Risk | Mitigation |
+|------|------------|
+| Memory leak from useEffect without cleanup | Return cleanup function from useEffect. Cancel pending requests on unmount. |
+| State update on unmounted component | Check isMounted flag or use AbortController. Suppress warnings with proper cleanup. |
+| Uncontrolled form inputs | Use controlled components (value + onChange). Manage form state in React state or form library. |
+| Missing error boundaries | Wrap settings sections in error boundaries to prevent full page crash. |
+| Accessibility violations | Add ARIA labels (target state). Test with keyboard navigation. Use semantic HTML. |
+
+### Monitoring & Observability Needs
 
 **Metrics to Track:**
-- Filter parameter usage frequency (which filters used most)
-- Query execution time by filter combination
-- Empty result rate (filters too restrictive)
-- Validation error rate by parameter
-- Database index hit rate (vs sequential scans)
+- Settings page load time (P50, P95, P99)
+- Profile update success/failure rate
+- Password change attempt rate and success rate
+- Theme preference distribution (light vs dark users)
+- Email change frequency
+- API error rates by endpoint
+
+**Logging Strategy:**
+```javascript
+// On successful settings update:
+console.log('Settings updated:', {
+  userId: req.user.userId,
+  section: 'profile', // or 'password', 'preferences'
+  fields: ['name', 'email'], // what changed
+  timestamp: new Date().toISOString()
+});
+
+// On validation error:
+console.warn('Settings validation failed:', {
+  userId: req.user.userId,
+  error: validationError.error,
+  field: validationError.field
+});
+
+// Never log: passwords, full req.body, sensitive user data
+```
 
 **Alerting Thresholds:**
-- P95 query latency >200ms → investigate performance regression
-- Validation error rate >5% → possible API misuse or documentation issue
-- Empty result rate >50% → users not finding properties, filter UX issue
-- Sequential scan rate >10% → missing or unused indexes
+- Password change failure rate >10% → investigate bcrypt issues or attempted attacks
+- Settings page load time P95 >500ms → performance regression
+- Profile update error rate >5% → database or validation issues
+- Theme preference API errors >1% → Zustand sync problem
