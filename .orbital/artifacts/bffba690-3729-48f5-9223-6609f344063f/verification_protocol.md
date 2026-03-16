@@ -1,1057 +1,904 @@
-# Verification Protocol: Implement CI/CD Pipeline with Automated Testing and Deployment
+# Verification Protocol: Implement User Authentication System
 
 ## Automated Gates
 
-### Gate 1: Workflow File Syntax Validation
-
-**Objective:** Verify GitHub Actions workflow configuration is syntactically valid and can be parsed by GitHub's workflow engine.
-
-**Execution:**
-```bash
-# Using GitHub CLI (requires gh CLI installed and authenticated)
-gh workflow view ci-cd.yml
-
-# Expected output: Workflow details displayed without syntax errors
-# Exit code: 0
-```
-
-**Pass Criteria:**
-- Command exits with code 0
-- No YAML syntax errors reported
-- Workflow structure successfully parsed
-
-**Traceability:** Maps to Intent acceptance criterion "Pipeline configuration file committed to repository" — ensures configuration is valid before attempting execution.
-
----
-
-### Gate 2: Pipeline Trigger Verification
-
-**Objective:** Confirm pipeline automatically triggers on code push events per Intent requirement "Pipeline executes automatically on every push to repository."
-
-**Test Case 2.1: Feature Branch Push Triggers Build and Test**
-
-**Execution:**
-```bash
-# Create test feature branch
-git checkout -b test/pipeline-trigger-verification
-echo "# Test commit" >> test-file.md
-git add test-file.md
-git commit -m "Test: Verify pipeline trigger"
-git push origin test/pipeline-trigger-verification
-
-# Query GitHub Actions API for workflow run
-gh run list --workflow=ci-cd.yml --branch=test/pipeline-trigger-verification --limit=1 --json status,conclusion
-```
-
-**Expected Output:**
-```json
-{
-  "status": "completed",
-  "conclusion": "success"
-}
-```
-
-**Pass Criteria:**
-- Workflow run appears within 30 seconds of push
-- Build job executes
-- Test job executes
-- Deploy job does NOT execute (feature branch)
-- Overall workflow status: success
-
-**Traceability:** Maps to Intent acceptance criterion "Pipeline executes automatically on every push" and "Failed tests block further pipeline progression."
-
----
-
-**Test Case 2.2: Pull Request Triggers Pipeline**
-
-**Execution:**
-```bash
-# Create pull request from test branch
-gh pr create --title "Test PR" --body "Pipeline verification" --base main --head test/pipeline-trigger-verification
-
-# Verify workflow triggers
-gh run list --workflow=ci-cd.yml --event=pull_request --limit=1 --json status,conclusion
-```
-
-**Expected Output:**
-```json
-{
-  "status": "completed",
-  "conclusion": "success"
-}
-```
-
-**Pass Criteria:**
-- Workflow triggered by pull_request event
-- Status checks visible in PR interface
-- Build and test jobs execute
-- No deployment jobs execute
-
-**Traceability:** Maps to Intent branch strategy where "Pull requests" trigger "Build + test only."
-
----
-
-### Gate 3: Test Suite Integration
-
-**Objective:** Verify test suite executes in CI environment and reports results correctly per Intent "Test suite runs in CI environment and reports pass/fail status."
-
-**Test Case 3.1: Tests Execute Successfully**
-
-**Execution:**
-```bash
-# Trigger workflow and capture test job logs
-gh run view --log --job=test
-
-# Parse for test execution confirmation
-grep "npm test" workflow-logs.txt
-grep "Tests: [0-9]* passed" workflow-logs.txt
-```
-
+### G1: Dependency Installation
+**Test:** `npm install && npm list --depth=0`
 **Expected Output:**
 ```
-> npm test
-Tests: 5 passed, 5 total
-Time: 2.3s
+property-search-api@1.0.0
+├── express@4.18.2
+├── jsonwebtoken@9.0.2
+├── bcrypt@5.1.1
+├── express-rate-limit@7.1.5
+└── dotenv@16.3.1
 ```
+**Pass Criteria:** All dependencies installed without errors or peer dependency warnings
+**Intent Reference:** Constraint - Technology Stack (jsonwebtoken, bcrypt, express-rate-limit)
 
-**Pass Criteria:**
-- `npm test` command executes
-- Test summary shows passed count
-- Exit code 0 for test job
-- No unhandled exceptions in logs
-
-**Traceability:** Maps to Intent acceptance criterion "Test suite runs in CI environment and reports pass/fail status."
-
----
-
-**Test Case 3.2: Test Failures Block Pipeline**
-
-**Execution:**
+### G2: Database Schema Validation
+**Test:** Execute migration and verify table structure
 ```bash
-# Introduce failing test temporarily
-cat >> test/api/properties/search.test.js << 'EOF'
-it('deliberate failure for pipeline verification', () => {
-  throw new Error('Expected test failure');
+psql -U $DB_USER -d $DB_NAME -f backend/database/migrations/001-create-users-table.sql
+psql -U $DB_USER -d $DB_NAME -c "d users"
+```
+**Expected Output:**
+```
+Table "public.users"
+Column        | Type                     | Nullable | Default
+--------------+--------------------------+----------+---------------------------
+user_id       | integer                  | not null | nextval('users_user_id_seq')
+username      | character varying(50)    | not null |
+password_hash | character varying(255)   | not null |
+created_at    | timestamp                |          | CURRENT_TIMESTAMP
+updated_at    | timestamp                |          | CURRENT_TIMESTAMP
+last_login    | timestamp                |          |
+login_attempts| integer                  |          | 0
+locked_until  | timestamp                |          |
+
+Indexes:
+    "users_pkey" PRIMARY KEY, btree (user_id)
+    "users_username_key" UNIQUE CONSTRAINT, btree (username)
+    "idx_users_username" btree (username)
+```
+**Pass Criteria:** All columns present with correct types, unique constraint on username, index on username
+**Intent Reference:** Acceptance Boundary (Minimum Viable) - User credentials table created with hashed passwords
+
+### G3: Environment Configuration Validation
+**Test:** Verify .env.example exists and .env is gitignored
+```bash
+test -f .env.example && echo "PASS: .env.example exists"
+grep -q "^.env$" .gitignore && echo "PASS: .env in .gitignore"
+grep -q "JWT_SECRET=" .env.example && echo "PASS: JWT_SECRET documented"
+```
+**Pass Criteria:** All three checks return PASS
+**Intent Reference:** Constraint - Security Baseline (No plaintext credential storage, environment-based secrets)
+
+### G4: JWT Token Generation Test
+**Test:** Automated login test with valid credentials
+```javascript
+// test/auth/login.test.js
+const request = require('supertest');
+const app = require('../backend/server');
+const pool = require('../backend/database/connection');
+const bcrypt = require('bcrypt');
+
+describe('POST /api/auth/login', () => {
+  beforeAll(async () => {
+    const hash = await bcrypt.hash('TestPassword123!', 10);
+    await pool.query(
+      'INSERT INTO users (username, password_hash) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING',
+      ['testuser', hash]
+    );
+  });
+
+  it('should return JWT token for valid credentials', async () => {
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' })
+      .expect(200);
+
+    expect(response.body).toHaveProperty('token');
+    expect(response.body).toHaveProperty('expiresIn', '24h');
+    expect(response.body.user).toHaveProperty('username', 'testuser');
+    expect(response.body.token).toMatch(/^eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9./);
+  });
+
+  afterAll(() => pool.end());
 });
-EOF
-
-git add test/api/properties/search.test.js
-git commit -m "Test: Add failing test for verification"
-git push origin test/pipeline-trigger-verification
-
-# Query workflow outcome
-gh run list --workflow=ci-cd.yml --branch=test/pipeline-trigger-verification --limit=1 --json conclusion,status
 ```
+**Pass Criteria:** Test passes, token format is valid JWT (header.payload.signature), expiresIn is 24h
+**Intent Reference:** Acceptance Boundary (Minimum Viable) - JWT token generation endpoint accepting username/password returns valid tokens
 
-**Expected Output:**
-```json
-{
-  "conclusion": "failure",
-  "status": "completed"
-}
+### G5: Authentication Middleware Blocking Test
+**Test:** Verify unauthenticated requests are rejected
+```javascript
+// test/middleware/authenticate.test.js
+describe('GET /api/properties/search without token', () => {
+  it('should return 401 with MISSING_TOKEN error', async () => {
+    const response = await request(app)
+      .get('/api/properties/search')
+      .expect(401);
+
+    expect(response.body).toHaveProperty('error', 'MISSING_TOKEN');
+    expect(response.body).toHaveProperty('message');
+  });
+
+  it('should return 401 for invalid token', async () => {
+    const response = await request(app)
+      .get('/api/properties/search')
+      .set('Authorization', 'Bearer invalid.token.here')
+      .expect(401);
+
+    expect(response.body.error).toMatch(/INVALID_TOKEN|AUTH_ERROR/);
+  });
+
+  it('should return 401 for expired token', async () => {
+    const expiredToken = jwt.sign(
+      { userId: 1, username: 'test' },
+      process.env.JWT_SECRET,
+      { expiresIn: '-1h', algorithm: 'HS256', issuer: 'property-search-api' }
+    );
+
+    const response = await request(app)
+      .get('/api/properties/search')
+      .set('Authorization', `Bearer ${expiredToken}`)
+      .expect(401);
+
+    expect(response.body).toHaveProperty('error', 'TOKEN_EXPIRED');
+  });
+});
 ```
+**Pass Criteria:** All three test cases pass with 401 status and appropriate error codes
+**Intent Reference:** Acceptance Boundary (Minimum Viable) - Token validation middleware successfully blocks unauthenticated requests, Authentication failures return 401 status with error messages
 
-**Pass Criteria:**
-- Test job fails with exit code 1
-- Workflow conclusion: failure
-- Deployment job does NOT execute
-- Error message clearly indicates test failure
+### G6: Authenticated Request Success Test
+**Test:** Verify valid tokens allow access to protected endpoints
+```javascript
+describe('GET /api/properties/search with valid token', () => {
+  let validToken;
 
-**Traceability:** Maps to Intent acceptance criterion "Failed tests block further pipeline progression with clear error messages."
+  beforeAll(async () => {
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' });
+    validToken = loginResponse.body.token;
+  });
 
----
+  it('should return search results with valid token', async () => {
+    const response = await request(app)
+      .get('/api/properties/search')
+      .set('Authorization', `Bearer ${validToken}`)
+      .expect(200);
 
-### Gate 4: Coverage Reporting
+    expect(response.body).toBeDefined();
+    expect(response.headers['content-type']).toMatch(/json/);
+  });
 
-**Objective:** Verify test coverage is calculated and reported per target acceptance criterion "Runs tests + reports coverage."
+  it('should include req.user in middleware', async () => {
+    const response = await request(app)
+      .get('/api/properties/search')
+      .set('Authorization', `Bearer ${validToken}`)
+      .expect(200);
 
-**Execution:**
-```bash
-# Check for coverage artifact generation
-gh run view --job=test --log | grep -A 5 "Generate coverage report"
-
-# Download coverage artifact
-gh run download --name coverage-report
-
-# Verify coverage report exists
-test -f coverage/coverage-summary.json && echo "PASS: Coverage report generated" || echo "FAIL: Coverage report missing"
+    // Property search endpoint should have access to req.user
+    // Verify by checking response doesn't throw authentication error
+    expect(response.status).toBe(200);
+  });
+});
 ```
+**Pass Criteria:** Both tests pass, search results returned with 200 status, response format unchanged from pre-authentication baseline
+**Intent Reference:** Acceptance Boundary (Minimum Viable) - Valid tokens allow full access to property search with identical response format
 
-**Expected Output:**
+### G7: Password Hashing Validation
+**Test:** Verify passwords are hashed with bcrypt (not plaintext)
+```javascript
+describe('Password Storage Security', () => {
+  it('should store bcrypt hashes in database', async () => {
+    const result = await pool.query(
+      'SELECT password_hash FROM users WHERE username = $1',
+      ['testuser']
+    );
+
+    const hash = result.rows[0].password_hash;
+    expect(hash).toMatch(/^$2[aby]$d{2}$/); // bcrypt format
+    expect(hash.length).toBeGreaterThan(50);
+    expect(hash).not.toBe('TestPassword123!'); // not plaintext
+  });
+
+  it('should use bcrypt with minimum 10 rounds', async () => {
+    const hash = '$2b$10$somehash...'; // extract from database
+    const rounds = parseInt(hash.split('$')[2]);
+    expect(rounds).toBeGreaterThanOrEqual(10);
+  });
+});
 ```
-PASS: Coverage report generated
+**Pass Criteria:** Password hash matches bcrypt format ($2b$10$...), rounds >= 10
+**Intent Reference:** Constraint - Security Baseline (Passwords must be hashed with bcrypt minimum 10 rounds, No plaintext credential storage)
+
+### G8: Token Expiration Enforcement Test
+**Test:** Verify JWT tokens expire after 24 hours
+```javascript
+describe('Token Expiration', () => {
+  it('should set expiration to 24 hours from issuance', async () => {
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' });
+
+    const token = loginResponse.body.token;
+    const decoded = jwt.decode(token);
+    
+    const expiresInSeconds = decoded.exp - decoded.iat;
+    const expiresInHours = expiresInSeconds / 3600;
+    
+    expect(expiresInHours).toBeCloseTo(24, 1);
+  });
+});
 ```
+**Pass Criteria:** Token expiration is 24 hours ± 1 minute
+**Intent Reference:** Acceptance Boundary (Minimum Viable) - Token expiration enforced (24-hour window), Constraint - JWTs must expire within 24 hours
 
-**Pass Criteria:**
-- Coverage report generated during test job
-- `coverage/coverage-summary.json` exists in artifacts
-- Coverage percentage calculated and logged
-- Report uploaded to GitHub Actions artifacts with 30-day retention
+### G9: Performance Benchmark - Middleware Latency
+**Test:** Measure authentication middleware overhead
+```javascript
+// test/performance/middleware-latency.test.js
+describe('Authentication Middleware Performance', () => {
+  let validToken;
 
-**Traceability:** Maps to Intent target acceptance criterion "Runs tests + reports coverage."
+  beforeAll(async () => {
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' });
+    validToken = loginResponse.body.token;
+  });
 
----
+  it('should add less than 50ms P95 latency', async () => {
+    const iterations = 100;
+    const latencies = [];
 
-### Gate 5: Coverage Quality Gate (Target Acceptance)
+    for (let i = 0; i < iterations; i++) {
+      const start = Date.now();
+      await request(app)
+        .get('/api/properties/search')
+        .set('Authorization', `Bearer ${validToken}`)
+        .expect(200);
+      latencies.push(Date.now() - start);
+    }
 
-**Objective:** Verify coverage threshold enforcement per stretch goal "Tests + coverage + quality gates (minimum coverage threshold)."
+    latencies.sort((a, b) => a - b);
+    const p95Index = Math.floor(iterations * 0.95);
+    const p95Latency = latencies[p95Index];
 
-**Execution:**
-```bash
-# Review coverage gate step in workflow logs
-gh run view --log --job=test | grep -A 10 "Check coverage thresholds"
+    console.log(`P95 latency: ${p95Latency}ms`);
+    expect(p95Latency).toBeLessThan(50);
+  });
 
-# Verify threshold check logic
-cat .github/workflows/ci-cd.yml | grep -A 15 "Check coverage thresholds"
+  it('should target less than 20ms P95 latency (target state)', async () => {
+    // Same test but with target state threshold
+    // Mark as warning if between 20-50ms, failure if >50ms
+  });
+});
 ```
+**Pass Criteria:** P95 latency < 50ms (hard requirement), < 20ms (target state)
+**Intent Reference:** Constraint - Performance Budget (Authentication middleware must add less than 50ms latency), Acceptance Boundary (Target State) - Authentication middleware response time under 20ms (P95)
 
-**Expected Behavior:**
-```yaml
-# Workflow includes coverage threshold check
-- name: Check coverage thresholds
-  run: |
-    COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
-    if (( $(echo "$COVERAGE < 60" | bc -l) )); then
-      exit 1
-    fi
+### G10: Rate Limiting Test
+**Test:** Verify login endpoint enforces rate limits
+```javascript
+describe('Login Rate Limiting', () => {
+  it('should block after 5 failed attempts per minute', async () => {
+    const attempts = [];
+
+    // Make 5 login attempts
+    for (let i = 0; i < 5; i++) {
+      attempts.push(
+        request(app)
+          .post('/api/auth/login')
+          .send({ username: 'testuser', password: 'wrong' })
+      );
+    }
+    await Promise.all(attempts);
+
+    // 6th attempt should be rate limited
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'wrong' })
+      .expect(429);
+
+    expect(response.body).toHaveProperty('error', 'RATE_LIMIT');
+  });
+});
 ```
+**Pass Criteria:** 6th request within 60 seconds returns 429 status with RATE_LIMIT error
+**Intent Reference:** Acceptance Boundary (Target State) - Login endpoint rate limiting (max 5 attempts per minute per IP)
 
-**Pass Criteria:**
-- Coverage threshold check step exists in workflow
-- Threshold set to minimum 60% (from test suite orbit)
-- Job fails if coverage below threshold
-- Clear error message indicates coverage gap
+### G11: Token Refresh Functionality Test
+**Test:** Verify refresh endpoint extends session
+```javascript
+describe('POST /api/auth/refresh', () => {
+  let originalToken;
 
-**Traceability:** Maps to Intent stretch acceptance criterion "Tests + coverage + quality gates (minimum coverage threshold)."
+  beforeAll(async () => {
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' });
+    originalToken = loginResponse.body.token;
+  });
 
----
+  it('should return new token with extended expiration', async () => {
+    const response = await request(app)
+      .post('/api/auth/refresh')
+      .set('Authorization', `Bearer ${originalToken}`)
+      .expect(200);
 
-### Gate 6: Dependency Caching
+    expect(response.body).toHaveProperty('token');
+    expect(response.body).toHaveProperty('expiresIn', '24h');
+    expect(response.body.token).not.toBe(originalToken);
 
-**Objective:** Verify dependency caching configured to meet performance target "Results within 5 minutes."
+    const newDecoded = jwt.decode(response.body.token);
+    const oldDecoded = jwt.decode(originalToken);
+    expect(newDecoded.iat).toBeGreaterThan(oldDecoded.iat);
+  });
 
-**Execution:**
-```bash
-# Check workflow for cache configuration
-grep -A 5 "cache:" .github/workflows/ci-cd.yml
-
-# Compare build times between cache hit and miss
-gh run list --workflow=ci-cd.yml --limit=2 --json startedAt,completedAt,conclusion
+  it('should reject refresh without valid token', async () => {
+    await request(app)
+      .post('/api/auth/refresh')
+      .expect(401);
+  });
+});
 ```
+**Pass Criteria:** Refresh returns new token with fresh expiration, requires valid token
+**Intent Reference:** Acceptance Boundary (Target State) - Token refresh mechanism to extend sessions without re-authentication
 
-**Expected Configuration:**
-```yaml
-- uses: actions/setup-node@v4
-  with:
-    node-version: ${{ env.NODE_VERSION }}
-    cache: 'npm'  # Cache enabled
+### G12: SQL Injection Prevention Test
+**Test:** Verify parameterized queries prevent injection
+```javascript
+describe('SQL Injection Prevention', () => {
+  it('should not allow SQL injection via username field', async () => {
+    const maliciousUsername = "admin' OR '1'='1' --";
+    
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: maliciousUsername, password: 'anything' })
+      .expect(401);
+
+    expect(response.body.error).toBe('INVALID_CREDENTIALS');
+    
+    // Verify no users with malicious username were created
+    const result = await pool.query(
+      'SELECT COUNT(*) FROM users WHERE username LIKE $1',
+      ['%OR%']
+    );
+    expect(parseInt(result.rows[0].count)).toBe(0);
+  });
+
+  it('should use parameterized queries in all auth SQL files', () => {
+    const sqlFiles = [
+      'backend/database/queries/auth-find-user.sql',
+      'backend/database/queries/auth-create-user.sql',
+      'backend/database/queries/auth-update-login.sql',
+      'backend/database/queries/auth-log-event.sql'
+    ];
+
+    sqlFiles.forEach(file => {
+      const content = fs.readFileSync(file, 'utf8');
+      expect(content).toMatch(/$d+/); // Contains $1, $2, etc.
+      expect(content).not.toMatch(/'s*+s*|CONCAT/i); // No string concatenation
+    });
+  });
+});
 ```
+**Pass Criteria:** Injection attempts fail safely, all SQL files use parameterized queries ($1, $2)
+**Intent Reference:** Risk Assessment (Critical Risk) - SQL injection in auth queries
 
-**Pass Criteria:**
-- Cache configuration present in workflow
-- Cache key based on `package-lock.json` hash
-- Second workflow run shows faster dependency installation (cache hit)
-- Build time reduced by 30-60 seconds with cache
+### G13: Audit Logging Verification
+**Test:** Verify authentication events are logged
+```javascript
+describe('Audit Logging', () => {
+  it('should log successful login events', async () => {
+    await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' });
 
-**Traceability:** Maps to Intent target acceptance "Results within 5 minutes" — caching is critical optimization.
+    const result = await pool.query(
+      'SELECT * FROM auth_logs WHERE event_type = $1 ORDER BY created_at DESC LIMIT 1',
+      ['login']
+    );
 
----
+    expect(result.rows.length).toBeGreaterThan(0);
+    expect(result.rows[0]).toHaveProperty('user_id');
+    expect(result.rows[0]).toHaveProperty('ip_address');
+    expect(result.rows[0]).toHaveProperty('user_agent');
+  });
 
-### Gate 7: Execution Time Validation
+  it('should log failed login attempts', async () => {
+    await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'wrongpassword' });
 
-**Objective:** Verify pipeline completes within target time constraint "Results within 5 minutes."
+    const result = await pool.query(
+      'SELECT * FROM auth_logs WHERE event_type = $1 ORDER BY created_at DESC LIMIT 1',
+      ['failed_login']
+    );
 
-**Execution:**
-```bash
-# Measure workflow execution time
-gh run view --json startedAt,completedAt | jq -r '
-  (.startedAt | fromdateiso8601) as $start |
-  (.completedAt | fromdateiso8601) as $end |
-  "Duration: (($end - $start) / 60) minutes"
-'
+    expect(result.rows.length).toBeGreaterThan(0);
+  });
+
+  it('should log token refresh events', async () => {
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' });
+
+    await request(app)
+      .post('/api/auth/refresh')
+      .set('Authorization', `Bearer ${loginResponse.body.token}`);
+
+    const result = await pool.query(
+      'SELECT * FROM auth_logs WHERE event_type = $1 ORDER BY created_at DESC LIMIT 1',
+      ['refresh']
+    );
+
+    expect(result.rows.length).toBeGreaterThan(0);
+  });
+});
 ```
+**Pass Criteria:** All three event types (login, failed_login, refresh) are logged with user_id, IP, and user agent
+**Intent Reference:** Acceptance Boundary (Target State) - Basic audit logging for authentication events
 
-**Expected Output:**
+### G14: Error Code Consistency Test
+**Test:** Verify distinct error codes for different failure modes
+```javascript
+describe('Error Handling', () => {
+  const errorScenarios = [
+    { name: 'missing token', setup: () => null, expectedError: 'MISSING_TOKEN' },
+    { name: 'malformed token', setup: () => ({ Authorization: 'Bearer notajwt' }), expectedError: 'INVALID_TOKEN' },
+    { name: 'expired token', setup: async () => {
+      const token = jwt.sign({ userId: 1 }, process.env.JWT_SECRET, { expiresIn: '-1h' });
+      return { Authorization: `Bearer ${token}` };
+    }, expectedError: 'TOKEN_EXPIRED' },
+    { name: 'invalid credentials', setup: () => ({ username: 'testuser', password: 'wrong' }), expectedError: 'INVALID_CREDENTIALS' }
+  ];
+
+  errorScenarios.forEach(({ name, setup, expectedError }) => {
+    it(`should return ${expectedError} for ${name}`, async () => {
+      const headers = await (typeof setup === 'function' ? setup() : setup);
+      const response = headers.username 
+        ? await request(app).post('/api/auth/login').send(headers)
+        : await request(app).get('/api/properties/search').set(headers || null);
+
+      expect(response.body.error).toBe(expectedError);
+      expect(response.body).toHaveProperty('message');
+    });
+  });
+});
 ```
-Duration: 3.2 minutes
+**Pass Criteria:** All error scenarios return distinct error codes (MISSING_TOKEN, INVALID_TOKEN, TOKEN_EXPIRED, INVALID_CREDENTIALS)
+**Intent Reference:** Acceptance Boundary (Target State) - Graceful error handling for expired, malformed, or missing tokens with distinct error codes
+
+### G15: API Compatibility Test
+**Test:** Verify property search response schema unchanged
+```javascript
+describe('API Backward Compatibility', () => {
+  let validToken;
+  let baselineResponse;
+
+  beforeAll(async () => {
+    // Capture baseline response schema (before auth was added)
+    // This would be from pre-auth commit or stored test fixture
+    baselineResponse = require('./fixtures/search-response-baseline.json');
+
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' });
+    validToken = loginResponse.body.token;
+  });
+
+  it('should return identical response structure with authentication', async () => {
+    const response = await request(app)
+      .get('/api/properties/search')
+      .set('Authorization', `Bearer ${validToken}`)
+      .expect(200);
+
+    // Compare schema structure (not values, which may change)
+    const responseKeys = Object.keys(response.body);
+    const baselineKeys = Object.keys(baselineResponse);
+
+    expect(responseKeys.sort()).toEqual(baselineKeys.sort());
+  });
+});
 ```
-
-**Pass Criteria:**
-- Total workflow execution time < 5 minutes (target)
-- Build job: < 2 minutes
-- Test job: < 3 minutes
-- Deployment job: Not measured (template only)
-
-**Acceptance Spectrum:**
-- Minimum: < 10 minutes
-- Target: < 5 minutes ✓
-- Stretch: < 2 minutes with parallel jobs
-
-**Traceability:** Maps directly to Intent acceptance boundary "Feedback Speed" target criterion.
-
----
-
-### Gate 8: Deployment Stage Configuration
-
-**Objective:** Verify deployment stage exists with proper conditional logic per target "Build + Test + Deploy to staging."
-
-**Execution:**
-```bash
-# Verify deployment job exists
-yq eval '.jobs | has("deploy-staging")' .github/workflows/ci-cd.yml
-
-# Check conditional execution
-yq eval '.jobs.deploy-staging.if' .github/workflows/ci-cd.yml
-```
-
-**Expected Output:**
-```yaml
-true  # Job exists
-
-"github.ref == 'refs/heads/main' && github.event_name == 'push'"  # Conditional
-```
-
-**Pass Criteria:**
-- `deploy-staging` job defined in workflow
-- Job depends on test job: `needs: test`
-- Conditional: only executes on main branch pushes
-- Does NOT execute on pull requests or feature branches
-- Template deployment step present with instructional error
-
-**Traceability:** Maps to Intent target acceptance "Build + Test + Deploy to staging."
-
----
-
-### Gate 9: Secret Reference Validation
-
-**Objective:** Verify all secret references in workflow are documented per security constraint "all sensitive values must use CI/CD platform's secret management."
-
-**Execution:**
-```bash
-# Extract all secret references from workflow
-grep -oP '${{ secrets.K[A-Z_]+' .github/workflows/ci-cd.yml | sort -u > workflow-secrets.txt
-
-# Compare against documented secrets
-grep "^| `[A-Z_]*`" docs/deployment/secrets.md | cut -d'`' -f2 | sort -u > documented-secrets.txt
-
-# Verify all workflow secrets are documented
-comm -23 workflow-secrets.txt documented-secrets.txt
-```
-
-**Expected Output:**
-```
-(empty - no undocumented secrets)
-```
-
-**Pass Criteria:**
-- All secrets referenced in workflow appear in `docs/deployment/secrets.md`
-- No hardcoded credentials in workflow file
-- Secret names follow naming convention (UPPERCASE_WITH_UNDERSCORES)
-- Each secret documented with description and example
-
-**Traceability:** Maps to Intent security constraint "No secrets or credentials committed to repository; all sensitive values must use CI/CD platform's secret management."
-
----
-
-### Gate 10: Documentation Completeness
-
-**Objective:** Verify comprehensive documentation exists per target "Setup guide in repository."
-
-**Execution:**
-```bash
-# Verify all required documentation files exist
-test -f docs/deployment/README.md && echo "✓ Setup guide" || echo "✗ Setup guide missing"
-test -f docs/deployment/secrets.md && echo "✓ Secrets template" || echo "✗ Secrets missing"
-test -f docs/deployment/troubleshooting.md && echo "✓ Troubleshooting" || echo "✗ Troubleshooting missing"
-
-# Verify README contains CI/CD section
-grep -q "## CI/CD Pipeline" README.md && echo "✓ README updated" || echo "✗ README not updated"
-
-# Verify badge syntax present
-grep -q "![CI/CD Pipeline]" README.md && echo "✓ Status badge" || echo "✗ Badge missing"
-```
-
-**Expected Output:**
-```
-✓ Setup guide
-✓ Secrets template
-✓ Troubleshooting
-✓ README updated
-✓ Status badge
-```
-
-**Pass Criteria:**
-- All documentation files exist in `docs/deployment/`
-- Setup guide includes secret configuration instructions
-- Troubleshooting guide includes at least 5 common issues
-- Main README updated with CI/CD section
-- Status badge syntax present (URL may be placeholder)
-
-**Acceptance Spectrum:**
-- Minimum: Pipeline configuration file with comments ✓
-- Target: Setup guide in repository ✓
-- Stretch: Troubleshooting guide and common issues documented ✓
-
-**Traceability:** Maps to Intent acceptance boundary "Documentation Completeness."
-
----
-
-### Gate 11: Backward Compatibility Verification
-
-**Objective:** Verify existing workflows remain functional per constraint "Existing codebase and test suite must continue functioning without modification."
-
-**Execution:**
-```bash
-# Verify API still runs locally
-timeout 5 node backend/api/properties/search.js &
-PID=$!
-sleep 2
-curl -f http://localhost:3000/api/properties/search
-CURL_EXIT=$?
-kill $PID
-
-# Verify tests still run locally
-npm test
-TEST_EXIT=$?
-
-# Check exit codes
-test $CURL_EXIT -eq 0 && test $TEST_EXIT -eq 0 && echo "PASS: Backward compatibility maintained" || echo "FAIL: Local workflows broken"
-```
-
-**Expected Output:**
-```
-PASS: Backward compatibility maintained
-```
-
-**Pass Criteria:**
-- `node backend/api/properties/search.js` starts successfully
-- API responds to HTTP requests
-- `npm test` executes without errors
-- No modifications to `backend/api/properties/search.js`
-- No modifications to test files
-
-**Traceability:** Maps to Intent constraint "Existing Workflow Preservation: Developers must retain ability to run API locally via `node backend/api/properties/search.js` and tests via `npm test`."
-
----
-
-### Gate 12: No Credentials in Repository
-
-**Objective:** Verify no secrets committed to repository per security constraint.
-
-**Execution:**
-```bash
-# Scan for common credential patterns
-git grep -E "(password|secret|api_key|private_key|token)" -- '*.yml' '*.yaml' '*.sh' '*.js' '*.json' | grep -v "secrets." | grep -v "# Example" | grep -v "Secret Name"
-
-# Check for .env files in git history
-git log --all --full-history -- "**/.env"
-
-# Verify .gitignore includes .env
-grep ".env" .gitignore
-```
-
-**Expected Output:**
-```
-(no matches - credentials scan clean)
-(no commits - .env never committed)
-.env  # Present in .gitignore
-```
-
-**Pass Criteria:**
-- No credential patterns found in committed files
-- No `.env` files in git history
-- `.gitignore` includes `.env` pattern
-- All secret references use `${{ secrets.* }}` syntax
-- Documentation explicitly warns against committing secrets
-
-**Traceability:** Maps to Intent security constraint "No secrets or credentials committed to repository."
+**Pass Criteria:** Response schema matches pre-authentication baseline (same fields, types, structure)
+**Intent Reference:** Constraint - API Compatibility (Existing property search endpoint must remain functional with minimal breaking changes, Response schemas cannot change)
 
 ## Human Verification Points
 
-### HV1: Deployment Target Customization Required
-
-**What to Verify:** The deployment stage contains a template that explicitly fails until customized for actual infrastructure.
-
-**Steps:**
-1. Open `.github/workflows/ci-cd.yml`
-2. Locate `deploy-staging` job, `Deploy to staging` step
-3. Verify step contains:
-   ```yaml
-   run: |
-     echo "⚠️  DEPLOYMENT TEMPLATE - CUSTOMIZE FOR YOUR PLATFORM"
-     exit 1  # Fail until customized
-   ```
-4. Verify inline comments document customization requirements
-5. Confirm deployment templates exist in `scripts/` directory
-
-**Pass Criteria:**
-- Deployment step fails with clear instructional message
-- Comments document required secrets
-- Platform-specific examples provided
-- Template prevents accidental deployment to unconfigured target
-
-**Rationale:** Tier 3 gated orbit requires human decision on deployment target before automation can proceed. Template ensures this decision cannot be skipped.
-
-**Traceability:** Maps to Intent dependency "Deployment Target Access: Requires credentials and access to target deployment environment."
-
----
-
-### HV2: Security Review of Secret Management
-
-**What to Verify:** All secret handling follows security best practices.
+### H1: Security Review Checklist
+**Reviewer Role:** Security Engineer or Senior Backend Engineer
 
 **Steps:**
-1. Review workflow file for secret references
-2. Verify no `echo ${{ secrets.* }}` statements that would log secrets
-3. Confirm secrets only used in `env:` blocks, never in `run:` command strings
-4. Review deployment scripts for secret handling
-5. Verify documentation warns against exposing secrets
+1. **JWT Secret Configuration**
+   - Verify `.env` file exists and is NOT committed to git: `git ls-files | grep -q ".env$"; echo $?` (should return 1)
+   - Confirm JWT_SECRET in production is cryptographically random (128+ bits): Check deployment environment variables
+   - Verify JWT_SECRET differs between staging and production environments
 
-**Checklist:**
-- [ ] Secrets referenced via `${{ secrets.NAME }}` syntax only
-- [ ] No secrets echoed or printed in logs
-- [ ] Secrets passed as environment variables, not command arguments
-- [ ] Deployment verification doesn't log full URLs containing tokens
-- [ ] Documentation includes "⚠️ Security Note" warnings
-- [ ] Troubleshooting guide explicitly warns against echoing secrets
+2. **Password Storage Review**
+   - Open `backend/api/auth/login.js` and verify:
+     - Line using `bcrypt.compare` (async, not compareSync)
+     - No plaintext password logging in catch blocks
+     - Timing-safe comparison for nonexistent users (fake bcrypt hash comparison)
+   - Check database migration: `backend/database/migrations/001-create-users-table.sql`
+     - password_hash column is VARCHAR(255), not TEXT (prevents excessive length attacks)
+     - No default value on password_hash column
 
-**Pass Criteria:** All checklist items verified; no security anti-patterns found.
+3. **SQL Injection Review**
+   - Review all `.sql` files in `backend/database/queries/auth-*.sql`
+   - Confirm ALL user inputs use parameterized queries ($1, $2, etc.)
+   - Search codebase for string concatenation with user input: `grep -r "query.*+.*req." backend/`
+   - Expected: No results indicating string concatenation in queries
 
-**Rationale:** Tier 3 gated orbit with security surface requires human validation of credential handling before production use.
+4. **Token Validation Review**
+   - Open `backend/middleware/authenticate.js`
+   - Verify jwt.verify options include:
+     - `algorithms: ['HS256']` (or explicitly set, not default)
+     - `issuer: 'property-search-api'` (prevents token reuse from other services)
+   - Check for alg:none vulnerability: Algorithm whitelist must be present
 
-**Traceability:** Maps to Intent security constraint "deployment keys must have minimum required permissions" and "No secrets or credentials committed to repository."
+5. **Error Information Leakage**
+   - Review error responses in `backend/api/auth/login.js`
+   - Verify identical error messages for "user not found" vs "wrong password"
+   - Check that stack traces are not returned to client (only in development mode)
+   - Confirm database connection errors return generic "SERVER_ERROR" message
 
----
+**Pass Criteria:** All 5 areas reviewed and no security issues found. Document any deviations in Human Modifications section.
 
-### HV3: Test Suite Reliability Assessment
+**Intent Reference:** Trust Tier (Tier 2: Supervised) - Mandatory human review of middleware injection points, error handling, token generation logic
 
-**What to Verify:** Test suite provides reliable quality gate without flakiness.
-
-**Steps:**
-1. Execute pipeline 5 times with identical code
-2. Verify all 5 runs pass with consistent results
-3. Review test execution times across runs
-4. Check for intermittent failures or timeouts
-5. Confirm test coverage percentages consistent
-
-**Data Collection:**
-```bash
-for i in {1..5}; do
-  gh workflow run ci-cd.yml
-  sleep 120  # Wait for completion
-  gh run list --workflow=ci-cd.yml --limit=1 --json conclusion,databaseId
-done
-```
-
-**Pass Criteria:**
-- All 5 runs succeed with identical conclusions
-- Test execution time variance < 10%
-- No timeout failures
-- No tests marked as "flaky" or "skip"
-- Coverage percentage variance < 1%
-
-**Fail Action:** If any run fails inconsistently, identify and fix flaky tests before approving pipeline activation.
-
-**Rationale:** Automated deployment gates require reliable tests. Flaky tests erode trust and encourage bypassing quality gates.
-
-**Traceability:** Maps to Risk Assessment "Test suite flakiness causes false failures" and Intent acceptance "Test suite runs in CI environment and reports pass/fail status."
-
----
-
-### HV4: Documentation Clarity and Completeness
-
-**What to Verify:** New contributors can understand and modify pipeline without external assistance per Intent "New contributors can understand and modify pipeline without external assistance."
+### H2: Integration Smoke Test
+**Reviewer Role:** QA Engineer or Product Owner
 
 **Steps:**
-1. Identify team member unfamiliar with CI/CD implementation
-2. Provide only repository access (no verbal explanation)
-3. Ask them to:
-   - Locate pipeline configuration
-   - Identify where tests execute
-   - Find secret configuration instructions
-   - Locate troubleshooting guide
-   - Understand deployment process
-4. Time how long it takes to answer these questions
-5. Record any confusion points or missing information
+1. **Environment Setup**
+   - Start local server: `npm start`
+   - Verify server starts without errors on port 3000
+   - Check health endpoint: `curl http://localhost:3000/health` → {"status": "ok"}
 
-**Pass Criteria:**
-- All questions answered correctly
-- Total time < 15 minutes
-- No external documentation required
-- Reviewer confidence they could modify workflow
-- Zero confusion about deployment customization requirements
+2. **Authentication Flow (Happy Path)**
+   - Create test user: `node scripts/seed-test-user.js`
+   - Login with test credentials:
+     ```bash
+     curl -X POST http://localhost:3000/api/auth/login 
+       -H "Content-Type: application/json" 
+       -d '{"username":"testuser","password":"TestPassword123!"}'
+     ```
+   - Verify response contains `token`, `expiresIn: "24h"`, `user` object
+   - Copy token from response
 
-**Feedback Loop:** Document any unclear sections identified and improve documentation before final approval.
+3. **Protected Endpoint Access**
+   - Attempt unauthenticated request:
+     ```bash
+     curl http://localhost:3000/api/properties/search
+     ```
+   - Verify 401 response with "MISSING_TOKEN" error
+   
+   - Attempt authenticated request (replace TOKEN):
+     ```bash
+     curl http://localhost:3000/api/properties/search 
+       -H "Authorization: Bearer TOKEN"
+     ```
+   - Verify 200 response with property search results
 
-**Traceability:** Maps directly to Intent acceptance criterion "New contributors can understand and modify pipeline without external assistance."
+4. **Token Refresh Flow**
+   - Refresh token:
+     ```bash
+     curl -X POST http://localhost:3000/api/auth/refresh 
+       -H "Authorization: Bearer TOKEN"
+     ```
+   - Verify new token returned, different from original token
+   - Test new token works with protected endpoint
 
----
+5. **Error Scenarios**
+   - Test invalid credentials (should return 401 with INVALID_CREDENTIALS)
+   - Test expired token (create token with -1h expiration, should return TOKEN_EXPIRED)
+   - Test malformed token (should return INVALID_TOKEN)
+   - Test rate limiting: Make 6 login attempts rapidly (6th should return 429)
 
-### HV5: Branch Strategy Verification
+**Pass Criteria:** All steps execute successfully with expected responses. Property search returns same data structure as before authentication was added.
 
-**What to Verify:** Pipeline behaves correctly for different branch patterns per Context Package branch strategy.
+**Intent Reference:** Acceptance Boundary (Minimum Viable) - All must-have features functional, Acceptance Boundary (Target State) - Rate limiting and token refresh functional
 
-**Test Scenarios:**
-
-| Branch Pattern | Expected Behavior | Verification Method |
-|---------------|-------------------|---------------------|
-| `main` push | Build → Test → Deploy Staging | Merge test PR, verify staging deploy triggers |
-| `develop` push | Build → Test → Deploy Staging | Push to develop, verify deploy triggers |
-| `feature/xyz` push | Build → Test only | Push to feature branch, verify no deploy |
-| PR to `main` | Build → Test only | Open PR, verify status checks but no deploy |
-
-**Steps:**
-1. Test each branch pattern scenario
-2. Review workflow run logs for each
-3. Verify deployment job presence/absence matches expectations
-4. Confirm status checks visible in PR interface
-
-**Pass Criteria:**
-- All scenarios behave as documented in Context Package
-- No accidental deployments from feature branches
-- Main branch deployments require test passage
-- PR status checks block merging on test failure
-
-**Traceability:** Maps to Context Package architecture "Branch Strategy Implications" and Intent "upon success, deploys to appropriate environments based on branch strategy."
-
----
-
-### HV6: Deployment Verification Effectiveness
-
-**What to Verify:** Post-deployment verification catches broken deployments.
+### H3: Performance Baseline Comparison
+**Reviewer Role:** DevOps Engineer or Senior Backend Engineer
 
 **Steps:**
-1. Review deployment verification step in workflow
-2. Verify smoke test actually exercises API functionality
-3. Confirm curl uses `-f` flag to fail on HTTP errors
-4. Test verification with intentionally broken deployment (in staging)
-5. Verify workflow fails when deployment is non-functional
+1. **Capture Baseline Metrics**
+   - Load test property search endpoint WITH authentication:
+     ```bash
+     ab -n 1000 -c 10 -H "Authorization: Bearer TOKEN" 
+       http://localhost:3000/api/properties/search
+     ```
+   - Record metrics:
+     - Requests per second
+     - P50, P95, P99 latency
+     - Failed requests (should be 0)
 
-**Test Case:**
-```bash
-# Simulate broken deployment by pointing STAGING_URL to invalid endpoint
-# Set secret temporarily: STAGING_URL=http://localhost:9999/nonexistent
-# Trigger workflow
-# Expected: Deployment verification step fails
-# Expected: Clear error message about connection failure
-```
+2. **Compare Against Pre-Auth Baseline**
+   - Retrieve pre-authentication performance metrics (from prior load tests or staging environment)
+   - Calculate latency delta: `auth_latency - baseline_latency`
+   - Acceptable if P95 delta < 50ms (hard requirement) or < 20ms (target)
 
-**Pass Criteria:**
-- Verification step actually executes API request
-- HTTP error codes cause verification failure
-- Connection errors cause verification failure
-- Error messages indicate specific failure reason
-- Broken deployments do NOT report success
+3. **Token Validation Overhead Isolation**
+   - Measure middleware-only latency (skip database queries):
+     - Create endpoint that only runs authenticate middleware and returns 200
+     - Load test this endpoint: Should have <10ms P95 latency
+   - If middleware latency > 20ms, investigate:
+     - Token cache hit rate (should be >90% under load)
+     - JWT verification performance (consider caching or RS256 vs HS256)
 
-**Rationale:** Deployment success without verification creates false confidence. Verification must meaningfully validate functionality.
+4. **Database Connection Pool Health**
+   - Monitor active connections during load test
+   - Pool should not reach max capacity (20 connections)
+   - Query `SELECT count(*) FROM pg_stat_activity WHERE datname = 'property_db';`
+   - If approaching limit, consider increasing pool size or optimizing query performance
 
-**Traceability:** Maps to Risk Assessment "Deployment succeeds but application non-functional" and mitigation "Deployment verification step includes smoke test hitting actual endpoint."
+**Pass Criteria:** P95 latency increase < 50ms (must have) or < 20ms (target state). No connection pool exhaustion.
 
----
+**Intent Reference:** Constraint - Performance Budget (Authentication middleware must add less than 50ms latency), Acceptance Boundary (Target State) - Authentication middleware response time under 20ms (P95)
 
-### HV7: Rollback Procedure Validation (Stretch Goal)
-
-**What to Verify:** Production rollback capability functions correctly if implemented.
-
-**Prerequisites:** Only verify if Phase 4 (production deployment) implemented and approved.
-
-**Steps:**
-1. Create mock "bad" deployment by deploying code with known issue to staging
-2. Identify previous release tag
-3. Execute rollback workflow via manual trigger
-4. Verify previous version deployed successfully
-5. Confirm API returns expected behavior from previous version
-
-**Test Execution:**
-```bash
-# Trigger rollback workflow
-gh workflow run ci-cd.yml --ref main -f tag=release-20240101-120000
-
-# Verify rollback completed
-gh run list --workflow=ci-cd.yml --limit=1 --json conclusion
-
-# Verify correct version deployed
-curl https://staging-url/api/properties/search | jq '.version'  # Should match rollback target
-```
-
-**Pass Criteria:**
-- Rollback workflow triggers successfully
-- Previous version deploys without errors
-- Verification step confirms functionality
-- Total rollback time < 5 minutes
-- Documentation accurately describes procedure
-
-**Fail Action:** If rollback fails, document gap and create follow-up task for rollback capability improvement.
-
-**Traceability:** Maps to Intent stretch acceptance "Automatic deploy with rollback capability" and Risk Assessment "Rollback procedure not tested."
-
----
-
-### HV8: Infrastructure Prerequisite Confirmation
-
-**What to Verify:** All external dependencies documented and available before pipeline activation.
-
-**Checklist:**
-- [ ] Staging environment exists and accessible
-- [ ] Database accessible from staging environment
-- [ ] Deployment credentials created with minimum permissions
-- [ ] Secrets added to GitHub repository settings
-- [ ] Environment protection rules configured for production
-- [ ] Approved reviewers designated for production deploys
-- [ ] Manual deployment tested once before automation
+### H4: Architectural Coherence Review
+**Reviewer Role:** Tech Lead or Senior Engineer
 
 **Steps:**
-1. Review deployment target specification from human reviewer
-2. Verify each checklist item with infrastructure team
-3. Test manual deployment to staging environment
-4. Confirm database connectivity
-5. Verify secrets correctly configured in GitHub
+1. **File Organization Consistency**
+   - Verify new files follow established patterns:
+     - `backend/api/auth/*.js` matches `backend/api/properties/*.js` structure
+     - `backend/database/queries/auth-*.sql` matches `property-search.sql` naming
+   - Check middleware placement: `backend/middleware/authenticate.js` in correct directory
+   - Confirm configuration files in `backend/config/jwt.js` follow config pattern
 
-**Pass Criteria:** All checklist items confirmed before approving pipeline activation.
+2. **Middleware Integration Approach**
+   - Review `backend/server.js` (or search.js if standalone approach used)
+   - Verify middleware chain order:
+     1. Body parser (express.json)
+     2. Public routes (auth endpoints)
+     3. Authentication middleware
+     4. Protected routes (properties)
+   - Confirm no middleware bypass paths exist
 
-**Fail Action:** Document missing prerequisites; delay pipeline activation until resolved.
+3. **Dependency Management**
+   - Review `package.json` for version pinning strategy
+   - Verify major versions match Intent constraints (express ^4.x, jsonwebtoken ^9.x)
+   - Check for unnecessary dependencies or security vulnerabilities: `npm audit`
 
-**Traceability:** Maps to Intent dependencies "Deployment Target Access: Requires credentials and access to target deployment environment" and "Database already exists and accessible from target environment."
+4. **Code Quality Standards**
+   - Verify async/await used consistently (no callback hell)
+   - Check error handling: All async functions wrapped in try-catch
+   - Confirm no commented-out code or TODO statements in production files
+   - Review SQL query file structure: Queries separated from logic, reusable
+
+5. **Database Migration Strategy**
+   - Verify migration is idempotent (CREATE TABLE IF NOT EXISTS)
+   - Check for rollback script or down migration (if standard practice)
+   - Confirm migration doesn't drop existing tables or data
+
+**Pass Criteria:** All architectural patterns consistent with existing codebase. No deviations from established conventions without documented rationale.
+
+**Intent Reference:** Context Package - Pattern Library (File organization, naming conventions, code patterns)
+
+### H5: Documentation Completeness Review
+**Reviewer Role:** Technical Writer or Senior Engineer
+
+**Steps:**
+1. **README.md Authentication Section**
+   - Verify README includes:
+     - How to obtain a token (login endpoint example)
+     - How to use a token (Authorization header format)
+     - How to refresh a token (refresh endpoint example)
+     - List of protected endpoints
+     - Environment setup instructions
+   - Test that a new developer could follow README to set up authentication
+
+2. **.env.example Validation**
+   - Confirm all required environment variables documented
+   - Verify example values are safe (no real credentials)
+   - Check that JWT_SECRET includes generation instructions
+
+3. **Code Comments**
+   - Review `backend/middleware/authenticate.js` for inline comments explaining:
+     - Cache TTL rationale
+     - Token validation logic
+     - Error code meanings
+   - Check `backend/api/auth/login.js` for comments on:
+     - Timing-safe comparison
+     - Rate limiting configuration
+     - Bcrypt rounds choice
+
+4. **API Error Codes Documentation**
+   - Verify README or separate API docs list all error codes:
+     - MISSING_TOKEN, INVALID_TOKEN, TOKEN_EXPIRED
+     - INVALID_CREDENTIALS, ACCOUNT_LOCKED, RATE_LIMIT
+     - SERVER_ERROR, MISSING_CREDENTIALS
+   - Include description of when each error occurs
+
+**Pass Criteria:** Complete documentation exists for authentication setup, usage, and troubleshooting. New team member can implement authentication client without asking questions.
+
+**Intent Reference:** Proposal Record - Phase 7: Documentation
 
 ## Intent Traceability
 
-### Mapping: Automated Gates to Intent Acceptance Criteria
+### Minimum Viable Requirements (Must Have)
 
-| Gate | Intent Acceptance Criterion | Tier | Verification Type |
-|------|---------------------------|------|-------------------|
-| Gate 1 | Pipeline configuration file committed | Minimum | Syntax validation |
-| Gate 2 | Pipeline executes automatically on every push | Done Criteria | Trigger test |
-| Gate 3 | Test suite runs in CI environment and reports pass/fail | Done Criteria | Execution verification |
-| Gate 3.2 | Failed tests block further pipeline progression | Done Criteria | Failure path test |
-| Gate 4 | Runs tests + reports coverage | Target | Artifact verification |
-| Gate 5 | Tests + coverage + quality gates | Stretch | Threshold enforcement |
-| Gate 6 | Results within 5 minutes (caching optimization) | Target | Performance measurement |
-| Gate 7 | Results within 5 minutes | Target | Timing validation |
-| Gate 8 | Build + Test + Deploy to staging | Target | Stage configuration |
-| Gate 9 | No secrets committed to repository | Security Constraint | Secret scan |
-| Gate 10 | Setup guide in repository | Target | Documentation check |
-| Gate 11 | Existing workflow preservation | Backward Compatibility Constraint | Local execution test |
-| Gate 12 | All sensitive values use secret management | Security Constraint | Pattern scan |
+| Acceptance Criterion | Verification Gate(s) | Type |
+|---------------------|---------------------|------|
+| JWT token generation endpoint accepting username/password returns valid tokens | G4: JWT Token Generation Test | Automated |
+| Token validation middleware successfully blocks unauthenticated requests to /api/properties/search | G5: Authentication Middleware Blocking Test | Automated |
+| Valid tokens allow full access to property search with identical response format | G6: Authenticated Request Success Test, G15: API Compatibility Test | Automated |
+| User credentials table created with hashed passwords | G2: Database Schema Validation, G7: Password Hashing Validation | Automated |
+| Authentication failures return 401 status with error messages | G5: Authentication Middleware Blocking Test, G14: Error Code Consistency Test | Automated |
+| Token expiration enforced (24-hour window) | G8: Token Expiration Enforcement Test | Automated |
 
-### Mapping: Human Verification Points to Intent Requirements
+### Target State Requirements (Should Have)
 
-| HV Point | Intent Requirement | Tier | Why Human Required |
-|----------|-------------------|------|-------------------|
-| HV1 | Deployment target support for Node.js hosting | Constraint | Infrastructure decision |
-| HV2 | Deployment keys minimum required permissions | Security Constraint | Security architecture judgment |
-| HV3 | Test suite provides reliable quality gate | Dependency | Reliability assessment over time |
-| HV4 | New contributors can understand pipeline | Done Criteria | Comprehension assessment |
-| HV5 | Deploys to appropriate environments based on branch | Desired Outcome | Behavioral correctness |
-| HV6 | Deployment verification catches failures | Risk Mitigation | Effectiveness judgment |
-| HV7 | Automatic deploy with rollback capability | Stretch | Recovery procedure validation |
-| HV8 | Deployment target access and credentials | Dependency | External system coordination |
+| Acceptance Criterion | Verification Gate(s) | Type |
+|---------------------|---------------------|------|
+| Token refresh mechanism to extend sessions without re-authentication | G11: Token Refresh Functionality Test, H2: Integration Smoke Test (step 4) | Automated + Human |
+| Authentication middleware response time under 20ms (P95) | G9: Performance Benchmark - Middleware Latency, H3: Performance Baseline Comparison | Automated + Human |
+| Login endpoint rate limiting (max 5 attempts per minute per IP) | G10: Rate Limiting Test, H2: Integration Smoke Test (step 5) | Automated + Human |
+| Graceful error handling for expired, malformed, or missing tokens with distinct error codes | G14: Error Code Consistency Test, H2: Integration Smoke Test (step 5) | Automated + Human |
+| Basic audit logging for authentication events (login, logout, token refresh) | G13: Audit Logging Verification | Automated |
 
-### Orphan Check: Verification Coverage Audit
+### Constraint Validation
 
-**All Intent Requirements Covered:**
-- ✓ Pipeline executes automatically (Gate 2, HV5)
-- ✓ Test suite runs and reports (Gate 3, Gate 4)
-- ✓ Failed tests block progression (Gate 3.2)
-- ✓ At least one deployment target configured (HV1, HV8)
-- ✓ Configuration documented in README (Gate 10, HV4)
-- ✓ New contributors can understand (HV4)
-- ✓ Feedback within time constraints (Gate 6, Gate 7)
-- ✓ No secrets committed (Gate 9, Gate 12, HV2)
-- ✓ Existing workflows preserved (Gate 11)
+| Constraint | Verification Gate(s) | Type |
+|-----------|---------------------|------|
+| Technology Stack: Node.js with Express, jsonwebtoken, bcrypt | G1: Dependency Installation | Automated |
+| Database: SQL database integration | G2: Database Schema Validation | Automated |
+| API Compatibility: Property search functional with minimal breaking changes | G15: API Compatibility Test, H2: Integration Smoke Test | Automated + Human |
+| Security Baseline: Passwords hashed with bcrypt (minimum 10 rounds) | G7: Password Hashing Validation, H1: Security Review Checklist | Automated + Human |
+| Security Baseline: JWTs expire within 24 hours | G8: Token Expiration Enforcement Test | Automated |
+| Security Baseline: No plaintext credential storage | H1: Security Review Checklist (step 2) | Human |
+| Performance Budget: Authentication middleware adds less than 50ms latency | G9: Performance Benchmark - Middleware Latency, H3: Performance Baseline Comparison | Automated + Human |
+| Performance Budget: Token validation without database queries | G6: Authenticated Request Success Test (cache verification), H3: Performance Baseline Comparison (step 3) | Automated + Human |
 
-**No Orphan Checks:** Every verification criterion traces back to either an Intent acceptance boundary, constraint, or risk mitigation requirement.
+### Risk Mitigation Verification
+
+| Critical Risk | Verification Gate(s) | Type |
+|--------------|---------------------|------|
+| Breaking property search API | G15: API Compatibility Test, H2: Integration Smoke Test | Automated + Human |
+| JWT secret exposure | H1: Security Review Checklist (step 1) | Human |
+| SQL injection in auth queries | G12: SQL Injection Prevention Test, H1: Security Review Checklist (step 3) | Automated + Human |
+| Bcrypt performance bottleneck | G9: Performance Benchmark - Middleware Latency | Automated |
+| Token cache memory leak | G6: Authenticated Request Success Test (cache cleanup verification) | Automated |
 
 ## Escape Criteria
 
-### Escape Condition 1: Test Suite Not Available
+### E1: Automated Gate Failure
+**Trigger:** Any automated gate (G1-G15) fails
 
-**Trigger:** Phase 0 verification discovers no test suite exists or `npm test` fails.
+**Response Procedure:**
+1. **Assess Failure Severity:**
+   - **Critical (G7, G8, G12):** Security or data integrity failure → STOP deployment immediately
+   - **High (G4, G5, G6, G15):** Core functionality broken → Fix required before human review
+   - **Medium (G9, G10, G11):** Target state not met → Document as known limitation, proceed to human review
+   - **Low (G1, G2, G13, G14):** Infrastructure or nice-to-have → Fix and re-run gates
 
-**Severity:** BLOCKING — Cannot proceed with orbit.
+2. **Re-Orbit Decision Matrix:**
 
-**Detection:**
-```bash
-# In Phase 0
-npm test
-if [ $? -ne 0 ]; then
-  echo "ESCAPE CONDITION: Test suite not functional"
-  exit 1
-fi
-```
+   | Failed Gate Count | Severity | Action |
+   |------------------|----------|--------|
+   | 1 Critical | Any | Full re-orbit: Return to Proposal phase, revise implementation plan |
+   | 2+ High | Any | Full re-orbit: Architectural issue likely, revise Context and Proposal |
+   | 1 High | Security-related (G7, G12) | Partial re-orbit: Fix and re-verify, requires security review |
+   | 1 High | Performance-related (G9) | Targeted fix: Optimize specific component, re-run performance gates |
+   | 3+ Medium | Mixed | Escalate to Tech Lead: Decide between re-orbit or document as technical debt |
+   | Any Low | Any | Fix inline: Resolve issue, re-run affected gate, proceed |
 
-**Resolution Path:**
-1. Abort current orbit immediately
-2. Create blocking dependency on test suite orbit completion
-3. Document in orbit log: "Cannot implement CI/CD without functional test suite"
-4. Schedule test suite orbit before retrying CI/CD orbit
+3. **Escalation Triggers:**
+   - Same gate fails 3+ times → Escalate to Tech Lead for architectural review
+   - Performance gates fail with <10ms margin → Escalate to DevOps for infrastructure assessment
+   - SQL injection test fails → Immediate escalation to Security Engineer
 
-**Rollback:** None required (no changes committed yet).
+### E2: Human Verification Failure
+**Trigger:** Human reviewer identifies issues in H1-H5 verification points
 
-**Escalation:** Alert project manager that test suite dependency not satisfied.
+**Response Procedure:**
+1. **Categorize Issues:**
+   - **Security Issue (H1):** STOP → Fix immediately → Full security re-review required
+   - **Integration Issue (H2):** Assess scope → If >2 scenarios fail, return to Proposal phase
+   - **Performance Issue (H3):** If P95 > 50ms, return to implementation (hard requirement breach)
+   - **Architecture Issue (H4):** If >3 deviations from patterns, escalate to Tech Lead
+   - **Documentation Issue (H5):** Fix inline → Re-review documentation only
 
-**Traceability:** Maps to Intent dependency "Test Suite Availability: Requires completed automated test suite from prior testing orbit."
+2. **Re-Orbit Conditions:**
+   - **Full Re-Orbit (return to Intent phase):** Misalignment between implemented system and original intent (e.g., authentication doesn't actually protect endpoints)
+   - **Partial Re-Orbit (return to Proposal phase):** Implementation approach correct but execution flawed (e.g., middleware works but performance unacceptable)
+   - **Targeted Re-Work (stay in Verification phase):** Minor issues with clear fixes (e.g., error messages need refinement, documentation incomplete)
 
----
+3. **Human Modifications Documentation:**
+   - All issues identified during human review MUST be documented in Proposal Record → Human Modifications section
+   - Include:
+     - Issue description and severity
+     - Proposed fix or architectural decision
+     - Reviewer sign-off and date
+   - If re-orbit required, create new orbit with updated Intent or Proposal
 
-### Escape Condition 2: Pipeline Execution Time Exceeds 10 Minutes (Minimum Not Met)
+### E3: Performance Regression
+**Trigger:** H3 Performance Baseline Comparison shows P95 latency increase > 50ms
 
-**Trigger:** Gate 7 validation shows workflow exceeds 10 minute minimum acceptance threshold.
+**Response Procedure:**
+1. **Immediate Actions:**
+   - STOP deployment to production
+   - Capture performance profile: `node --prof backend/server.js` under load
+   - Analyze bottleneck: JWT verification, database queries, or network I/O
 
-**Severity:** HIGH — Minimum acceptance criteria not met.
+2. **Mitigation Strategies (in order of preference):**
+   - **Strategy A:** Increase token cache TTL (currently 30s → try 60s or 120s)
+   - **Strategy B:** Implement Redis-backed token cache for distributed systems
+   - **Strategy C:** Switch JWT algorithm from HS256 to RS256 with public key caching (if signature verification is bottleneck)
+   - **Strategy D:** Database connection pool optimization (increase pool size, add read replicas)
+   - **Strategy E:** Vertical scaling (increase CPU allocation) if all optimizations exhausted
 
-**Detection:**
-```bash
-# After Gate 7
-DURATION=$(gh run view --json startedAt,completedAt | jq -r '
-  (.completedAt | fromdateiso8601) - (.startedAt | fromdateiso8601)
-')
+3. **Re-Verification:**
+   - After mitigation applied, re-run G9 Performance Benchmark
+   - If still failing, escalate to DevOps and return to Proposal phase
+   - Document chosen strategy in Proposal Record → Human Modifications
 
-if [ $DURATION -gt 600 ]; then  # 600 seconds = 10 minutes
-  echo "ESCAPE CONDITION: Pipeline exceeds 10 minute minimum"
-fi
-```
+### E4: Security Vulnerability Discovery
+**Trigger:** H1 Security Review identifies critical vulnerability OR external security scan flags issue
 
-**Resolution Path:**
+**Response Procedure:**
+1. **Severity Assessment (CVSS scoring):**
+   - **Critical (9.0-10.0):** Immediate rollback, incident response protocol
+   - **High (7.0-8.9):** Block deployment, fix required before any release
+   - **Medium (4.0-6.9):** Fix required, can be batched with other changes
+   - **Low (0.1-3.9):** Document as known issue, schedule fix in next sprint
 
-**Option A: Performance Optimization Re-orbit**
-1. Identify slowest job in pipeline
-2. Implement additional optimizations:
-   - Parallel test execution
-   - More aggressive caching
-   - Test subset for PR checks
-3. Re-run Gate 7 validation
-4. Proceed if under threshold
+2. **Common Vulnerabilities and Responses:**
 
-**Option B: Acceptance Criteria Negotiation**
-1. Document current performance metrics
-2. Present to human reviewer with justification
-3. Request minimum criteria adjustment if optimizations exhausted
-4. Requires explicit human approval to proceed
+   | Vulnerability | Response |
+   |--------------|----------|
+   | JWT secret in git history | Rotate secret immediately, force re-login all users, audit access logs |
+   | SQL injection confirmed | Rollback deployment, patch queries, security audit all database access |
+   | Bcrypt rounds too low | Increase to 12 rounds, implement password hash migration on next login |
+   | Rate limiting bypass | Deploy additional rate limiting layer (e.g., nginx), investigate DDoS risk |
+   | Token replay attack possible | Implement token revocation table, add jti (JWT ID) claim for tracking |
 
-**Rollback:** Revert to Phase 1, implement performance optimizations, re-execute Phases 2-6.
+3. **Post-Incident:**
+   - Update Verification Protocol with new security gate for discovered vulnerability
+   - Add regression test to G12 or create new gate
+   - Document in Intent → Dependencies as new security constraint
 
-**Escalation:** If Option A fails after 2 attempts, escalate to Option B with human reviewer.
+### E5: Rollback Procedure
+**Trigger:** Any escape condition requires deployment rollback
 
-**Traceability:** Maps to Intent acceptance boundary "Feedback Speed" minimum 10 minutes.
-
----
-
-### Escape Condition 3: Test Flakiness Detected (HV3 Fails)
-
-**Trigger:** Human Verification Point 3 discovers inconsistent test results across 5 runs.
-
-**Severity:** MEDIUM — Quality gate reliability compromised.
-
-**Detection:** Any test failure in 5 consecutive runs with identical code.
-
-**Resolution Path:**
-1. Halt pipeline activation (do not deploy)
-2. Identify flaky test(s) from failure logs
-3. Create high-priority issue for test stability
-4. Options:
-   - **Fix flaky tests** (preferred): Stabilize tests before pipeline activation
-   - **Temporarily skip flaky tests**: Mark with `.skip()` and document
-   - **Add retry logic**: Implement test retry with clear warnings
-
-**Recommended Approach:**
-```javascript
-// In test file - temporary mitigation only
-it.skip('flaky test name', () => {
-  // Test code
-});
-// TODO: Fix flakiness before production deployment
-```
-
-**Rollback:** Pipeline remains in draft state; no rollback needed (not activated).
-
-**Escalation:** If flakiness not resolved in 2 days, escalate to team lead for priority adjustment.
-
-**Re-orbit Condition:** Re-run HV3 after test fixes; must achieve 5/5 success rate before proceeding.
-
-**Traceability:** Maps to Risk Assessment "Test suite flakiness causes false failures" and mitigation strategy.
-
----
-
-### Escape Condition 4: Security Scan Detects Exposed Credentials (Gate 12 Fails)
-
-**Trigger:** Gate 12 discovers credentials committed to repository.
-
-**Severity:** CRITICAL — Security breach, immediate remediation required.
-
-**Detection:** Gate 12 pattern scan returns matches.
-
-**Resolution Path:**
-1. **STOP all work immediately**
-2. Identify exposed credential(s)
-3. Execute credential rotation:
+**Steps:**
+1. **Immediate Rollback:**
    ```bash
-   # Revoke exposed credential immediately
-   # Generate new credential
-   # Update GitHub secrets
-   # Verify old credential no longer works
+   # Revert to previous commit (before authentication implementation)
+   git revert <auth-commit-sha> --no-commit
+   git commit -m "Rollback: Authentication system (verification failure)"
+   git push origin main
    ```
-4. Remove credential from git history:
-   ```bash
-   git filter-branch --force --index-filter 
-     "git rm --cached --ignore-unmatch path/to/file" 
-     --prune-empty --tag-name-filter cat -- --all
-   
-   git push origin --force --all
-   git push origin --force --tags
+
+2. **Database Rollback (if migration applied):**
+   ```sql
+   -- Rollback users table (CAUTION: destroys user data)
+   DROP TABLE IF EXISTS auth_logs CASCADE;
+   DROP TABLE IF EXISTS users CASCADE;
    ```
-5. Notify security team of exposure
-6. Document incident and prevention measures
+   **Note:** Only execute if no production users created. Otherwise, keep tables and disable enforcement.
 
-**Rollback:** Full git history rewrite required to remove exposed credentials.
+3. **Configuration Rollback:**
+   - Remove authentication middleware from property search route
+   - Restore pre-auth version of `backend/server.js` or `backend/api/properties/search.js`
+   - Remove or comment out authentication-related environment variables
 
-**Escalation:** Immediate notification to security team and project lead.
+4. **Verification After Rollback:**
+   - Smoke test property search endpoint (should work without authentication)
+   - Verify no 401 errors in logs
+   - Confirm no database connection errors
+   - Monitor for 24 hours to ensure stability
 
-**Re-orbit Condition:** Can only proceed after:
-- Credentials rotated
-- Git history cleaned
-- Security team approval
-- Additional secret scanning measures implemented
+5. **Post-Rollback Analysis:**
+   - Schedule post-mortem within 48 hours
+   - Document root cause in orbit log
+   - Update Intent or Proposal based on findings
+   - Re-enter orbit with revised approach
 
-**Traceability:** Maps to Intent security constraint "No secrets or credentials committed to repository."
+### E6: Partial Acceptance
+**Trigger:** Minimum Viable requirements met but Target State requirements failed
 
----
+**Decision Matrix:**
+- **If 4+ Target State criteria met:** Accept orbit as complete, document remaining items as technical debt for future orbit
+- **If 2-3 Target State criteria met:** Conditional acceptance with immediate follow-up orbit scheduled (within 1 sprint)
+- **If 0-1 Target State criteria met:** Reject orbit, return to Proposal phase to revise implementation strategy
 
-### Escape Condition 5: Deployment Target Not Specified (HV1 Fails)
+**Partial Acceptance Documentation:**
+- Update Intent Document → Acceptance Boundaries section with "Achieved" status for each criterion
+- Create technical debt tickets for unmet Target State requirements
+- Set priority based on user impact (rate limiting > token refresh > audit logging)
+- Schedule follow-up orbit with reduced scope (address 1-2 missing features)
 
-**Trigger:** Human reviewer completes review without specifying deployment target or customizing deployment step.
-
-**Severity:** LOW — Expected for Tier 3 gated orbit.
-
-**Detection:** Deployment step still contains template failure message after human review.
-
-**Resolution Path:**
-1. This is **EXPECTED** behavior for Tier 3 gated orbit
-2. Orbit deliverable is pipeline infrastructure, not activated deployment
-3. Document in completion summary:
-   - "Pipeline infrastructure complete"
-   - "Deployment requires human customization per docs/deployment/README.md"
-   - "Minimum acceptance criteria met"
-   - "Deployment activation pending infrastructure decisions"
-
-**Rollback:** Not applicable — this is not a failure condition.
-
-**Next Steps:**
-1. Human reviewer specifies deployment target
-2. Customize deployment step per docs/deployment/README.md
-3. Configure GitHub secrets
-4. Test deployment manually once
-5. Activate automated deployment
-
-**Traceability:** Maps to Intent Trust Tier 3 requirement "Human review and explicit approval gates essential before automated production deployment."
-
----
-
-### Escape Condition 6: Coverage Below 60% Minimum (Gate 5 Fails)
-
-**Trigger:** Gate 5 detects test coverage below 60% minimum threshold from test suite orbit.
-
-**Severity:** MEDIUM — Blocks deployment activation but pipeline structure complete.
-
-**Detection:**
-```bash
-COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
-if (( $(echo "$COVERAGE < 60" | bc -l) )); then
-  echo "ESCAPE CONDITION: Coverage $COVERAGE% below 60% minimum"
-fi
-```
-
-**Resolution Path:**
-
-**Option A: Improve Test Coverage (Preferred)**
-1. Identify uncovered code paths from coverage report
-2. Add tests to reach 60% minimum
-3. Re-run Gate 5
-4. Proceed if threshold met
-
-**Option B: Adjust Quality Gate**
-1. Review acceptance boundaries with human reviewer
-2. If current coverage represents reasonable testing for codebase maturity, request threshold adjustment
-3. Requires explicit human approval
-4. Document rationale for adjustment
-
-**Rollback:** Pipeline remains functional; quality gate simply stricter than current coverage.
-
-**Escalation:** If Option A blocked (time constraints, test complexity), escalate to Option B.
-
-**Re-orbit Condition:** Not required — pipeline functional at minimum acceptance. Coverage improvement can occur in parallel.
-
-**Traceability:** Maps to Intent target acceptance "80% code coverage including error paths" and minimum "60% code coverage of API handlers."
-
----
-
-### Escape Condition 7: Backward Compatibility Broken (Gate 11 Fails)
-
-**Trigger:** Gate 11 discovers local API or test execution no longer functions.
-
-**Severity:** CRITICAL — Violates core constraint.
-
-**Detection:**
-```bash
-# Local API broken
-node backend/api/properties/search.js &
-sleep 2
-curl -f http://localhost:3000/api/properties/search
-if [ $? -ne 0 ]; then
-  echo "ESCAPE CONDITION: Local API execution broken"
-fi
-
-# Local tests broken
-npm test
-if [ $? -ne 0 ]; then
-  echo "ESCAPE CONDITION: Local test execution broken"
-fi
-```
-
-**Resolution Path:**
-1. **STOP implementation immediately**
-2. Identify what change broke local execution
-3. Revert offending change
-4. Review Intent constraint: "Developers must retain ability to run API locally"
-5. Redesign approach to avoid modifying application code
-6. Re-implement with backward compatibility preserved
-7. Re-run Gate 11
-
-**Rollback:** Revert all changes to application code and test files; keep only CI/CD infrastructure changes.
-
-**Escalation:** If backward compatibility cannot be maintained, escalate to human reviewer for scope clarification.
-
-**Re-orbit Condition:** Must pass Gate 11 before proceeding. No exceptions — this is a hard constraint.
-
-**Traceability:** Maps to Intent constraint "Backward Compatibility: Existing codebase and test suite must continue functioning without modification."
-
----
-
-### General Escalation Triggers
-
-**Escalate to Human Reviewer If:**
-1. Any CRITICAL severity escape condition occurs
-2. Two escape conditions trigger in same orbit execution
-3. Re-orbit attempts exceed 2 iterations
-4. Estimated completion time exceeds 12 hours (1.5x original estimate)
-5. Scope clarification needed to resolve escape condition
-
-**Escalation Protocol:**
-1. Document current state and blocker in orbit log
-2. Provide specific question or decision needed
-3. Include attempted solutions and why they failed
-4. Recommend path forward with tradeoff analysis
-5. Wait for explicit human decision before proceeding
-
-**Abort Conditions (Do Not Proceed):**
-- Security breach detected (Escape Condition 4)
-- Core dependency missing (Escape Condition 1)
-- Backward compatibility broken and cannot be restored (Escape Condition 7)
-- Human reviewer explicitly rejects proposal
-
-**Success Conditions (Orbit Complete):**
-- All automated gates pass (Gates 1-12)
-- All human verification points pass (HV1-HV8) OR explicitly deferred with documentation
-- No active escape conditions
-- Deliverables committed to repository
-- Documentation complete and validated
-- Human reviewer provides explicit approval for Tier 3 gated orbit
+**Stretch Goal Handling:**
+- Stretch goals (token revocation, concurrent sessions, integration tests >80%) are never blockers
+- Document in orbit log whether achieved
+- If stretch goals critical for production, promote to Target State in follow-up orbit
