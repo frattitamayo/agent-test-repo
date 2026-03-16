@@ -1,69 +1,83 @@
-# Implement User Authentication System
+# Add Property Filtering to Search API
 
 ## Desired Outcome
 
-Engineers can authenticate users securely through a JWT-based system integrated with the existing property search API. When complete, the API endpoints require valid authentication tokens, user sessions persist across requests, and unauthorized access attempts are rejected with appropriate HTTP responses. The property search functionality remains fully operational for authenticated users while gaining protection against unauthorized access.
+Users can narrow property search results by applying filters for price range, location, and property type through query parameters. When complete, the property search endpoint accepts optional filter parameters and returns only properties matching all specified criteria. The API maintains backward compatibility for clients not using filters (returns all properties as before). Response times remain under 200ms for filtered queries against datasets up to 10,000 properties.
 
 ## Constraints
 
-- **Technology Stack:** Must use Node.js with Express framework to match existing backend/api structure. JWT implementation must use industry-standard libraries (jsonwebtoken, bcrypt).
-- **Database:** Authentication tables must integrate with existing SQL database infrastructure visible in backend/database/queries pattern. No MongoDB or external auth services.
-- **API Compatibility:** Existing property search endpoint (backend/api/properties/search.js) must remain functional with minimal breaking changes. Response schemas cannot change.
-- **Security Baseline:** Passwords must be hashed with bcrypt (minimum 10 rounds). JWTs must expire within 24 hours. No plaintext credential storage. No authentication logic in frontend until backend is proven stable.
-- **Performance Budget:** Authentication middleware must add less than 50ms latency to existing API calls. Token validation must not require database queries for every request.
-- **Non-Goals:** User registration UI, password reset flows, OAuth integration, role-based access control beyond basic authenticated/unauthenticated states.
+- **API Compatibility:** Existing `/api/properties/search` endpoint must continue to work without query parameters (returns all results). Clients using the endpoint today must experience zero breaking changes.
+- **Query Parameter Format:** Use standard REST conventions: `?minPrice=100000&maxPrice=500000&location=Seattle&propertyType=apartment`. No custom parameter encoding or JSON in query strings.
+- **Database Layer:** Filtering logic must be implemented in SQL (backend/database/queries/property-search.sql) using parameterized queries. No in-memory filtering of full result sets in JavaScript.
+- **Security Baseline:** All query parameters must be validated and sanitized. SQL injection prevention through parameterized queries only. No dynamic SQL string concatenation.
+- **Performance Budget:** Filtered queries must return results in under 200ms (P95) for datasets up to 10,000 properties. Database queries must use indexes on filterable columns.
+- **Authentication:** All requests must pass through existing JWT authentication middleware (established in prior orbit). No changes to authentication logic.
+- **Response Schema:** Property object structure in response must remain identical to current format. Only the array of returned properties changes based on filters.
+- **Non-Goals:** Advanced search features (full-text search, fuzzy matching, geospatial radius queries), pagination, sorting options, filter presets/saved searches.
 
 ## Acceptance Boundaries
 
 **Minimum Viable (Must Have):**
-- JWT token generation endpoint accepting username/password returns valid tokens
-- Token validation middleware successfully blocks unauthenticated requests to /api/properties/search
-- Valid tokens allow full access to property search with identical response format
-- User credentials table created with hashed passwords
-- Authentication failures return 401 status with error messages
-- Token expiration enforced (24-hour window)
+- GET /api/properties/search accepts optional query parameters: minPrice, maxPrice, location, propertyType
+- Missing parameters treated as "no filter" for that dimension (e.g., no minPrice means no lower bound)
+- Invalid parameter values return 400 status with descriptive error messages (e.g., minPrice not a number)
+- SQL query uses WHERE clause with parameterized conditions for all present filters
+- Response contains only properties matching ALL specified filters (AND logic, not OR)
+- Endpoint works without parameters (backward compatibility verified)
+- Database query execution time under 500ms for 10,000 property dataset
 
 **Target State (Should Have):**
-- Token refresh mechanism to extend sessions without re-authentication
-- Authentication middleware response time under 20ms (P95)
-- Login endpoint rate limiting (max 5 attempts per minute per IP)
-- Graceful error handling for expired, malformed, or missing tokens with distinct error codes
-- Basic audit logging for authentication events (login, logout, token refresh)
+- Query execution time under 200ms P95 for filtered queries
+- Database indexes created on price, location, and property_type columns
+- Parameter validation rejects out-of-range values (e.g., minPrice > maxPrice returns 400)
+- Error responses include field-level validation messages (e.g., "minPrice must be a positive number")
+- Request logging captures filter parameters for analytics
+- API documentation updated with filter parameter examples
 
 **Stretch (Nice to Have):**
-- Token revocation capability for logout/security events
-- Multiple concurrent sessions per user with session tracking
-- Authentication metrics endpoint showing active sessions and auth rate
-- Integration tests covering happy path and edge cases with >80% coverage
+- Case-insensitive location matching with trimmed whitespace
+- Multiple location values supported (comma-separated: `location=Seattle,Portland`)
+- Property type accepts standardized enum values with validation
+- Query result caching for common filter combinations (5-minute TTL)
+- Performance metrics endpoint showing filter usage statistics
 
 ## Trust Tier Assignment
 
 **Tier 2: Supervised**
 
-**Rationale:** Authentication systems have high blast radius affecting all API consumers and introduce security attack surfaces (token forgery, session hijacking, credential exposure). While the implementation pattern is well-established, integration with the existing codebase requires careful review of:
+**Rationale:** This orbit modifies a production API endpoint with established authentication and touches the database query layer. While the implementation pattern (parameterized SQL queries with optional WHERE clauses) is standard, the integration requires careful review of:
 
-- Middleware injection points that don't break existing functionality
-- Database schema changes that align with current query patterns
-- Error handling that doesn't leak sensitive information
-- Token generation/validation logic that follows security best practices
+- SQL query construction to ensure parameterized queries prevent injection despite dynamic WHERE clause building
+- Backward compatibility validation that existing clients continue to function
+- Performance impact assessment through load testing with realistic filter combinations
+- Input validation logic that rejects malicious or malformed parameters without leaking system information
 
-The supervised tier allows autonomous execution with mandatory human review before deployment. A junior-to-mid level engineer should verify the implementation matches security standards and doesn't introduce vulnerabilities. This is not tier 3 (gated) because the patterns are standard and testable, but requires more scrutiny than routine feature work.
+The supervised tier allows autonomous implementation with mandatory human review before deployment. A mid-level engineer should verify the SQL queries are safe, performance is acceptable, and backward compatibility is maintained. This is not tier 3 (gated) because query filtering is a routine feature with established patterns, but requires more scrutiny than tier 1 due to the security and performance considerations of database query modification.
 
 ## Dependencies
 
+**Prior Orbit Dependencies:**
+- **Authentication System (Prior Orbit):** This orbit assumes JWT authentication middleware is active on /api/properties/search. All filtering logic executes only for authenticated requests. The authentication implementation from the previous orbit must be complete and deployed before this work begins.
+
 **Codebase Dependencies:**
-- Existing backend/api structure and routing patterns
-- Current SQL database connection configuration (referenced by backend/database/queries pattern)
-- Express server initialization and middleware chain (inferred from search.js structure)
+- **backend/api/properties/search.js:** Current endpoint implementation that must be extended to parse and validate query parameters
+- **backend/database/queries/property-search.sql:** Existing SQL query that must be modified to support conditional WHERE clauses
+- **backend/database/connection.js:** Database connection pool (established in auth orbit) for executing filtered queries
+
+**Database Dependencies:**
+- **properties table schema:** Must include columns for price (numeric), location (text/varchar), and property_type (text/varchar). Exact column names and types must be confirmed from actual schema.
+- **Database indexes:** Target state requires indexes on filterable columns. If indexes don't exist, migration must create them without blocking production queries.
 
 **External Dependencies:**
-- npm packages: jsonwebtoken (^9.0.0), bcrypt (^5.1.0), express-rate-limit (^6.0.0)
-- SQL database engine compatible with existing property-search.sql patterns (PostgreSQL or MySQL assumed)
+- **SQL database engine:** PostgreSQL or MySQL (consistent with auth orbit assumptions) must support parameterized queries with optional parameters
+- **Node.js environment:** Query parameter parsing via Express (req.query) or equivalent framework
 
 **Knowledge Dependencies:**
-- Database connection string and credentials for schema migration
-- Current API deployment process and environment configuration
-- Existing logging infrastructure to integrate auth events
+- **Current properties table schema:** Column names, data types, and existing indexes
+- **Expected property object structure:** Response format that must remain unchanged
+- **Typical filter value distributions:** Expected ranges for price, common location values, valid property types (for validation logic)
+- **Production dataset size:** Current property count to calibrate performance testing
 
-**Prior Orbit References:**
-- None identified in current repository structure. This appears to be the first authentication implementation.
+**Coordination Dependencies:**
+- **No concurrent database migrations:** This orbit should not run simultaneously with other orbits modifying the properties table schema
+- **API documentation ownership:** Clarify who updates API docs (if separate from code repository)
