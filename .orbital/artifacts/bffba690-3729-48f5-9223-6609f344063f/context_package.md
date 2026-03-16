@@ -1,354 +1,157 @@
-# Context Package: Implement CI/CD Pipeline with Automated Testing and Deployment
+# Context Package: Implement User Authentication System
 
 ## Codebase References
 
-### Primary Application Files (No Modification)
-- **`backend/api/properties/search.js`** — Main Node.js HTTP server providing property search endpoint; this is the deployment artifact that CI/CD pipeline will ship to staging/production environments
-- **`backend/database/queries/property-search.sql`** — SQL query definition used by API; must be deployable alongside application code but not executed as migration
+### Existing API Structure
+- **backend/api/properties/search.js** — Current property search endpoint serving as reference for Express routing patterns and response handling. This file will need authentication middleware integration.
+- **backend/database/queries/property-search.sql** — Demonstrates SQL query organization pattern. Authentication queries should follow this structure (e.g., `backend/database/queries/auth-*.sql`).
 
-### Configuration and Documentation (Modification Required)
-- **`README.md`** — Must be updated with CI/CD setup instructions, pipeline status badges, and deployment process documentation per acceptance criteria
-- **`package.json`** — Contains test scripts (`npm test`) that pipeline will execute; may need engines field to specify Node.js version for CI environment; likely already exists from test suite orbit
-- **`package-lock.json`** — Required for reproducible dependency installation in CI environment; must be committed to repository if not already present
+### Files to Create
+- **backend/api/auth/login.js** — New login endpoint for JWT token generation
+- **backend/api/auth/refresh.js** — Token refresh endpoint (target state requirement)
+- **backend/middleware/authenticate.js** — JWT validation middleware to protect routes
+- **backend/database/queries/auth-create-user.sql** — User credential insertion query
+- **backend/database/queries/auth-find-user.sql** — User lookup for login validation
+- **backend/database/migrations/001-create-users-table.sql** — Schema migration for user credentials table
+- **backend/config/jwt.js** — JWT configuration (secret, expiration, algorithm)
 
-### CI/CD Configuration Files (To Be Created)
-- **`.github/workflows/ci.yml`** — GitHub Actions pipeline configuration (if GitHub selected)
-- **`.gitlab-ci.yml`** — GitLab CI pipeline configuration (if GitLab selected)
-- **`.circleci/config.yml`** — CircleCI pipeline configuration (if CircleCI selected)
-- **`.github/workflows/deploy.yml`** — Separate deployment workflow (optional; may be integrated into main workflow)
-
-### Test Suite Integration (Dependency from Prior Orbit)
-- **`test/api/properties/search.test.js`** — Test suite that pipeline will execute; created in prior testing orbit
-- **`test/fixtures/properties.js`** — Test fixtures required for test execution in CI
-- **`test/helpers/server.js`** — Test utilities needed in CI environment
-
-### Deployment Artifacts (To Be Created)
-- **`scripts/deploy.sh`** or **`deploy.js`** — Deployment script if custom deployment logic required beyond platform defaults
-- **`.deployignore`** or **`.dockerignore`** — Files to exclude from deployment if size optimization needed
-
-### Documentation Artifacts (To Be Created)
-- **`docs/deployment/README.md`** — Comprehensive deployment guide including setup, troubleshooting, and rollback procedures
-- **`docs/deployment/secrets.md`** — Template documenting required secrets/credentials without exposing actual values
-
-### Files NOT to Modify
-- **`backend/api/properties/search.js`** — Pipeline wraps existing code; no modifications allowed per backward compatibility constraint
-- **`backend/database/queries/property-search.sql`** — Database queries remain unchanged
-- All test files — Tests execute as-is; no test modifications for CI/CD compatibility
+### Missing Infrastructure Files
+The repository currently lacks:
+- **package.json** — No dependency manifest exists. Must be created with express, jsonwebtoken, bcrypt, express-rate-limit.
+- **backend/database/connection.js** — Database connection module not present. Property search SQL file implies database exists but connection logic is not visible.
+- **backend/server.js** or app initialization — search.js appears to be a standalone file run directly (per README). Need to understand if this is the server entry point or if a separate server file exists.
 
 ## Architecture Context
 
-### Current System Architecture
+### Current System State
+The repository represents a minimal Node.js backend with:
+- **Single-file API endpoints:** backend/api/properties/search.js runs as standalone server (README shows `node backend/api/properties/search.js`)
+- **SQL-based data layer:** Queries stored as .sql files in backend/database/queries, implying SQL database backend
+- **No apparent framework bootstrapping:** No Express app initialization visible; search.js likely contains its own server setup
+- **No existing middleware:** No authentication, logging, or error handling middleware infrastructure detected
 
-**Single-Tier Node.js Application:**
-```
-Repository → Node.js Runtime → HTTP Server (port 3000) → Property Search Endpoint
-                                         ↓
-                                   SQL Query Execution
-```
+### Integration Points
+**Authentication Flow:**
+1. Client submits credentials → POST /api/auth/login
+2. Login endpoint validates against users table → returns JWT
+3. Client includes JWT in Authorization header (Bearer token) → subsequent API calls
+4. Authentication middleware intercepts requests → validates JWT → allows/denies access
+5. Protected endpoints (e.g., /api/properties/search) execute only after validation
 
-Current deployment model: Manual execution via `node backend/api/properties/search.js` on target server. No existing automation, containerization, or orchestration.
+**Middleware Injection:**
+The authentication middleware must be inserted into the Express middleware chain before route handlers. Since backend/api/properties/search.js is currently standalone, refactoring options:
+- **Option A:** Extract server initialization to backend/server.js, register all routes with middleware
+- **Option B:** Import and apply middleware directly in search.js (faster, less architectural change)
 
-### Target CI/CD Architecture
+**Database Schema Extension:**
+New `users` table must coexist with existing property data tables. Schema should include:
+- user_id (primary key)
+- username (unique)
+- password_hash (bcrypt)
+- created_at, updated_at timestamps
+- Optional: last_login, login_attempts for audit logging
 
-**Proposed Pipeline Flow:**
-```
-Code Push → CI Platform → Build Stage → Test Stage → Deploy Stage
-                              ↓            ↓              ↓
-                         Install deps  Run npm test   Ship to env
-                         Check syntax  Coverage report Update server
-```
-
-**Branch Strategy Implications:**
-
-| Branch Pattern | Pipeline Behavior | Deployment Target |
-|---------------|-------------------|-------------------|
-| `main` or `master` | Full pipeline: build + test + deploy | Production (stretch) or Staging (target) |
-| `develop` or `staging` | Full pipeline: build + test + deploy | Staging environment |
-| Feature branches (`feature/*`) | Build + test only | No deployment (validation gate) |
-| Pull requests | Build + test only | No deployment (review gate) |
-
-### Deployment Target Architecture Patterns
-
-**Pattern A: Platform-as-a-Service (Heroku, Render, Railway)**
-- Pipeline pushes code to platform via Git or API
-- Platform handles Node.js runtime provisioning
-- Environment variables configured through platform UI/CLI
-- Automatic process management and restarts
-
-**Pattern B: Infrastructure-as-a-Service (AWS EC2, DigitalOcean Droplet)**
-- Pipeline SSHs into server and executes deployment script
-- Manual Node.js setup required (PM2, systemd service)
-- Environment variables in `.env` file or system environment
-- Pipeline responsible for process restart
-
-**Pattern C: Serverless/Functions (AWS Lambda, Vercel, Netlify Functions)**
-- Pipeline packages code and uploads to function platform
-- Cold start considerations for HTTP endpoints
-- Platform manages scaling and availability
-- API Gateway or platform routing required
-
-**Recommendation:** Pattern A (PaaS) offers best balance of simplicity and free tier availability. Heroku free tier deprecated; recommend Render or Railway for modern PaaS.
-
-### Infrastructure Constraints
-
-**No Existing Infrastructure Visibility:**
-- Repository structure provides no hints about current hosting
-- No Dockerfile, kubernetes configs, or deployment scripts present
-- No environment variable references in visible code
-- Proposal must be infrastructure-agnostic or document multiple options
-
-**Database Deployment Consideration:**
-- `backend/database/queries/property-search.sql` presence suggests external database
-- Pipeline does NOT handle database provisioning or migration per non-goals constraint
-- Deployment assumes database already exists and accessible from target environment
-- Connection string/credentials must be provided via secrets management
-
-### Secret Management Architecture
-
-**CI/CD Platform Secret Storage:**
-```
-GitHub Actions: Repository Settings → Secrets and variables → Actions
-GitLab CI: Project Settings → CI/CD → Variables
-CircleCI: Project Settings → Environment Variables
-```
-
-**Required Secrets (Minimum):**
-- `DEPLOY_KEY` or `SSH_PRIVATE_KEY` — Authentication for deployment target
-- `DATABASE_URL` or `DB_CONNECTION_STRING` — Database connection (if not hardcoded)
-- `API_BASE_URL` — Deployment target URL for verification
-- Platform-specific: `HEROKU_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.
-
-**Secret Injection Pattern:**
-```yaml
-# CI configuration
-env:
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
-  NODE_ENV: production
-```
-
-### Performance and Cost Considerations
-
-**CI Platform Free Tier Limits:**
-
-| Platform | Free Tier Minutes/Month | Concurrent Jobs | Storage |
-|----------|------------------------|-----------------|---------|
-| GitHub Actions | 2,000 min (public repos unlimited) | 20 concurrent | 500 MB |
-| GitLab CI | 400 min | 1 concurrent | 10 GB |
-| CircleCI | 6,000 min | 1 concurrent | Unlimited |
-
-**Pipeline Optimization Requirements:**
-- Dependency caching to avoid npm install on every run (saves 1-3 minutes)
-- Parallel job execution if multiple test suites exist
-- Artifact persistence between stages to avoid rebuilding
-- Target: < 5 minutes total pipeline time per acceptance criteria
+### Technology Assumptions
+- **Database Engine:** SQL-based (PostgreSQL or MySQL) inferred from .sql file patterns. Connection pooling not visible; may need to implement or verify existing pool supports concurrent auth queries.
+- **Node.js Version:** Not specified. Modern async/await patterns assumed for bcrypt and JWT operations.
+- **Express Framework:** Implied by intent constraints but not confirmed in visible files. Search.js may use raw http module or minimalist framework.
 
 ## Pattern Library
 
-### CI/CD Configuration Patterns (To Be Established)
+### File Organization Patterns
+**API Endpoints:** `backend/api/{domain}/{action}.js` structure observed
+- Follow this pattern: `backend/api/auth/login.js`, `backend/api/auth/refresh.js`
 
-**No existing CI/CD patterns** — this orbit creates the baseline. Industry standard patterns:
+**Database Queries:** `backend/database/queries/{domain}-{action}.sql`
+- Create: `auth-create-user.sql`, `auth-find-user.sql`, `auth-update-login-timestamp.sql`
 
-**GitHub Actions Structure:**
-```yaml
-name: CI/CD Pipeline
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+**Naming Conventions:**
+- Kebab-case for file names (property-search.sql, not propertySearch.sql)
+- SQL files named with {table}-{operation} pattern
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm test
-```
+### Code Patterns (Inferred)
+Since actual JavaScript implementation is not visible in search.js content, standard Node.js/Express patterns apply:
+- **Async/await** for database and cryptographic operations
+- **Error-first callbacks** or Promise-based error handling
+- **Middleware signature:** `(req, res, next) => null`
+- **Response format:** JSON with appropriate HTTP status codes
 
-**GitLab CI Structure:**
-```yaml
-stages:
-  - build
-  - test
-  - deploy
-
-test:
-  stage: test
-  image: node:18
-  script:
-    - npm ci
-    - npm test
-  cache:
-    paths:
-      - node_modules/
-```
-
-### Naming Conventions
-
-**Workflow/Pipeline Names:**
-- Use descriptive names: "CI/CD Pipeline", "Test and Deploy", "Build and Test"
-- Avoid abbreviations: "CICD" → "CI/CD Pipeline"
-- Job names describe action: "run-tests", "deploy-staging", "build-application"
-
-**Branch Naming (Recommended for Documentation):**
-- `main` or `master` — Production-ready code
-- `develop` or `staging` — Pre-production integration
-- `feature/*` — Feature development branches
-- `hotfix/*` — Emergency production fixes
-
-**Secret Naming:**
-- Uppercase with underscores: `DATABASE_URL`, `DEPLOY_KEY`
-- Prefix by purpose: `STAGING_DATABASE_URL`, `PROD_API_KEY`
-- Avoid generic names: `KEY`, `PASSWORD` → `HEROKU_API_KEY`, `SSH_PRIVATE_KEY`
-
-### Code Organization Patterns
-
-**Deployment Scripts Location:**
-- Root-level scripts directory: `/scripts/deploy.sh`
-- OR npm scripts in package.json: `"deploy": "node scripts/deploy.js"`
-- Keep deployment logic separate from application code
-
-**Documentation Structure:**
-- CI/CD setup: `/docs/deployment/README.md`
-- Secrets template: `/docs/deployment/secrets.md`
-- Troubleshooting: `/docs/deployment/troubleshooting.md`
-- Maintain existing `/docs/api/` structure from documentation orbit
-
-### Error Handling Patterns
-
-**Pipeline Failure Behavior:**
-- Tests fail → Block deployment, exit code 1
-- Build fails → Stop pipeline immediately
-- Deployment fails → Rollback if possible, clear notification
-- Always provide actionable error messages with context
-
-**Notification Patterns:**
-- Pipeline status via email/Slack/Discord webhook
-- GitHub commit status checks for PR integration
-- Deployment success confirmation before marking pipeline complete
+### Security Patterns to Establish
+- **Environment variables** for JWT_SECRET (never hardcode)
+- **Helmet.js** for HTTP header security (recommended addition)
+- **CORS configuration** if frontend exists on different origin
+- **Input validation** using express-validator or similar before database queries
 
 ## Prior Orbit References
 
-### Orbit bffba690-3729-48f5-9223-6609f344063f (API Documentation)
+### Prior Authentication Attempts
+Artifacts directory shows three prior orbit UUIDs:
+- `93d08324-efe3-4d8d-bbfd-abe2bed1568c` — Contains intent_document.md and orbit_log.md
+- `bffba690-3729-48f5-9223-6609f344063f` — Complete artifact set (intent, context, proposal, verification)
+- `ffce316e-4d4e-46c6-bb4f-c5310e36a19f` — Partial artifact set (intent, context, proposal)
 
-**Relevance:** Medium — Documentation orbit established API contract that deployed application must fulfill.
+**Implications:** Multiple previous orbits exist but their content is not accessible. Possible scenarios:
+1. Prior authentication implementation attempts that failed or were abandoned
+2. Unrelated feature orbits in the same project
+3. Test/demo orbits in development repository
 
-**Key Artifacts:**
-- **`proposal_record.md`** — Contains documented API endpoints, response formats, and behavior
-- Likely created `/docs/api/` directory with OpenAPI spec and endpoint guides
+**Action Required:** Review .orbital/artifacts/**/intent_document.md files to determine if authentication was previously attempted and why current orbit is necessary. If this is a second attempt, avoid repeating previous failure modes.
 
-**CI/CD Implications:**
-- Deployment verification should confirm deployed API returns documented responses
-- Pipeline could include smoke tests hitting deployed endpoint to verify basic functionality
-- Documentation serves as acceptance test specification
-
-**Action Required:** Reference documented API contract for post-deployment verification steps.
-
-### Test Suite Orbit (Referenced in Dependencies)
-
-**Relevance:** CRITICAL — CI/CD pipeline depends entirely on test suite existence and reliability.
-
-**Required Artifacts:**
-- `package.json` with `"test"` script
-- Test files in `test/` directory
-- Tests passing reliably in local environment
-
-**CI/CD Implications:**
-- Pipeline executes `npm test` exactly as documented in test suite orbit
-- Test coverage reports feed into quality gates
-- Test failures must provide clear feedback for developers
-
-**Action Required:** 
-- Verify test suite exists and `npm test` command works
-- Confirm tests run without external dependencies (database, network)
-- Review test execution time to ensure < 5 minute pipeline target achievable
-
-**Critical Assumption:** This proposal assumes test suite orbit has been completed successfully. If tests don't exist, this orbit cannot proceed.
-
-### Orbit ffce316e-4d4e-46c6-bb4f-c5310e36a19f (Unknown Scope)
-
-**Relevance:** Low-Medium — May have modified API implementation that affects deployment.
-
-**Action Required:** Review artifacts to determine:
-- Did this orbit change API startup process or dependencies?
-- Are there new environment variables or configuration requirements?
-- Does deployment need additional steps beyond simple code deployment?
-
-**CI/CD Implications:** Any implementation changes affecting deployment process must be reflected in pipeline configuration.
-
-### Orbit 93d08324-efe3-4d8d-bbfd-abe2bed1568c (Incomplete)
-
-**Relevance:** Low — Incomplete orbit with only intent and log; no completed work to reference.
-
-**Action:** Review orbit log for failure context; avoid repeating unsuccessful approaches if related to deployment or automation.
+### Codebase Evolution
+README contains informal note ("nathan here") suggesting active development. Repository is minimal but may have hidden complexity:
+- **Git history** should be checked for deleted authentication code
+- **Environment-specific files** (.env, config/*) may exist but not be tracked in repository structure provided
 
 ## Risk Assessment
 
-### Security Risks
+### High-Priority Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Secrets committed to repository | Medium | Critical — Full credential exposure, immediate security breach | Pre-commit hooks scanning for secrets; clear documentation on secret management; `.gitignore` for `.env` files; code review checkpoint |
-| Overly permissive deployment credentials | High | High — Compromised pipeline gains broad infrastructure access | Principle of least privilege: deploy keys with minimal permissions; separate staging/production credentials; credential rotation policy |
-| Deployment script arbitrary code execution | Medium | High — Malicious PR could execute commands on deployment server | Separate deployment workflows requiring manual approval; restrict who can modify workflow files; signed commits |
-| Unencrypted secrets in CI logs | Medium | High — Secrets visible in build logs | CI platform auto-masking of secrets; avoid echoing environment variables; sanitize error messages |
-| Man-in-the-middle during deployment | Low | Medium — Code tampering during transfer | Use HTTPS/SSH for all connections; verify checksums/signatures; TLS for API endpoints |
+| Risk | Impact | Probability | Mitigation |
+|------|--------|-------------|------------|
+| **Breaking property search API** | HIGH — Core functionality unavailable to existing consumers | MEDIUM — Middleware misconfiguration or route precedence errors | Implement middleware as opt-in initially; test search endpoint with and without auth header before enforcing; maintain backward compatibility flag |
+| **JWT secret exposure** | CRITICAL — All tokens compromised, full authentication bypass | MEDIUM — Hardcoded secrets or committed .env files | Use environment variables; add .env to .gitignore; document secret generation process; implement secret rotation strategy |
+| **SQL injection in auth queries** | CRITICAL — Database compromise, credential theft | MEDIUM — Parameterized queries not used consistently | Use prepared statements for all user input; never concatenate username/password into SQL; code review all query files |
+| **Bcrypt performance bottleneck** | MEDIUM — Login endpoint latency exceeds 50ms budget | HIGH — Synchronous bcrypt.compare blocks event loop | Use bcrypt.compare (async) not compareSync; consider worker threads for high-load scenarios; benchmark with 10 rounds vs 12 rounds |
+| **Missing database connection** | HIGH — Cannot execute any auth queries | HIGH — Connection module not found in repository structure | Verify database connection exists; create connection pool if missing; test connection before implementing auth logic |
 
-### Operational Risks
+### Medium-Priority Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Broken deployment pushes to production | High | Critical — Service outage affecting all users | Staging environment deployment first; smoke tests post-deployment; manual approval gate for production; easy rollback mechanism |
-| Pipeline fails in CI but works locally | High | Medium — Blocked deployments, developer frustration | Match CI Node.js version to local; explicit dependency versions; document environment differences; test pipeline on feature branch first |
-| Deployment overwrites manual hotfixes | Medium | High — Emergency fixes lost, issue recurs | Clear deployment process documentation; discourage manual changes; deployment includes version tagging; audit logs |
-| Database connection failure breaks deployment | Medium | High — Application deployed but non-functional | Pre-deployment connectivity check; health check endpoint; deployment verification step; automatic rollback on health check failure |
-| Concurrent deployments cause race conditions | Low | Medium — Inconsistent deployment state | Deployment locking mechanism; queue concurrent pipelines; one deployment at a time per environment |
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| **Token expiration handling** | Users logged out unexpectedly | Implement refresh token flow in target state; clear error messages on token expiration; client-side token lifetime tracking |
+| **Rate limiting bypass** | Brute force attacks on login endpoint | Apply rate limiting per IP and per username; consider progressive delays; alert on repeated failures |
+| **Concurrent session conflicts** | Users with multiple devices experience logouts | Design for multiple active tokens per user (stretch goal); avoid single-session enforcement unless required |
+| **Audit log volume** | Database growth from authentication events | Implement log rotation; summarize/archive old events; configure log levels (error vs info) |
 
-### Cost and Performance Risks
+### Low-Priority Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Pipeline exceeds free tier minutes | Medium | Medium — Unexpected costs or throttled builds | Optimize caching; avoid redundant runs; monitor usage; document cost thresholds |
-| Slow pipeline discourages frequent deploys | High | Medium — Defeats purpose of CI/CD automation | Parallel job execution; aggressive caching; separate test/deploy workflows; target < 5 minutes |
-| Large `node_modules` slows builds | High | Low — Wastes CI minutes, delays feedback | npm ci instead of npm install; cache dependencies; prune dev dependencies for deployment |
-| Deployment downtime during updates | Medium | Medium — Brief service interruption | Zero-downtime deployment strategies (blue-green if infrastructure supports); graceful process restarts |
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| **Middleware ordering bugs** | CORS or body parsing fails before auth check | Document middleware chain order; test cross-origin requests; ensure body-parser runs before auth routes |
+| **JWT algorithm downgrade** | Tokens signed with weaker algorithm | Explicitly specify HS256 in JWT config; reject tokens with alg:none; validate algorithm in middleware |
+| **Username enumeration** | Attackers identify valid usernames | Use identical error messages for "user not found" vs "wrong password"; consider timing attack mitigation |
 
-### Compliance and Audit Risks
+### Performance Concerns
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| No deployment approval trail | High | Medium — Compliance violations, unclear accountability | Git history provides audit trail; tag releases; deployment logs with timestamps and authors; manual approval workflow for production |
-| Untested code reaches production | Medium | High — Quality issues, user-facing bugs | Test stage must pass before deployment; coverage thresholds; no bypass mechanisms without explicit approval |
-| Rollback capability missing | High | High — Cannot recover from bad deployment | Git tags for releases; ability to redeploy previous version; document rollback process; test rollback in staging |
-| Insufficient deployment documentation | High | Medium — Team cannot maintain or troubleshoot pipeline | Comprehensive setup guide; inline comments in workflow files; troubleshooting runbook; secrets documentation template |
+**Token Validation Overhead:**
+- Intent specifies <50ms for auth middleware, <20ms target
+- JWT validation is CPU-bound (signature verification)
+- Mitigation: Cache decoded tokens in-memory with short TTL (10-30 seconds); use RS256 only if public key verification required (HS256 faster)
 
-### Integration Risks
+**Database Query Latency:**
+- User lookup on login requires database round-trip
+- Bcrypt comparison adds 50-100ms per login attempt
+- Mitigation: Connection pooling; database indexes on username column; async bcrypt; consider Redis cache for user lookup (stretch)
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| CI platform unavailable during critical fix | Low | High — Cannot deploy emergency hotfix | Document manual deployment fallback; multiple team members with deployment access; alternative CI platform configuration (backup) |
-| Platform-specific lock-in limits portability | Medium | Medium — Difficult to migrate CI/CD to different platform | Use standard deployment scripts (bash/node) not platform-specific DSL where possible; document platform dependencies clearly |
-| Webhook failures prevent pipeline triggers | Low | Medium — Deployments don't trigger automatically | Monitor webhook health; manual trigger capability; platform status page monitoring |
-| Test suite flakiness causes false failures | Medium | High — Blocks legitimate deployments, erodes trust | Fix flaky tests before implementing CI/CD; retry logic for transient failures; clear distinction between test failures and infrastructure issues |
+### Security Boundaries
 
-### Technical Debt Risks
+**Trust Boundaries to Enforce:**
+1. **Client → API:** All requests untrusted until JWT validated
+2. **API → Database:** Use connection credentials with minimum required privileges (no DROP, ALTER permissions)
+3. **Environment → Code:** Secrets passed via environment variables, never in source code
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Pipeline configuration becomes unmaintainable | High | Medium — Difficult to modify, risky changes | Keep workflows simple; avoid clever abstractions; comprehensive comments; regular reviews |
-| Deployment scripts diverge from documentation | High | Medium — Documentation becomes unreliable | Co-locate documentation with pipeline files; version documentation with code; test documentation accuracy during reviews |
-| Accumulation of environment-specific workarounds | Medium | Medium — Brittle pipeline, unclear requirements | Document all workarounds with explanations; consolidate environment configurations; regular cleanup of obsolete code |
-| No ownership or expertise retention | Medium | High — Team cannot maintain pipeline after creator leaves | Knowledge transfer documentation; pair on initial implementation; multiple team members review proposal |
-
-### Deployment Strategy Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Blue-green deployment requires infrastructure not available | High | Low — Must use simpler strategy | Start with simple process restart deployment; document blue-green as future enhancement; ensure graceful shutdown |
-| Database schema changes break deployment | Low | Critical — Application-database version mismatch | Coordinate schema changes separately per non-goals constraint; backward-compatible schema changes only; document database deployment separately |
-| Static file deployment separated from code | Low | Low — Incomplete deployments | Bundle static assets with application; single deployment artifact; verify all required files present |
+**Attack Vectors to Address:**
+- Credential stuffing (rate limiting)
+- Token theft (HTTPS enforcement, secure cookie flags if using cookies)
+- Session fixation (regenerate tokens on privilege escalation)
+- Timing attacks (constant-time comparison for bcrypt, consistent error responses)
