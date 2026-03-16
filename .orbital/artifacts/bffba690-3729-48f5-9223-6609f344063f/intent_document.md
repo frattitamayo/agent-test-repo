@@ -1,51 +1,54 @@
-# Add Comprehensive API Documentation and Usage Examples
+# Implement Automated Testing Suite for Property Search API
 
 ## Desired Outcome
 
-Developers integrating with the property search API can understand endpoint capabilities, required parameters, response formats, and error handling without needing to read source code or contact the development team. Complete API documentation becomes the primary resource for integration, reducing support requests and accelerating third-party integration timelines from days to hours. Documentation includes interactive examples that developers can execute directly to validate their understanding before writing integration code.
+Engineering teams gain confidence that the property search API behaves correctly under all conditions, enabling rapid iteration without fear of regression. Automated tests execute on every code change, catching bugs before they reach production and reducing manual QA cycles from hours to minutes. New developers can validate their local setup works correctly by running the test suite, receiving immediate feedback that their environment is properly configured. The test suite serves as executable documentation demonstrating expected API behavior through concrete examples.
 
 ## Constraints
 
-- **Documentation Format:** Must be machine-readable (OpenAPI 3.0 specification) AND human-readable (Markdown with code examples); no proprietary documentation tools that require special viewers
-- **Accuracy Guarantee:** All documented endpoints, parameters, and response schemas must exactly match actual API behavior; no aspirational or outdated documentation
-- **Maintenance Burden:** Documentation must be co-located with code to ensure updates happen together; documentation living in separate repositories or wikis is explicitly prohibited
-- **Security Boundaries:** Documentation must NOT expose internal implementation details, database schema, or security mechanisms; examples must use realistic but fictional data
-- **Non-Goals:** This orbit does NOT create SDK clients, generate code from specs, or build API testing interfaces beyond basic curl examples
-- **Version Stability:** Documentation must reflect current deployed API version; multi-version documentation is out of scope
+- **Test Framework:** Must use Node.js native test runner (`node:test`) or widely-adopted frameworks (Jest, Mocha) with minimal dependencies; no proprietary or abandoned testing tools
+- **Execution Speed:** Full test suite must complete in under 10 seconds on standard development hardware; individual test cases must complete in under 100ms
+- **Zero External Dependencies:** Tests must run without requiring database servers, external APIs, or network connectivity; use in-memory fixtures or mocks for data layer
+- **CI/CD Compatibility:** Test suite must be executable via single command (`npm test` or `node test/runner.js`) suitable for automated pipeline integration
+- **Non-Goals:** This orbit does NOT implement integration tests requiring full database setup, load/performance testing, or end-to-end browser tests; focus is on unit and API-level tests only
+- **Backward Compatibility:** Existing API implementation in `backend/api/properties/search.js` must remain unchanged; tests wrap existing code without modifications
 
 ## Acceptance Boundaries
 
 | Criterion | Minimum Acceptable | Target | Stretch |
 |-----------|-------------------|--------|---------|
-| Endpoint Coverage | `/api/properties/search` fully documented | All existing endpoints documented | Future endpoint template included |
-| Example Types | 1 curl example per endpoint | 3 examples (success, error, edge case) per endpoint | Interactive Postman collection |
-| Response Schema Documentation | Top-level fields documented | Nested objects and arrays fully specified | JSON Schema validation included |
-| Error Code Coverage | HTTP status codes listed | Error codes with descriptions and resolution steps | Common integration mistakes documented |
-| Documentation Location | Single README section | Dedicated `/docs/api/` directory with organized files | Auto-generated from inline code comments |
+| Test Coverage | 60% code coverage of API handlers | 80% code coverage including error paths | 90% coverage with edge cases and validation logic |
+| Test Scenarios | Happy path + 1 error case | Happy path + 3 error cases + 2 edge cases | Comprehensive matrix of all parameter combinations |
+| Execution Time | < 10 seconds full suite | < 5 seconds full suite | < 2 seconds with parallel execution |
+| Test Organization | Single test file | Organized by feature/endpoint with clear naming | Test utilities and fixtures in reusable modules |
+| Assertion Quality | Basic equality checks | Descriptive assertions with meaningful failure messages | Custom matchers for common API patterns |
 
 **Done Criteria:**
-- A developer unfamiliar with the codebase can successfully call the property search endpoint using only the documentation within 15 minutes
-- All documented examples execute successfully against a running instance without modification
-- Documentation includes at least one error scenario with expected response format
-- Documentation is committed to the repository in a location referenced from the main README
+- Test suite executes successfully via single command without manual setup steps
+- At least one test validates successful property search response structure
+- At least one test validates error handling for invalid requests
+- Test output clearly identifies which tests passed/failed with actionable error messages
+- README includes instructions for running tests locally
+- All tests pass on current implementation without requiring code changes
 
 ## Trust Tier Assignment
 
-**Tier: 1 (Autonomous)**
+**Tier: 2 (Supervised)**
 
 **Rationale:**
-- **Zero Production Risk:** Documentation changes cannot break running code, affect data integrity, or introduce security vulnerabilities; worst case is incorrect documentation requiring a follow-up correction
-- **No Code Execution:** This orbit involves creating or updating static documentation files with no executable logic
-- **Reversibility:** Documentation changes are trivially reversible via git revert with zero operational impact
-- **Clear Validation:** Documentation accuracy can be verified by comparing documented behavior against actual API responses through manual testing
-- **Low Blast Radius:** Even incorrect documentation affects only developers reading it, not end users or running systems; impact is contained and non-cascading
+- **Moderate Complexity:** Test implementation requires understanding existing API behavior, designing appropriate fixtures, and selecting correct assertion strategies — decisions that benefit from human validation
+- **Code Quality Impact:** Tests become permanent codebase artifacts that future developers will maintain; poor test design creates technical debt that's harder to fix than production code
+- **False Confidence Risk:** Incorrectly implemented tests may pass while missing critical bugs, creating false sense of security that's more dangerous than no tests
+- **Framework Selection:** Choice of testing framework affects long-term maintainability and team productivity; this architectural decision warrants human review
+- **Limited Blast Radius:** Tests don't run in production and cannot directly cause user-facing failures, but poor tests slow development velocity and reduce release confidence
 
-This qualifies for full autonomous operation because the work product cannot cause system failures, data loss, or security incidents. Human review adds minimal marginal value compared to the efficiency of autonomous execution.
+Tier 1 (Autonomous) is too permissive given the architectural implications and potential for tests that provide false confidence. Tier 3 (Gated) is excessive since tests operate in development environment only with no production deployment risk.
 
 ## Dependencies
 
-- **Running API Instance:** Requires ability to execute requests against `backend/api/properties/search.js` to validate documented examples produce correct responses
-- **Current API Behavior:** Documentation must accurately reflect the implementation in `backend/api/properties/search.js` as of the orbit execution time
-- **Repository Write Access:** Requires ability to create/modify files in the repository and commit changes
-- **No External System Dependencies:** Documentation is self-contained within the repository with no external service dependencies
-- **No Prior Orbit Dependencies:** This is an independent enhancement with no blocking dependencies on other intents or orbits
+- **Existing API Implementation:** Tests validate behavior of `backend/api/properties/search.js` as currently implemented; any changes to API contract require corresponding test updates
+- **Node.js Runtime:** Assumes Node.js environment consistent with current development setup documented in README
+- **Test Execution Environment:** Requires ability to start API server programmatically or mock HTTP layer for testing without network I/O
+- **No Database Dependency:** Tests must function without access to actual database defined in `backend/database/queries/property-search.sql`; requires fixture data or mocking strategy
+- **Prior Orbit Awareness:** If orbit ffce316e-4d4e-46c6-bb4f-c5310e36a19f modified API behavior, tests must reflect current state not original implementation
+- **Documentation Orbit (bffba690-3729-48f5-9223-6609f344063f):** Should reference API documentation artifacts to ensure tests validate documented behavior matches implementation
