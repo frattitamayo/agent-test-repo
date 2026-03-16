@@ -1,50 +1,51 @@
-# Enhance Property Search API with Advanced Filtering
+# Add Comprehensive API Documentation and Usage Examples
 
 ## Desired Outcome
 
-Developers and end-users gain the ability to filter property search results by multiple criteria beyond basic search, enabling more precise property discovery. The API endpoint at `/api/properties/search` will accept query parameters for filtering by price range, property type, location radius, and availability status, returning filtered results that match all specified criteria. This enables product teams to build more sophisticated property listing interfaces without requiring backend engineering involvement for each new filter dimension.
+Developers integrating with the property search API can understand endpoint capabilities, required parameters, response formats, and error handling without needing to read source code or contact the development team. Complete API documentation becomes the primary resource for integration, reducing support requests and accelerating third-party integration timelines from days to hours. Documentation includes interactive examples that developers can execute directly to validate their understanding before writing integration code.
 
 ## Constraints
 
-- **Performance Budget:** Query execution must complete within 500ms for result sets up to 1,000 properties; response time must not exceed 2 seconds even with all filters applied simultaneously
-- **Backward Compatibility:** Existing API consumers calling `/api/properties/search` without query parameters must receive identical responses to current behavior; no breaking changes to response schema
-- **SQL Injection Prevention:** All filter parameters must use parameterized queries; no dynamic SQL string concatenation permitted
-- **Input Validation:** Filter values must be validated and sanitized before reaching the database layer; invalid parameters must return 400 status with clear error messages
-- **Non-Goals:** This orbit does NOT include pagination, sorting, or full-text search capabilities; those remain separate concerns. This orbit does NOT modify the database schema or add new tables/columns.
+- **Documentation Format:** Must be machine-readable (OpenAPI 3.0 specification) AND human-readable (Markdown with code examples); no proprietary documentation tools that require special viewers
+- **Accuracy Guarantee:** All documented endpoints, parameters, and response schemas must exactly match actual API behavior; no aspirational or outdated documentation
+- **Maintenance Burden:** Documentation must be co-located with code to ensure updates happen together; documentation living in separate repositories or wikis is explicitly prohibited
+- **Security Boundaries:** Documentation must NOT expose internal implementation details, database schema, or security mechanisms; examples must use realistic but fictional data
+- **Non-Goals:** This orbit does NOT create SDK clients, generate code from specs, or build API testing interfaces beyond basic curl examples
+- **Version Stability:** Documentation must reflect current deployed API version; multi-version documentation is out of scope
 
 ## Acceptance Boundaries
 
 | Criterion | Minimum Acceptable | Target | Stretch |
 |-----------|-------------------|--------|---------|
-| Filter Parameters Supported | 3 (price range, property type) | 4 (add location radius) | 5 (add availability status) |
-| Response Time (p95) | < 2000ms | < 500ms | < 200ms |
-| Test Coverage | 70% of new filter logic | 85% of filter combinations | 95% with edge cases |
-| Documentation Completeness | API endpoint parameters documented | Examples for each filter | Interactive API playground |
-| Error Handling | 400 responses for invalid input | Specific error codes per validation failure | Suggested corrections in error messages |
+| Endpoint Coverage | `/api/properties/search` fully documented | All existing endpoints documented | Future endpoint template included |
+| Example Types | 1 curl example per endpoint | 3 examples (success, error, edge case) per endpoint | Interactive Postman collection |
+| Response Schema Documentation | Top-level fields documented | Nested objects and arrays fully specified | JSON Schema validation included |
+| Error Code Coverage | HTTP status codes listed | Error codes with descriptions and resolution steps | Common integration mistakes documented |
+| Documentation Location | Single README section | Dedicated `/docs/api/` directory with organized files | Auto-generated from inline code comments |
 
 **Done Criteria:**
-- All implemented filters correctly reduce result sets according to specified criteria
-- No SQL injection vulnerabilities introduced (validated via automated security scan)
-- Existing API consumers experience zero disruption (validated via backward compatibility test suite)
-- Response times remain within performance budget under realistic data volumes (validated via load test with 10,000 property dataset)
+- A developer unfamiliar with the codebase can successfully call the property search endpoint using only the documentation within 15 minutes
+- All documented examples execute successfully against a running instance without modification
+- Documentation includes at least one error scenario with expected response format
+- Documentation is committed to the repository in a location referenced from the main README
 
 ## Trust Tier Assignment
 
-**Tier: 2 (Supervised)**
+**Tier: 1 (Autonomous)**
 
 **Rationale:**
-- **Moderate Blast Radius:** Changes affect a production API endpoint with active consumers, but the endpoint is isolated to property search functionality and does not cascade to payment, authentication, or other critical systems
-- **Data Exposure Risk:** Filter logic operates on potentially sensitive property data, but does not modify data or expose new data types beyond what existing search already returns
-- **SQL Security Surface:** New SQL query construction introduces injection risk, requiring human review of parameterization approach before deployment
-- **Performance Impact:** Database query modifications could affect load on shared infrastructure, warranting performance validation before release
-- **Reversibility:** Changes can be reverted via feature flag or deployment rollback without data loss, but would require coordination with API consumers if issues emerge post-release
+- **Zero Production Risk:** Documentation changes cannot break running code, affect data integrity, or introduce security vulnerabilities; worst case is incorrect documentation requiring a follow-up correction
+- **No Code Execution:** This orbit involves creating or updating static documentation files with no executable logic
+- **Reversibility:** Documentation changes are trivially reversible via git revert with zero operational impact
+- **Clear Validation:** Documentation accuracy can be verified by comparing documented behavior against actual API responses through manual testing
+- **Low Blast Radius:** Even incorrect documentation affects only developers reading it, not end users or running systems; impact is contained and non-cascading
 
-Tier 1 (Autonomous) is too permissive given the SQL security surface and active production consumers. Tier 3 (Gated) is overly restrictive since the changes are contained to a single endpoint with clear functional boundaries and no schema modifications.
+This qualifies for full autonomous operation because the work product cannot cause system failures, data loss, or security incidents. Human review adds minimal marginal value compared to the efficiency of autonomous execution.
 
 ## Dependencies
 
-- **Database Access:** Requires read access to the property search database with existing schema as defined in `backend/database/queries/property-search.sql`
-- **Node.js Runtime:** Assumes Node.js environment as indicated by current implementation in `backend/api/properties/search.js`
+- **Running API Instance:** Requires ability to execute requests against `backend/api/properties/search.js` to validate documented examples produce correct responses
+- **Current API Behavior:** Documentation must accurately reflect the implementation in `backend/api/properties/search.js` as of the orbit execution time
+- **Repository Write Access:** Requires ability to create/modify files in the repository and commit changes
+- **No External System Dependencies:** Documentation is self-contained within the repository with no external service dependencies
 - **No Prior Orbit Dependencies:** This is an independent enhancement with no blocking dependencies on other intents or orbits
-- **External Systems:** None — changes are isolated to backend API and database query layer
-- **Testing Infrastructure:** Requires availability of test database with representative property data for load testing and validation
