@@ -1,19 +1,52 @@
-# Sample Property Search Repo
+# Calculator
 
-This is a minimal sample repository with a backend API entry point and an example SQL query for property search.
+A console-based calculator application written in C# supporting basic arithmetic operations.
 
-## Structure
+## Current Features
 
-- backend/api/properties/search.js
-- backend/database/queries/property-search.sql
+- **Addition:** Add two numbers together
 
-## Running the sample API
+## Planned Features
 
-1. Make sure you have Node.js installed.
-2. From the repository root, run:
-   ```bash
-   node backend/api/properties/search.js
-   ```
-3. Open your browser at http://localhost:3000/api/properties/search to see the sample JSON response.
+- Subtraction
+- Multiplication
+- Division
 
-4. nathan here
+## Requirements
+
+- .NET 6.0 SDK or higher
+
+## Building the Project
+
+From the repository root:
+
+```bash
+dotnet build
+```
+
+## Running the Calculator
+
+```bash
+dotnet run
+```
+
+## Usage
+
+1. Select an operation from the menu (currently only addition available)
+2. Enter the first number when prompted
+3. Enter the second number when prompted
+4. View the result
+5. Press any key to return to the menu
+
+## Supported Input
+
+- Integers: `5`, `-42`, `0`
+- Decimals: `3.14`, `-0.5`, `2.718281828`
+- Scientific notation: `1.5e10`, `-3.2e-5`
+- Range: ±1.7E+308 (double precision)
+
+## Error Handling
+
+- Non-numeric input prompts re-entry with message: "Invalid input: please enter a numeric value"
+- Overflow results display as "Infinity"
+- Invalid operations display as "NaN"
