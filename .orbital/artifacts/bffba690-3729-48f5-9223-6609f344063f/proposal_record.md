@@ -1,498 +1,154 @@
-# Proposal Record: Implement User Authentication System
+# Proposal Record: Add Property Filtering to Search API
 
 ## Interpreted Intent
 
-This orbit introduces JWT-based authentication to protect the existing property search API while maintaining full backward compatibility for authenticated users. The system must validate user credentials, issue time-limited tokens, and enforce authentication on API endpoints without degrading performance or breaking existing functionality.
+This orbit extends the existing authenticated property search API to support optional filtering via query parameters while maintaining complete backward compatibility. Users will be able to filter properties by price range (minPrice, maxPrice), location, and property type through standard REST query parameters. The core requirements are:
 
-The implementation addresses three core capabilities:
-1. **Credential validation** — Users authenticate with username/password, receive JWT tokens valid for 24 hours
-2. **Request authorization** — Middleware intercepts API calls, validates tokens, blocks unauthorized access with 401 responses
-3. **Session management** — Token refresh mechanism extends sessions without re-entering credentials
+1. **Filtering Capability** — Accept four optional query parameters that narrow search results using AND logic (all specified filters must match)
+2. **Backward Compatibility** — Requests without query parameters must return identical results to current behavior (all properties)
+3. **Security** — All filter inputs validated and sanitized, SQL injection prevented through parameterized queries only
+4. **Performance** — Filtered queries must complete within 200ms P95 latency for datasets up to 10,000 properties, requiring database indexes
 
-The constraint boundary is strict: no UI work, no password recovery, no role systems beyond authenticated/unauthenticated states. Performance must stay under 50ms added latency (target 20ms). Security follows industry standards: bcrypt hashing (10+ rounds), no plaintext storage, environment-based secrets.
+The implementation is constrained to SQL-based filtering (no in-memory JavaScript filtering), standard REST query parameter format, and must preserve the existing response schema. The JWT authentication layer remains unchanged — all search requests continue to require valid tokens.
 
-The tier 2 (supervised) assignment recognizes this is security-critical infrastructure requiring human review before deployment, but the implementation pattern is well-established enough for autonomous execution.
+Success is measured across three tiers: minimum viable (filters work, <500ms), target state (indexes created, <200ms, enhanced validation), and stretch goals (case-insensitive matching, result caching, multiple location values).
 
 ## Implementation Plan
 
-### Phase 1: Infrastructure Setup (Prerequisite Work)
+### Phase 1: Schema Investigation & Migration Preparation
 
-**1.1 Create package.json**
-```json
-{
-  "name": "property-search-api",
-  "version": "1.0.0",
-  "dependencies": {
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.2",
-    "bcrypt": "^5.1.1",
-    "express-rate-limit": "^7.1.5",
-    "dotenv": "^16.3.1"
-  }
-}
-```
-**Rationale:** Repository lacks dependency manifest. Express version chosen for stability; jsonwebtoken 9.x includes security patches; bcrypt 5.x supports async operations; express-rate-limit 7.x has per-route configuration.
+**1.1 Inspect Current Database Schema**
+Before implementing filters, must determine actual column names and types in the properties table:
 
-**1.2 Create backend/database/connection.js**
-```javascript
-const { Pool } = require('pg'); // or mysql2 based on actual database
-require('dotenv').config();
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
-
-module.exports = pool;
-```
-**Rationale:** Centralized connection pool required for auth queries. Pooling ensures concurrent login requests don't exhaust connections. Configuration via environment variables per security baseline.
-
-**1.3 Create .env.example**
-```
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=property_db
-DB_USER=api_user
-DB_PASSWORD=changeme
-JWT_SECRET=generate_with_openssl_rand_hex_64
-JWT_EXPIRATION=24h
-NODE_ENV=development
-```
-**Rationale:** Documents required environment variables. JWT_SECRET must be cryptographically random (not committed). .env added to .gitignore.
-
-**1.4 Create backend/config/jwt.js**
-```javascript
-require('dotenv').config();
-
-module.exports = {
-  secret: process.env.JWT_SECRET,
-  expiresIn: process.env.JWT_EXPIRATION || '24h',
-  algorithm: 'HS256',
-  issuer: 'property-search-api',
-};
-```
-**Rationale:** Centralized JWT configuration. Algorithm explicitly set to HS256 (prevents downgrade attacks). Issuer claim enables multi-service token validation.
-
-### Phase 2: Database Schema (Migration)
-
-**2.1 Create backend/database/migrations/001-create-users-table.sql**
 ```sql
-CREATE TABLE IF NOT EXISTS users (
-  user_id SERIAL PRIMARY KEY,
-  username VARCHAR(50) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  last_login TIMESTAMP,
-  login_attempts INTEGER DEFAULT 0,
-  locked_until TIMESTAMP
-);
-
-CREATE INDEX idx_users_username ON users(username);
-
--- Optional audit log table for target state
-CREATE TABLE IF NOT EXISTS auth_logs (
-  log_id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(user_id),
-  event_type VARCHAR(20) NOT NULL, -- 'login', 'logout', 'refresh', 'failed_login'
-  ip_address VARCHAR(45),
-  user_agent TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_auth_logs_user_id ON auth_logs(user_id);
-CREATE INDEX idx_auth_logs_created_at ON auth_logs(created_at);
+-- Execute in database console
+d properties  -- PostgreSQL
+-- or
+DESCRIBE properties;  -- MySQL
 ```
-**Rationale:** 
-- VARCHAR(255) for password_hash accommodates bcrypt output ($2b$10$..., 60 chars) with future algorithm headroom
-- Username index accelerates login lookups (primary query path)
-- login_attempts and locked_until support rate limiting and brute force protection
-- auth_logs table enables audit logging (target state requirement)
 
-**2.2 Create backend/database/queries/auth-find-user.sql**
+Expected columns (names may vary):
+- `property_id` (PRIMARY KEY)
+- `price` or `listing_price` (NUMERIC/DECIMAL)
+- `location` or `city` or `address` (VARCHAR/TEXT)
+- `property_type` or `type` or `category` (VARCHAR/TEXT)
+- Other columns: `description`, `bedrooms`, `created_at`, etc.
+
+**Action:** Document actual column names and update all subsequent SQL to match.
+
+**1.2 Inspect Current property-search.sql Query**
+```bash
+cat backend/database/queries/property-search.sql
+```
+
+Expected content (base query):
 ```sql
-SELECT user_id, username, password_hash, login_attempts, locked_until
-FROM users
-WHERE username = $1;
+SELECT * FROM properties;
+-- or
+SELECT property_id, price, location, property_type, description, ... FROM properties;
 ```
 
-**2.3 Create backend/database/queries/auth-create-user.sql**
+**Action:** Confirm current query structure to understand what SELECT fields exist and ensure they're preserved in filtered version.
+
+**1.3 Create Database Index Migration**
+
+Create **backend/database/migrations/002-add-property-indexes.sql**:
+
 ```sql
-INSERT INTO users (username, password_hash)
-VALUES ($1, $2)
-RETURNING user_id, username, created_at;
+-- Migration: Add indexes for property search filters
+-- Target state requirement for <200ms P95 query performance
+
+-- Index on price for range queries (minPrice, maxPrice)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_price 
+ON properties (price);
+
+-- Index on location for equality matching
+-- Use functional index for case-insensitive search (stretch goal compatibility)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_location_lower 
+ON properties (LOWER(location));
+
+-- Index on property_type for equality matching
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_property_type 
+ON properties (property_type);
+
+-- Optional: Composite index for common filter combinations
+-- Uncomment if testing shows better performance with composite index
+-- CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_properties_filters
+-- ON properties (price, location, property_type);
+
+-- Verify indexes created
+SELECT schemaname, tablename, indexname, indexdef 
+FROM pg_indexes 
+WHERE tablename = 'properties';
 ```
 
-**2.4 Create backend/database/queries/auth-update-login.sql**
+**PostgreSQL-specific:** `CONCURRENTLY` keyword prevents table locking during index creation (safe for production). For MySQL, use standard `CREATE INDEX` (may require maintenance window).
+
+**Deployment:** Run migration before deploying filter code to ensure performance targets are achievable.
+
+### Phase 2: SQL Query Modification
+
+**2.1 Modify backend/database/queries/property-search.sql**
+
+Replace current query with parameterized conditional WHERE clause:
+
 ```sql
-UPDATE users
-SET last_login = CURRENT_TIMESTAMP,
-    login_attempts = 0,
-    updated_at = CURRENT_TIMESTAMP
-WHERE user_id = $1;
+-- Property search query with optional filters
+-- Parameters: $1 = minPrice, $2 = maxPrice, $3 = location, $4 = propertyType
+-- NULL parameters are treated as "no filter" for that dimension
+
+SELECT 
+  property_id,
+  price,
+  location,
+  property_type,
+  description,
+  bedrooms,
+  bathrooms,
+  square_feet,
+  created_at,
+  updated_at
+FROM properties
+WHERE 
+  ($1::numeric IS NULL OR price >= $1)
+  AND ($2::numeric IS NULL OR price <= $2)
+  AND ($3::text IS NULL OR LOWER(location) = LOWER($3))
+  AND ($4::text IS NULL OR property_type = $4)
+ORDER BY created_at DESC;
 ```
 
-**2.5 Create backend/database/queries/auth-log-event.sql**
+**Query Logic:**
+- `$1::numeric IS NULL` — If minPrice parameter is null/undefined, condition evaluates to TRUE (skip filter)
+- `price >= $1` — If minPrice provided, apply lower bound filter
+- `LOWER(location) = LOWER($3)` — Case-insensitive location matching (stretch goal integrated)
+- Combined with AND logic — all non-null filters must match
+
+**Performance Optimization:**
+- `IS NULL` check short-circuits before column comparison (efficient for unfiltered queries)
+- Indexes on price, location, property_type enable fast lookups
+- `ORDER BY created_at DESC` can use index if created_at indexed (not in migration, add if needed)
+
+**Alternative for MySQL:**
+MySQL doesn't support `$1::numeric` cast syntax. Use placeholder-only version:
+
 ```sql
-INSERT INTO auth_logs (user_id, event_type, ip_address, user_agent)
-VALUES ($1, $2, $3, $4);
+SELECT ... FROM properties
+WHERE 
+  (? IS NULL OR price >= ?)
+  AND (? IS NULL OR price <= ?)
+  AND (? IS NULL OR LOWER(location) = LOWER(?))
+  AND (? IS NULL OR property_type = ?);
 ```
 
-### Phase 3: Authentication Middleware (Core Component)
+Pass parameters twice: `[minPrice, minPrice, maxPrice, maxPrice, location, location, propertyType, propertyType]`
 
-**3.1 Create backend/middleware/authenticate.js**
-```javascript
-const jwt = require('jsonwebtoken');
-const jwtConfig = require('../config/jwt');
+**Decision:** Use PostgreSQL syntax first (matches auth orbit pattern). Document MySQL alternative in comments.
 
-// In-memory token cache (TTL: 30 seconds)
-const tokenCache = new Map();
-const CACHE_TTL = 30000;
+### Phase 3: API Endpoint Modification
 
-function authenticate(req, res, next) {
-  const startTime = Date.now();
-  
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      error: 'MISSING_TOKEN',
-      message: 'Authorization header with Bearer token required'
-    });
-  }
+**3.1 Modify backend/api/properties/search.js**
 
-  const token = authHeader.substring(7);
-  
-  // Check cache first
-  const cached = tokenCache.get(token);
-  if (cached && Date.now() < cached.expiry) {
-    req.user = cached.payload;
-    return next();
-  }
-
-  // Verify token
-  jwt.verify(token, jwtConfig.secret, {
-    algorithms: [jwtConfig.algorithm],
-    issuer: jwtConfig.issuer
-  }, (err, decoded) => {
-    const elapsed = Date.now() - startTime;
-    
-    if (err) {
-      if (err.name === 'TokenExpiredError') {
-        return res.status(401).json({
-          error: 'TOKEN_EXPIRED',
-          message: 'Token has expired',
-          expiredAt: err.expiredAt
-        });
-      }
-      if (err.name === 'JsonWebTokenError') {
-        return res.status(401).json({
-          error: 'INVALID_TOKEN',
-          message: 'Token is malformed or invalid'
-        });
-      }
-      return res.status(401).json({
-        error: 'AUTH_ERROR',
-        message: 'Authentication failed'
-      });
-    }
-
-    // Cache valid token
-    tokenCache.set(token, {
-      payload: decoded,
-      expiry: Date.now() + CACHE_TTL
-    });
-
-    // Clean expired cache entries (every 100 requests)
-    if (Math.random() < 0.01) {
-      const now = Date.now();
-      for (const [key, value] of tokenCache.entries()) {
-        if (now >= value.expiry) tokenCache.delete(key);
-      }
-    }
-
-    req.user = decoded;
-    next();
-  });
-}
-
-module.exports = authenticate;
-```
-**Rationale:**
-- Token caching reduces JWT verification overhead (signature check is CPU-intensive)
-- 30-second cache TTL balances performance vs token revocation latency
-- Distinct error codes (MISSING_TOKEN, TOKEN_EXPIRED, INVALID_TOKEN) enable client-side retry logic
-- Algorithm whitelist prevents alg:none attacks
-- Issuer validation prevents token reuse from other services
-
-### Phase 4: Authentication Endpoints
-
-**4.1 Create backend/api/auth/login.js**
-```javascript
-const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const rateLimit = require('express-rate-limit');
-const pool = require('../../database/connection');
-const jwtConfig = require('../../config/jwt');
-const fs = require('fs');
-const path = require('path');
-
-const router = express.Router();
-
-// Rate limiter: 5 attempts per minute per IP
-const loginLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 5,
-  message: { error: 'RATE_LIMIT', message: 'Too many login attempts, try again later' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Load SQL queries
-const findUserQuery = fs.readFileSync(
-  path.join(__dirname, '../../database/queries/auth-find-user.sql'),
-  'utf8'
-);
-const updateLoginQuery = fs.readFileSync(
-  path.join(__dirname, '../../database/queries/auth-update-login.sql'),
-  'utf8'
-);
-const logEventQuery = fs.readFileSync(
-  path.join(__dirname, '../../database/queries/auth-log-event.sql'),
-  'utf8'
-);
-
-router.post('/login', loginLimiter, async (req, res) => {
-  const { username, password } = req.body;
-
-  // Input validation
-  if (!username || !password) {
-    return res.status(400).json({
-      error: 'MISSING_CREDENTIALS',
-      message: 'Username and password required'
-    });
-  }
-
-  try {
-    // Look up user
-    const result = await pool.query(findUserQuery, [username]);
-    
-    if (result.rows.length === 0) {
-      // Timing-safe response (same delay as password check)
-      await bcrypt.compare(password, '$2b$10$invalidhashtopreventtimingattack');
-      return res.status(401).json({
-        error: 'INVALID_CREDENTIALS',
-        message: 'Invalid username or password'
-      });
-    }
-
-    const user = result.rows[0];
-
-    // Check account lockout
-    if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      return res.status(403).json({
-        error: 'ACCOUNT_LOCKED',
-        message: 'Account temporarily locked due to failed login attempts',
-        locked_until: user.locked_until
-      });
-    }
-
-    // Verify password
-    const validPassword = await bcrypt.compare(password, user.password_hash);
-    
-    if (!validPassword) {
-      // Log failed attempt
-      await pool.query(logEventQuery, [
-        user.user_id,
-        'failed_login',
-        req.ip,
-        req.get('user-agent')
-      ]);
-
-      return res.status(401).json({
-        error: 'INVALID_CREDENTIALS',
-        message: 'Invalid username or password'
-      });
-    }
-
-    // Generate JWT
-    const payload = {
-      userId: user.user_id,
-      username: user.username,
-      iat: Math.floor(Date.now() / 1000)
-    };
-
-    const token = jwt.sign(payload, jwtConfig.secret, {
-      expiresIn: jwtConfig.expiresIn,
-      algorithm: jwtConfig.algorithm,
-      issuer: jwtConfig.issuer
-    });
-
-    // Update last_login
-    await pool.query(updateLoginQuery, [user.user_id]);
-
-    // Log successful login
-    await pool.query(logEventQuery, [
-      user.user_id,
-      'login',
-      req.ip,
-      req.get('user-agent')
-    ]);
-
-    res.json({
-      token,
-      expiresIn: jwtConfig.expiresIn,
-      user: {
-        userId: user.user_id,
-        username: user.username
-      }
-    });
-
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: 'Login failed due to server error'
-    });
-  }
-});
-
-module.exports = router;
-```
-**Rationale:**
-- Rate limiting per IP prevents brute force (5 attempts/minute meets target state)
-- Timing-safe comparison prevents username enumeration (always hash even if user doesn't exist)
-- Account lockout mechanism supports future brute force protection
-- SQL queries loaded from files maintains pattern consistency
-- Audit logging captures IP and user agent for security monitoring
-- Error responses use consistent structure with error codes
-
-**4.2 Create backend/api/auth/refresh.js**
-```javascript
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const jwtConfig = require('../../config/jwt');
-const authenticate = require('../../middleware/authenticate');
-const pool = require('../../database/connection');
-const fs = require('fs');
-const path = require('path');
-
-const router = express.Router();
-
-const logEventQuery = fs.readFileSync(
-  path.join(__dirname, '../../database/queries/auth-log-event.sql'),
-  'utf8'
-);
-
-router.post('/refresh', authenticate, async (req, res) => {
-  try {
-    // Generate new token with same payload but fresh expiration
-    const payload = {
-      userId: req.user.userId,
-      username: req.user.username,
-      iat: Math.floor(Date.now() / 1000)
-    };
-
-    const newToken = jwt.sign(payload, jwtConfig.secret, {
-      expiresIn: jwtConfig.expiresIn,
-      algorithm: jwtConfig.algorithm,
-      issuer: jwtConfig.issuer
-    });
-
-    // Log refresh event
-    await pool.query(logEventQuery, [
-      req.user.userId,
-      'refresh',
-      req.ip,
-      req.get('user-agent')
-    ]);
-
-    res.json({
-      token: newToken,
-      expiresIn: jwtConfig.expiresIn
-    });
-
-  } catch (error) {
-    console.error('Token refresh error:', error);
-    res.status(500).json({
-      error: 'SERVER_ERROR',
-      message: 'Token refresh failed'
-    });
-  }
-});
-
-module.exports = router;
-```
-**Rationale:** Refresh endpoint extends sessions without re-entering credentials (target state requirement). Requires valid token to prevent unauthorized token generation. Logs refresh events for audit trail.
-
-### Phase 5: Integration with Existing API
-
-**5.1 Refactor backend/api/properties/search.js**
-
-Since search.js content is not visible, implementation depends on current structure. Two approaches:
-
-**Approach A: Minimal modification (if search.js is standalone server)**
-```javascript
-// Add at top of search.js
-const express = require('express');
-const authenticate = require('../middleware/authenticate');
-const loginRouter = require('./auth/login');
-const refreshRouter = require('./auth/refresh');
-require('dotenv').config();
-
-const app = express();
-app.use(express.json());
-
-// Auth routes (unprotected)
-app.use('/api/auth', loginRouter);
-app.use('/api/auth', refreshRouter);
-
-// Protected property search route
-app.use('/api/properties/search', authenticate, (req, res) => {
-  // Existing search logic here
-  // req.user now available with authenticated user info
-});
-
-app.listen(3000, () => console.log('Server running on port 3000'));
-```
-
-**Approach B: Centralized server file (recommended for scalability)**
-Create **backend/server.js**:
-```javascript
-const express = require('express');
-const authenticate = require('./middleware/authenticate');
-const loginRouter = require('./api/auth/login');
-const refreshRouter = require('./api/auth/refresh');
-const searchRouter = require('./api/properties/search');
-require('dotenv').config();
-
-const app = express();
-
-// Body parsing
-app.use(express.json());
-
-// Public routes
-app.use('/api/auth', loginRouter);
-
-// Protected routes
-app.use('/api/properties', authenticate, searchRouter);
-
-// Health check
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-```
-
-Refactor **backend/api/properties/search.js** to export router:
+Current structure (inferred from auth orbit patterns):
 ```javascript
 const express = require('express');
 const router = express.Router();
@@ -506,243 +162,791 @@ const searchQuery = fs.readFileSync(
 );
 
 router.get('/search', async (req, res) => {
-  // Existing search logic
-  // req.user available from authenticate middleware
+  // Current: Execute query with no parameters
+  // Need to add: Parameter parsing, validation, parameterized execution
+});
+
+module.exports = router;
+```
+
+**Modified implementation:**
+
+```javascript
+const express = require('express');
+const router = express.Router();
+const fs = require('fs');
+const path = require('path');
+const pool = require('../../database/connection');
+
+// Load SQL query (now with parameterized WHERE clause)
+const searchQuery = fs.readFileSync(
+  path.join(__dirname, '../../database/queries/property-search.sql'),
+  'utf8'
+);
+
+// Validation helper functions
+function validateNumericParameter(value, paramName) {
+  if (value === undefined || value === null || value === '') {
+    return null; // Treat as "no filter"
+  }
+  
+  const parsed = Number(value);
+  if (isNaN(parsed)) {
+    throw {
+      error: 'INVALID_PARAMETER',
+      message: `${paramName} must be a valid number`,
+      field: paramName
+    };
+  }
+  
+  return parsed;
+}
+
+function validateStringParameter(value, paramName) {
+  if (value === undefined || value === null || value === '') {
+    return null; // Treat as "no filter"
+  }
+  
+  if (typeof value !== 'string') {
+    throw {
+      error: 'INVALID_PARAMETER',
+      message: `${paramName} must be a string`,
+      field: paramName
+    };
+  }
+  
+  // Trim whitespace (stretch goal: normalize input)
+  return value.trim();
+}
+
+router.get('/search', async (req, res) => {
   try {
-    const result = await pool.query(searchQuery, [/* params */]);
+    // Parse query parameters
+    const { minPrice, maxPrice, location, propertyType } = req.query;
+    
+    // Validate and convert parameters
+    let minPriceValue, maxPriceValue, locationValue, propertyTypeValue;
+    
+    try {
+      minPriceValue = validateNumericParameter(minPrice, 'minPrice');
+      maxPriceValue = validateNumericParameter(maxPrice, 'maxPrice');
+      locationValue = validateStringParameter(location, 'location');
+      propertyTypeValue = validateStringParameter(propertyType, 'propertyType');
+    } catch (validationError) {
+      return res.status(400).json(validationError);
+    }
+    
+    // Target state: Additional range validation
+    if (minPriceValue !== null && minPriceValue < 0) {
+      return res.status(400).json({
+        error: 'INVALID_PARAMETER',
+        message: 'minPrice must be a positive number',
+        field: 'minPrice'
+      });
+    }
+    
+    if (maxPriceValue !== null && maxPriceValue < 0) {
+      return res.status(400).json({
+        error: 'INVALID_PARAMETER',
+        message: 'maxPrice must be a positive number',
+        field: 'maxPrice'
+      });
+    }
+    
+    if (minPriceValue !== null && maxPriceValue !== null && minPriceValue > maxPriceValue) {
+      return res.status(400).json({
+        error: 'INVALID_RANGE',
+        message: 'minPrice cannot exceed maxPrice',
+        field: 'minPrice'
+      });
+    }
+    
+    // Execute parameterized query
+    const result = await pool.query(searchQuery, [
+      minPriceValue,
+      maxPriceValue,
+      locationValue,
+      propertyTypeValue
+    ]);
+    
+    // Target state: Log filter usage for analytics
+    console.log('Property search:', {
+      userId: req.user.userId,
+      filters: {
+        minPrice: minPriceValue,
+        maxPrice: maxPriceValue,
+        location: locationValue,
+        propertyType: propertyTypeValue
+      },
+      resultCount: result.rows.length,
+      executionTime: result.duration || 'N/A'
+    });
+    
+    // Return filtered results (same response format as before)
     res.json(result.rows);
+    
   } catch (error) {
-    console.error('Search error:', error);
-    res.status(500).json({ error: 'Search failed' });
+    console.error('Property search error:', error);
+    res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: 'Property search failed'
+    });
   }
 });
 
 module.exports = router;
 ```
 
-**Decision:** Approach B recommended. Centralizes middleware application, enables future route additions, maintains backward compatibility (same endpoint URLs).
+**Key Implementation Details:**
+1. **Backward Compatibility:** Empty/missing parameters converted to `null` → SQL `IS NULL` check passes → no filter applied
+2. **Type Coercion:** `Number(value)` handles string-to-number conversion from query parameters
+3. **Empty String Handling:** `value === ''` treated as null (not literal empty string filter)
+4. **Validation Errors:** Return 400 with field-level error messages (target state requirement)
+5. **Logging:** Captures filter parameters and result counts without logging full data (privacy/performance)
 
-### Phase 6: Testing & Verification Setup
+### Phase 4: Stretch Goal Enhancements (Optional)
 
-**6.1 Create scripts/seed-test-user.js**
+**4.1 Multiple Location Support**
+
+Modify validation to accept comma-separated locations:
+
 ```javascript
-const bcrypt = require('bcrypt');
+function validateStringParameter(value, paramName) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  
+  if (typeof value !== 'string') {
+    throw {
+      error: 'INVALID_PARAMETER',
+      message: `${paramName} must be a string`,
+      field: paramName
+    };
+  }
+  
+  // Support comma-separated values for location
+  if (paramName === 'location') {
+    const locations = value.split(',').map(loc => loc.trim()).filter(loc => loc.length > 0);
+    return locations.length > 0 ? locations : null;
+  }
+  
+  return value.trim();
+}
+```
+
+Modify SQL query:
+
+```sql
+-- Multiple location support (stretch goal)
+AND ($3::text IS NULL OR LOWER(location) = ANY(string_to_array(LOWER($3), ',')))
+```
+
+**4.2 Property Type Enum Validation**
+
+Define allowed property types and validate:
+
+```javascript
+const VALID_PROPERTY_TYPES = ['apartment', 'house', 'condo', 'townhouse', 'land'];
+
+function validatePropertyType(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  
+  const normalized = value.toLowerCase().trim();
+  if (!VALID_PROPERTY_TYPES.includes(normalized)) {
+    throw {
+      error: 'INVALID_PARAMETER',
+      message: `propertyType must be one of: ${VALID_PROPERTY_TYPES.join(', ')}`,
+      field: 'propertyType'
+    };
+  }
+  
+  return normalized;
+}
+```
+
+**4.3 Query Result Caching**
+
+Implement in-memory cache with TTL for common filter combinations:
+
+```javascript
+const NodeCache = require('node-cache');
+const filterCache = new NodeCache({ stdTTL: 300 }); // 5-minute TTL
+
+// In route handler, before database query:
+const cacheKey = JSON.stringify({
+  minPrice: minPriceValue,
+  maxPrice: maxPriceValue,
+  location: locationValue,
+  propertyType: propertyTypeValue
+});
+
+const cachedResult = filterCache.get(cacheKey);
+if (cachedResult) {
+  console.log('Cache hit for filter combination');
+  return res.json(cachedResult);
+}
+
+// After database query:
+filterCache.set(cacheKey, result.rows);
+```
+
+**Trade-offs:** Caching adds memory overhead and complexity. Only implement if analytics show repeated identical filter queries.
+
+### Phase 5: Documentation & Testing Setup
+
+**5.1 Update README.md**
+
+Add filtering section after authentication documentation:
+
+```markdown
+## Property Search Filtering
+
+The property search endpoint supports optional filters via query parameters.
+
+### Filter Parameters
+
+All parameters are optional. Missing parameters return all properties (no filtering).
+
+- **minPrice** (number) — Minimum property price (inclusive)
+- **maxPrice** (number) — Maximum property price (inclusive)
+- **location** (string) — Property location (case-insensitive match)
+- **propertyType** (string) — Property type/category
+
+### Examples
+
+Search all properties (no filters):
+```
+GET /api/properties/search
+Authorization: Bearer <token>
+```
+
+Filter by price range:
+```
+GET /api/properties/search?minPrice=100000&maxPrice=500000
+Authorization: Bearer <token>
+```
+
+Filter by location:
+```
+GET /api/properties/search?location=Seattle
+Authorization: Bearer <token>
+```
+
+Combine multiple filters (AND logic):
+```
+GET /api/properties/search?minPrice=200000&maxPrice=400000&location=Seattle&propertyType=apartment
+Authorization: Bearer <token>
+```
+
+### Error Responses
+
+Invalid parameter types:
+```json
+{
+  "error": "INVALID_PARAMETER",
+  "message": "minPrice must be a valid number",
+  "field": "minPrice"
+}
+```
+
+Invalid range:
+```json
+{
+  "error": "INVALID_RANGE",
+  "message": "minPrice cannot exceed maxPrice",
+  "field": "minPrice"
+}
+```
+```
+
+**5.2 Create Test Data Seeding Script**
+
+Create **scripts/seed-properties.js** for testing:
+
+```javascript
 const pool = require('../backend/database/connection');
-const fs = require('fs');
-const path = require('path');
 
-const createUserQuery = fs.readFileSync(
-  path.join(__dirname, '../backend/database/queries/auth-create-user.sql'),
-  'utf8'
-);
+const testProperties = [
+  { price: 150000, location: 'Seattle', property_type: 'apartment', description: 'Cozy downtown apt' },
+  { price: 250000, location: 'Seattle', property_type: 'condo', description: 'Modern condo' },
+  { price: 450000, location: 'Portland', property_type: 'house', description: 'Family home' },
+  { price: 350000, location: 'Portland', property_type: 'townhouse', description: 'Spacious townhouse' },
+  { price: 100000, location: 'Tacoma', property_type: 'apartment', description: 'Budget-friendly' },
+  { price: 600000, location: 'Seattle', property_type: 'house', description: 'Luxury home' },
+  { price: 200000, location: 'Tacoma', property_type: 'condo', description: 'Waterfront condo' },
+  { price: 500000, location: 'Portland', property_type: 'house', description: 'Suburban house' }
+];
 
-async function seedUser() {
-  const username = 'testuser';
-  const password = 'TestPassword123!';
-  const hash = await bcrypt.hash(password, 10);
-
+async function seedProperties() {
   try {
-    const result = await pool.query(createUserQuery, [username, hash]);
-    console.log('Test user created:', result.rows[0]);
-    console.log(`Username: ${username}`);
-    console.log(`Password: ${password}`);
-  } catch (error) {
-    if (error.code === '23505') { // Unique violation
-      console.log('Test user already exists');
-    } else {
-      console.error('Error creating test user:', error);
+    for (const property of testProperties) {
+      await pool.query(
+        'INSERT INTO properties (price, location, property_type, description) VALUES ($1, $2, $3, $4)',
+        [property.price, property.location, property.property_type, property.description]
+      );
     }
+    console.log(`Seeded ${testProperties.length} test properties`);
+  } catch (error) {
+    console.error('Seeding error:', error);
   } finally {
     await pool.end();
   }
 }
 
-seedUser();
-```
-**Rationale:** Automated test user creation for manual and automated testing. Documents test credentials.
-
-**6.2 Create .gitignore additions**
-```
-.env
-node_modules/
-*.log
-.DS_Store
+seedProperties();
 ```
 
-### Phase 7: Documentation
+Run: `node scripts/seed-properties.js`
 
-**7.1 Update README.md**
-Add authentication section:
-```markdown
-## Authentication
+### Phase 6: Deployment Strategy
 
-The API uses JWT bearer tokens for authentication.
+**6.1 Pre-Deployment Checklist**
 
-### Getting a Token
+1. **Run Migration:** Execute `002-add-property-indexes.sql` in staging/production database
+2. **Verify Indexes:** Confirm indexes created with `di properties` (PostgreSQL) or `SHOW INDEX FROM properties` (MySQL)
+3. **Test Query Plans:** Run `EXPLAIN ANALYZE` on filtered queries to verify index usage
+4. **Baseline Performance:** Measure current unfiltered query latency (establish regression threshold)
+5. **Seed Test Data:** Load test properties into staging environment
 
-POST /api/auth/login
-Content-Type: application/json
+**6.2 Phased Rollout**
 
-{
-  "username": "your_username",
-  "password": "your_password"
-}
+**Phase A: Staging Deployment**
+- Deploy filter code to staging environment
+- Run integration tests (see Phase 7)
+- Performance benchmarking with 10,000 test properties
+- Security testing (SQL injection attempts, parameter fuzzing)
 
-Response:
-{
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "expiresIn": "24h",
-  "user": {
-    "userId": 1,
-    "username": "your_username"
-  }
-}
+**Phase B: Production Deployment (Canary)**
+- Deploy to 10% of production traffic
+- Monitor error rates, latency P95/P99
+- Compare filtered vs unfiltered query performance
+- Check database connection pool usage
 
-### Using the Token
+**Phase C: Full Production Rollout**
+- If no issues detected after 24 hours, roll out to 100%
+- Continue monitoring for 7 days
+- Document any edge cases discovered
 
-Include the token in the Authorization header:
+**6.3 Rollback Plan**
 
-Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+If critical issues detected:
 
-### Refreshing Tokens
+1. **Immediate:** Revert `backend/api/properties/search.js` to previous version (remove filter logic)
+2. **Query File:** Revert `property-search.sql` to simple `SELECT * FROM properties`
+3. **Indexes:** Leave indexes in place (safe, may help other queries)
+4. **Investigation:** Analyze logs to determine root cause before re-attempting
 
-POST /api/auth/refresh
-Authorization: Bearer <current_token>
+### Phase 7: Testing Implementation
 
-### Protected Endpoints
+**7.1 Create Test Suite Structure**
 
-- GET /api/properties/search - Requires authentication
+Create **test/api/property-search-filters.test.js**:
 
-### Environment Setup
+```javascript
+const request = require('supertest');
+const app = require('../../backend/server');
+const pool = require('../../backend/database/connection');
 
-1. Copy .env.example to .env
-2. Generate JWT secret: `openssl rand -hex 64`
-3. Configure database connection
-4. Run migration: `psql -U user -d dbname -f backend/database/migrations/001-create-users-table.sql`
-5. Create test user: `node scripts/seed-test-user.js`
+describe('Property Search Filters', () => {
+  let authToken;
+  
+  beforeAll(async () => {
+    // Get authentication token
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'testuser', password: 'TestPassword123!' });
+    authToken = loginResponse.body.token;
+    
+    // Seed test properties
+    await pool.query('DELETE FROM properties'); // Clean slate
+    // Insert test data...
+  });
+  
+  afterAll(async () => {
+    await pool.end();
+  });
+  
+  describe('Backward Compatibility', () => {
+    it('should return all properties when no filters provided', async () => {
+      const response = await request(app)
+        .get('/api/properties/search')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBeGreaterThan(0);
+    });
+  });
+  
+  describe('Price Range Filtering', () => {
+    it('should filter by minPrice', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?minPrice=200000')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(response.body.every(p => p.price >= 200000)).toBe(true);
+    });
+    
+    it('should filter by maxPrice', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?maxPrice=300000')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(response.body.every(p => p.price <= 300000)).toBe(true);
+    });
+    
+    it('should filter by price range', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?minPrice=200000&maxPrice=400000')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(response.body.every(p => p.price >= 200000 && p.price <= 400000)).toBe(true);
+    });
+  });
+  
+  describe('Location Filtering', () => {
+    it('should filter by location (case-insensitive)', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?location=seattle')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(response.body.every(p => p.location.toLowerCase() === 'seattle')).toBe(true);
+    });
+  });
+  
+  describe('Property Type Filtering', () => {
+    it('should filter by propertyType', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?propertyType=apartment')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(response.body.every(p => p.property_type === 'apartment')).toBe(true);
+    });
+  });
+  
+  describe('Combined Filters (AND logic)', () => {
+    it('should apply all filters simultaneously', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?minPrice=100000&maxPrice=300000&location=Seattle&propertyType=apartment')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(response.body.every(p => 
+        p.price >= 100000 && 
+        p.price <= 300000 && 
+        p.location.toLowerCase() === 'seattle' &&
+        p.property_type === 'apartment'
+      )).toBe(true);
+    });
+  });
+  
+  describe('Validation Errors', () => {
+    it('should return 400 for non-numeric minPrice', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?minPrice=notanumber')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(400);
+      
+      expect(response.body.error).toBe('INVALID_PARAMETER');
+      expect(response.body.field).toBe('minPrice');
+    });
+    
+    it('should return 400 when minPrice > maxPrice', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?minPrice=500000&maxPrice=100000')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(400);
+      
+      expect(response.body.error).toBe('INVALID_RANGE');
+    });
+    
+    it('should return 400 for negative prices', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?minPrice=-1000')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(400);
+      
+      expect(response.body.error).toBe('INVALID_PARAMETER');
+    });
+  });
+  
+  describe('Edge Cases', () => {
+    it('should treat empty string parameters as no filter', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?minPrice=&location=')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(Array.isArray(response.body)).toBe(true);
+    });
+    
+    it('should handle zero as valid minPrice', async () => {
+      const response = await request(app)
+        .get('/api/properties/search?minPrice=0')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      
+      expect(response.body.every(p => p.price >= 0)).toBe(true);
+    });
+  });
+});
+```
+
+**7.2 Performance Benchmark Test**
+
+Create **test/performance/filter-latency.test.js**:
+
+```javascript
+describe('Filter Performance', () => {
+  it('should complete filtered queries in under 200ms P95', async () => {
+    const iterations = 100;
+    const latencies = [];
+    
+    const filterCombinations = [
+      '?minPrice=200000&maxPrice=400000',
+      '?location=Seattle',
+      '?propertyType=apartment',
+      '?minPrice=100000&location=Portland&propertyType=house'
+    ];
+    
+    for (const filters of filterCombinations) {
+      for (let i = 0; i < iterations; i++) {
+        const start = Date.now();
+        await request(app)
+          .get(`/api/properties/search${filters}`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(200);
+        latencies.push(Date.now() - start);
+      }
+    }
+    
+    latencies.sort((a, b) => a - b);
+    const p95Index = Math.floor(latencies.length * 0.95);
+    const p95Latency = latencies[p95Index];
+    
+    console.log(`Filter query P95 latency: ${p95Latency}ms`);
+    expect(p95Latency).toBeLessThan(200); // Target state
+  });
+});
 ```
 
 ## Risk Surface
 
-### Critical Risks & Mitigations
+### Critical Implementation Risks
 
-| Risk | Impact | Mitigation | Verification |
-|------|--------|------------|--------------|
-| **Search API breaks for existing clients** | HIGH | Phased rollout: Deploy auth system first, enforce middleware as opt-in flag, monitor error rates before full enforcement | Manual testing with/without auth header; load test comparison before/after |
-| **JWT secret committed to git** | CRITICAL | .env in .gitignore; pre-commit hook checks for SECRET patterns; documentation emphasizes environment variables | Code review checklist; git history scan |
-| **SQL injection in auth queries** | CRITICAL | All queries use parameterized statements ($1, $2); no string concatenation; code review focus on query construction | Automated SQL injection test suite; manual review of all .sql files |
-| **Bcrypt blocks event loop** | MEDIUM | Use bcrypt.compare (async) exclusively; benchmark 10 rounds vs 12; reject login if P95 > 50ms | Load test with concurrent login requests; APM monitoring |
-| **Token cache memory leak** | MEDIUM | Periodic cleanup (1% request probability); bounded cache size (max 10,000 tokens); TTL enforcement | Memory profiling under sustained load; cache metrics endpoint |
+| Risk | Mitigation Strategy | Verification Method |
+|------|-------------------|-------------------|
+| **SQL Injection via Query Parameters** | Use parameterized queries exclusively (`$1, $2, $3, $4`). Never concatenate user input. Validate all parameters before query execution. | Manual code review of SQL construction. Automated SQL injection test suite. Fuzzing with SQL keywords and special characters. |
+| **Backward Compatibility Break** | Treat missing/empty parameters as `null` → SQL `IS NULL` check passes → no filtering. Test unfiltered endpoint extensively before deployment. | Automated regression test comparing unfiltered results pre/post deployment. Load test with zero-parameter requests. |
+| **Performance Regression (Unfiltered)** | Use `IS NULL` short-circuit pattern in SQL. Profile query execution with EXPLAIN ANALYZE. Monitor production latency. | Benchmark unfiltered query before/after. Alert if P95 latency increases >10ms. Database query plan analysis. |
+| **Missing Indexes Impact** | Create indexes before deploying filter code. Use CONCURRENTLY (PostgreSQL) to avoid blocking. Test query plans verify index usage. | EXPLAIN ANALYZE on all filter combinations. Monitor sequential scan rate in database metrics. Performance benchmark with 10k properties. |
+| **Type Coercion Vulnerabilities** | Strict type validation with `isNaN()`, `typeof` checks. Reject invalid types with 400 errors. Convert empty strings to null. | Property-based testing with random inputs. Fuzzing with edge cases (NaN, Infinity, null string, special characters). |
 
-### Implementation Risks
+### Edge Case Handling
 
-| Risk | Mitigation |
-|------|------------|
-| **Database connection pool exhaustion** | Pool size 20 concurrent connections; connection timeout 2 seconds; monitor active connections |
-| **Rate limiter bypassed via distributed IPs** | Consider username-based rate limiting (future); log all failed attempts for pattern detection |
-| **Middleware ordering breaks body parsing** | Explicit middleware chain in server.js: body-parser → auth routes → authenticate → protected routes |
-| **Token expiration causes unexpected logouts** | Clear error messages with expiredAt timestamp; client-side preemptive refresh (15 min before expiry) |
-| **Audit log table grows unbounded** | Implement log rotation strategy (archive monthly); database size monitoring; retention policy (90 days) |
+| Edge Case | Behavior | Test Coverage |
+|-----------|----------|---------------|
+| `minPrice=0` | Valid (free properties exist), apply filter | Unit test validates 0 is accepted and filters correctly |
+| `maxPrice=0` | Invalid (illogical), return 400 error | Validation test expects 400 with INVALID_PARAMETER |
+| `minPrice > maxPrice` | Invalid, return 400 with INVALID_RANGE error | Validation test checks error message and field reference |
+| `location=""` (empty string) | Convert to null, treat as no filter | Edge case test verifies empty string doesn't match literal empty location |
+| `location="null"` | Treat as string literal "null", not null value | Test verifies parameterized query handles string "null" correctly |
+| SQL keywords in location | "SELECT", "DROP TABLE" → validate as string, parameterized query prevents injection | Security test attempts injection with SQL keywords in all parameters |
+| Very large numbers | `minPrice=9007199254740991` (MAX_SAFE_INTEGER) → validate, handle overflow | Boundary test with Number.MAX_SAFE_INTEGER, ensure database handles |
+| Negative prices | `minPrice=-1000` → validate positive numbers, return 400 | Validation test expects 400 for negative minPrice/maxPrice |
+| Special characters | `location="Seattle; DROP--"` → parameterized query prevents injection | SQL injection test suite includes special character combinations |
+| Unicode characters | `location="Zürich"` → ensure UTF-8 handling, case-insensitive works | International character test with various encodings |
+| No results | Overly restrictive filters → return empty array `[]` | Test verifies empty array returned, not null or error |
 
-### Security Edge Cases
+### Security Attack Vectors & Defenses
 
-| Scenario | Handling |
-|----------|----------|
-| Token issued to deleted user | Token remains valid until expiration (24h max); implement token revocation table for immediate invalidation (stretch goal) |
-| Concurrent logins from same user | Multiple valid tokens allowed; no session conflict (aligns with "multiple devices" requirement) |
-| Password change during active session | Existing tokens remain valid; future: increment token version in users table, validate version in middleware |
-| Replay attack with stolen token | HTTPS enforcement required (deployment concern); consider short-lived tokens (4h) with refresh flow |
-| Username enumeration via timing | Constant-time response: always hash even for nonexistent users; identical error messages |
+| Attack | Defense Mechanism | Verification |
+|--------|------------------|--------------|
+| SQL Injection (minPrice) | Type validation (must be number), parameterized `$1` | Automated injection test: `?minPrice=1 OR 1=1--` expects 400 |
+| SQL Injection (location) | Parameterized `$3`, LOWER() in SQL only | Injection test: `?location=Seattle' OR '1'='1` expects safe handling |
+| Parameter Pollution | Validate expected parameters only, reject unknown | Test with extra parameters: `?minPrice=100&hacker=value` ignored |
+| DoS via Expensive Queries | Inherit 2-second query timeout from pool, monitor slow queries | Load test with complex filter combinations, verify timeout enforcement |
+| Information Disclosure | Generic error messages, no stack traces, no schema details | Error test verifies sensitive info not leaked in 400/500 responses |
+| Authentication Bypass | Authenticate middleware runs before filter logic | Test unfiltered/filtered requests without token expect 401 |
 
-### Performance Edge Cases
+### Performance Risk Mitigation
 
-| Scenario | Expected Behavior | Mitigation |
-|----------|-------------------|------------|
-| 1000 concurrent login requests | Database connection pool may saturate | Connection queue with timeout; horizontal scaling of database replicas |
-| Token cache grows beyond memory | Bounded cache (10k entries); LRU eviction if limit exceeded | Implement cache size limit with Map.size check |
-| Cold start after server restart | First request to each endpoint loads SQL files | Preload queries at startup; consider query compilation |
-| Database replica lag | User logs in on primary, token fails on replica read | Use primary for auth queries; accept eventual consistency for audit logs |
+**Query Optimization Strategy:**
+1. **Index Usage Verification:** Run `EXPLAIN ANALYZE` on all filter combinations before deployment
+2. **Index Strategy:** Separate single-column indexes (price, location_lower, property_type) sufficient for AND-combined filters
+3. **Fallback Plan:** If indexes don't improve performance, consider composite index `(price, location, property_type)` in follow-up migration
+4. **Connection Pool:** Monitor active connections under load, current 20-connection limit should suffice
+
+**Performance Monitoring:**
+- Track P50/P95/P99 latency by filter combination
+- Alert if P95 exceeds 200ms (target state) or 500ms (hard requirement)
+- Monitor index hit rate (goal: >90% index seeks, <10% sequential scans)
+- Log slow queries (>200ms) with filter parameters for analysis
+
+**Regression Prevention:**
+- Baseline unfiltered query latency before deployment
+- Automated performance test fails if P95 increases >50ms
+- Canary deployment monitors latency metrics before full rollout
+
+### Monitoring & Observability
+
+**Metrics to Implement:**
+```javascript
+// In search endpoint, after query execution:
+console.log('Property search metrics:', {
+  userId: req.user.userId,
+  filters: { minPrice, maxPrice, location, propertyType },
+  resultCount: result.rows.length,
+  queryDuration: result.duration,
+  timestamp: new Date().toISOString()
+});
+```
+
+**Dashboard Metrics:**
+- Filter usage frequency (which parameters used most)
+- Query latency by filter combination
+- Empty result rate (filters too restrictive indicator)
+- Validation error rate by parameter type
+- Database index hit vs sequential scan ratio
+
+**Alerting Thresholds:**
+- P95 latency >200ms for 5 consecutive minutes → investigate performance
+- Validation error rate >5% → possible client misconfiguration or API docs issue
+- Empty result rate >50% → filter UX problem, users not finding properties
+- Sequential scan rate >10% → missing or unused indexes
 
 ## Scope Estimate
 
-### Complexity Assessment: **MEDIUM**
+### Complexity Assessment: **LOW-MEDIUM**
 
 **Factors:**
-- Well-established pattern (JWT + bcrypt) with minimal architectural novelty
-- Database schema addition is straightforward but requires coordination
-- Integration point (search.js refactoring) has unknown complexity due to missing file content
-- Security requirements increase review burden but not implementation complexity
+- **Well-established pattern:** Query parameter filtering is standard REST API functionality
+- **Clear constraints:** Parameterized queries, type validation, index creation all have known implementations
+- **Existing infrastructure:** Database connection pool, authentication, error handling already in place
+- **Unknown variables:** Actual database schema (column names), current query structure, production data distribution
 
-### Orbit Breakdown
+**Complexity Drivers:**
+- SQL query modification requires careful parameterization (security critical)
+- Performance testing needs realistic dataset (10,000 properties)
+- Backward compatibility testing essential (high user impact if broken)
+- Index creation on production database (requires coordination)
 
-**Orbit 1: Infrastructure & Database (2-3 hours)**
-- Create package.json, .env.example, connection.js, jwt config
-- Write and test database migration
-- Verify database connectivity
-- **Exit Criteria:** Database schema created, connection pool functional, environment variables documented
+### Work Breakdown
 
-**Orbit 2: Authentication Endpoints (3-4 hours)**
-- Implement login.js with bcrypt validation
-- Implement refresh.js with token regeneration
-- Write SQL query files
-- Unit test auth logic
-- **Exit Criteria:** Login returns valid JWT, refresh extends token, rate limiting functional
+**Phase 1: Investigation & Setup (1-2 hours)**
+- Inspect database schema for column names and types
+- Review current property-search.sql query structure
+- Document baseline performance metrics (unfiltered query)
+- Create index migration script
+- **Exit Criteria:** Schema documented, migration ready, baseline captured
 
-**Orbit 3: Middleware & Integration (2-3 hours)**
-- Implement authenticate.js with caching
-- Refactor search.js or create server.js (depends on current structure)
-- Apply middleware to property search endpoint
-- **Exit Criteria:** Search endpoint blocks unauthenticated requests, accepts valid tokens with <50ms overhead
+**Phase 2: SQL & API Implementation (3-4 hours)**
+- Modify property-search.sql with parameterized WHERE clause
+- Implement parameter validation in search.js
+- Add error handling for validation failures
+- Implement logging for filter usage
+- **Exit Criteria:** Code complete, passes lint/type checks, unit tests written
 
-**Orbit 4: Testing & Documentation (2 hours)**
-- Create seed-test-user.js script
-- Manual integration testing
-- Update README with auth documentation
-- Performance benchmark (load test)
-- **Exit Criteria:** Test user created, documentation complete, performance targets met
+**Phase 3: Testing & Performance Validation (2-3 hours)**
+- Write automated test suite (backward compatibility, filters, validation, edge cases)
+- Create test data seeding script
+- Run performance benchmarks with 10k properties
+- Test query plans with EXPLAIN ANALYZE
+- **Exit Criteria:** All tests pass, P95 latency <200ms achieved, indexes verified
 
-**Total Estimated Time:** 9-12 hours of development work
+**Phase 4: Documentation & Deployment (1-2 hours)**
+- Update README with filtering examples
+- Document error codes and validation rules
+- Deploy to staging environment
+- Run staging integration tests
+- **Exit Criteria:** Documentation complete, staging validated, production deployment plan ready
 
-### Phased Deployment Strategy
+**Total Estimated Time:** 7-11 hours of development work
 
-**Phase 1 (Week 1):** Infrastructure + Database
-- Deploy schema migration to staging
-- Verify connection pool under load
-- Create test users in staging environment
+### Phased Implementation Strategy
 
-**Phase 2 (Week 1-2):** Auth Endpoints
-- Deploy login/refresh endpoints to staging
-- Integration test with curl/Postman
-- Security review of token generation logic
+**Minimum Viable Scope (Required for Acceptance):**
+- Query parameter parsing and validation (minPrice, maxPrice, location, propertyType)
+- Parameterized SQL query with conditional WHERE clause
+- Backward compatibility (no parameters = no filtering)
+- Error handling (400 for invalid inputs)
+- Basic testing (happy path + validation errors)
+- Query execution <500ms for 10k properties
 
-**Phase 3 (Week 2):** Middleware Integration
-- Deploy middleware to staging with feature flag (opt-in authentication)
-- Monitor search endpoint performance with middleware active
-- Run load tests comparing before/after latency
+**Target State Scope (Should Achieve):**
+- Database indexes created (price, location_lower, property_type)
+- Enhanced validation (range checks, positive numbers)
+- Field-level error messages
+- Request logging with filter parameters
+- Performance optimization to <200ms P95
+- Comprehensive test coverage
 
-**Phase 4 (Week 2-3):** Production Rollout
-- Enable authentication enforcement in production (after human review)
-- Monitor error rates and authentication success rates
-- Gradual rollout to user segments if client population is large
+**Stretch Goal Scope (Nice to Have):**
+- Case-insensitive location matching (included in base SQL)
+- Multiple location values (comma-separated)
+- Property type enum validation
+- Query result caching (5-minute TTL)
+- Performance metrics endpoint
+- Integration test coverage >80%
 
 ### Success Metrics
 
-**Minimum Viable (Must Achieve):**
-- Login endpoint returns JWT tokens with 100% success rate for valid credentials
-- Authentication middleware blocks 100% of requests without valid tokens
-- Property search functionality unchanged for authenticated users (0% regression)
-- Authentication adds <50ms P95 latency to API calls
+**Minimum Viable Success:**
+- All filter parameters accepted and functional
+- No breaking changes to unfiltered endpoint
+- SQL injection prevented (parameterized queries verified)
+- Query latency <500ms P95 for 10k properties
+- Automated tests pass (backward compatibility, filtering, validation)
 
-**Target State (Should Achieve):**
-- Authentication middleware latency <20ms P95
-- Rate limiting prevents >5 login attempts/minute
-- Token refresh extends sessions without re-authentication
-- Audit logs capture all authentication events
+**Target State Success:**
+- Query latency <200ms P95 with indexes
+- Range validation rejects illogical inputs (minPrice > maxPrice)
+- Field-level error messages implemented
+- Filter usage logged for analytics
+- No performance regression on unfiltered queries
 
-**Stretch Goals:**
-- Integration test coverage >80%
-- Token revocation capability for logout
-- Authentication metrics dashboard
+**Stretch Goal Success:**
+- Case-insensitive location matching working
+- Multiple location support implemented
+- Property type enum validation active
+- Query caching reduces repeated filter query latency
+- Performance dashboard shows filter usage patterns
+
+### Deployment Timeline
+
+**Week 1:**
+- Days 1-2: Investigation, schema documentation, baseline metrics
+- Days 3-4: Implementation (SQL + API code)
+- Day 5: Testing and performance validation
+
+**Week 2:**
+- Day 1: Deploy indexes to staging database (CONCURRENTLY)
+- Day 2: Deploy filter code to staging, run integration tests
+- Day 3: Performance benchmarking, query plan analysis
+- Day 4: Documentation, code review, security review
+- Day 5: Deploy to production (canary rollout)
+
+**Week 3:**
+- Monitor production metrics, validate performance targets met
+- Address any edge cases discovered in production
+- Document lessons learned for future filtering features
+
+### Risk-Adjusted Timeline
+
+**Best Case (7 hours):** Schema matches expected, no surprises, indexes improve performance as expected, all tests pass first try
+
+**Realistic Case (9 hours):** Minor schema differences require SQL adjustments, some test failures require debugging, performance tuning needed
+
+**Worst Case (15 hours):** Unexpected schema structure requires significant SQL rewrite, performance targets require query optimization, backward compatibility issues discovered, index creation blocked by production constraints
+
+**Contingency:** If worst-case timeline exceeded, consider partial rollout (deploy indexes first, enable filters later) or re-scope to minimum viable only.
 
 ## Human Modifications
 
