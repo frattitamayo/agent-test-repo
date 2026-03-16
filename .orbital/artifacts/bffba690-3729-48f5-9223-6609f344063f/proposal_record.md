@@ -1,376 +1,922 @@
-# Proposal Record: Add Comprehensive API Documentation and Usage Examples
+# Proposal Record: Implement Automated Testing Suite for Property Search API
 
 ## Interpreted Intent
 
-This orbit establishes production-grade API documentation for the property search endpoint to eliminate developer friction during integration. The work product consists of two complementary documentation artifacts: a machine-readable OpenAPI 3.0 specification enabling automated tooling integration, and human-readable Markdown guides with executable curl examples that developers can copy-paste without modification.
+This orbit establishes a production-ready automated test suite for the property search API that validates correct behavior without requiring database connectivity or manual setup. The test suite must execute in under 10 seconds via a single command (`npm test`), achieving minimum 60% code coverage with at least one happy path test and one error case test.
 
-The documentation must achieve 100% accuracy with the current implementation in `backend/api/properties/search.js` — no aspirational features, no outdated information. Every documented parameter, response field, and HTTP status code must exactly match observable API behavior verified through testing against a running instance.
+The test suite serves dual purposes: (1) regression detection preventing bugs from reaching production, and (2) onboarding tool enabling new developers to verify their local environment works correctly. Tests must validate that actual API behavior matches the documented contract established in orbit bffba690-3729-48f5-9223-6609f344063f, creating a closed-loop verification system where documentation, implementation, and tests remain synchronized.
 
-Success is measured by a developer unfamiliar with the codebase successfully calling the endpoint within 15 minutes using only the documentation, without needing to read source code or contact the team. The documentation must cover both happy path scenarios and at least one error case with expected response format.
+Critical constraint: The existing `backend/api/properties/search.js` implementation must remain completely unchanged. Tests wrap the existing code through HTTP-layer validation or module-level mocking, never modifying production logic to accommodate testing needs. This ensures tests validate real production behavior, not test-specific code paths.
 
-This is a documentation-only orbit with zero production risk — no executable code changes, no database modifications, no configuration updates. The worst-case failure mode is incorrect documentation requiring a corrective commit, making this appropriate for Trust Tier 1 (Autonomous) execution.
+Success is measured by a developer running `npm test` in a fresh checkout and receiving clear pass/fail results within 10 seconds, with test output providing actionable feedback for any failures. The suite must work offline without database servers, external APIs, or network dependencies.
 
 ## Implementation Plan
 
-### Phase 1: API Behavior Discovery (Analysis)
+### Phase 0: API Implementation Analysis and Prior Orbit Review
 
-**Objective:** Establish ground truth for what the API currently does by analyzing implementation and testing actual behavior.
-
-**Actions:**
-1. Analyze `backend/api/properties/search.js` to extract:
-   - HTTP method(s) supported (GET, POST, etc.)
-   - Request parameters (query string, body, headers)
-   - Response structure (JSON schema with actual field names and types)
-   - Error handling logic and HTTP status codes
-   - Any request validation or authentication checks
-
-2. Execute local API instance per README instructions:
-   ```bash
-   node backend/api/properties/search.js
-   ```
-
-3. Test endpoint with curl to capture actual response:
-   ```bash
-   curl -v http://localhost:3000/api/properties/search
-   ```
-
-4. Document observed behavior in temporary working notes:
-   - Actual response JSON with all fields
-   - HTTP headers returned
-   - Any query parameters that modify behavior
-   - Error responses when invalid requests are sent
-
-**Deliverable:** Working notes document (not committed) containing verified API behavior.
-
-### Phase 2: Directory Structure Creation
-
-**Objective:** Establish `/docs/api/` as the canonical documentation location.
+**Objective:** Understand current API behavior and any modifications from prior orbits before designing tests.
 
 **Actions:**
-1. Create directory structure:
-   ```
-   /docs/
-   /docs/api/
-   /docs/api/README.md (navigation index)
-   ```
 
-2. Add `.gitkeep` or initial README to ensure directory commits to repository.
+1. **Read `backend/api/properties/search.js` source code** to determine:
+   - HTTP server implementation pattern (vanilla http.createServer vs. framework)
+   - Exported functions/modules available for testing
+   - Request handling logic (GET/POST methods, query parameters)
+   - Response structure and status codes
+   - Database interaction approach (imported modules, hardcoded data, etc.)
+   - Error handling patterns
+
+2. **Review orbit ffce316e-4d4e-46c6-bb4f-c5310e36a19f artifacts:**
+   - Read `intent_document.md` to understand scope of prior work
+   - Read `proposal_record.md` to identify any API behavior modifications
+   - Determine if API contract changed from original implementation
+
+3. **Review orbit bffba690-3729-48f5-9223-6609f344063f artifacts:**
+   - Extract documented response schema from proposal Phase 1 analysis
+   - Identify documented error scenarios and HTTP status codes
+   - Note any query parameters or request variations documented
+   - Confirm expected API behavior to validate in tests
+
+4. **Document findings** in working notes:
+   - Current API contract (endpoints, methods, parameters, responses)
+   - Testing approach selection (programmatic server vs. module-level)
+   - Mocking strategy based on database interaction pattern
+   - Test scenarios derived from documentation
+
+**Deliverable:** Analysis document (not committed) guiding test implementation decisions.
+
+**Time Estimate:** 45 minutes
+
+### Phase 1: Test Infrastructure Setup
+
+**Objective:** Create minimal package.json and test directory structure with framework selection.
+
+**Framework Decision Logic:**
+```
+IF Node.js version >= 18 AND no existing test framework:
+  → Use Node.js native test runner (node:test) - zero dependencies
+ELSE IF team familiar with Jest:
+  → Use Jest - mature ecosystem, built-in coverage
+ELSE:
+  → Use Mocha + Chai - lightweight, flexible
+```
+
+**Recommended:** Node.js native test runner for zero-dependency simplicity, aligning with repository's minimal dependency philosophy.
+
+**Actions:**
+
+1. **Create or update `package.json`:**
+```json
+{
+  "name": "property-search-api",
+  "version": "1.0.0",
+  "description": "Property search API with automated testing",
+  "scripts": {
+    "test": "node --test test/**/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage test/**/*.test.js",
+    "api": "node backend/api/properties/search.js"
+  },
+  "devDependencies": {
+    "c8": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+```
+
+If using Jest alternative:
+```json
+{
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}
+```
+
+2. **Create test directory structure:**
+```
+test/
+  api/
+    properties/
+      search.test.js
+  fixtures/
+    properties.js
+  helpers/
+    server.js
+```
+
+3. **Create `.gitignore` entries** (if file doesn't exist, create it):
+```
+node_modules/
+coverage/
+.nyc_output/
+```
+
+4. **Create `test/helpers/server.js`** - utility for programmatic server control:
+```javascript
+const { spawn } = require('child_process');
+const http = require('http');
+
+/**
+ * Start API server on dynamic port for testing
+ * @returns {Promise<{port: number, process: ChildProcess}>}
+ */
+async function startTestServer() {
+  const port = await findAvailablePort();
+  // Implementation based on Phase 0 analysis of how server starts
+}
+
+/**
+ * Find available port to avoid conflicts
+ */
+async function findAvailablePort() {
+  return new Promise((resolve) => {
+    const server = http.createServer();
+    server.listen(0, () => {
+      const port = server.address().port;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+module.exports = { startTestServer };
+```
 
 **Files Created:**
-- `/docs/api/README.md`
+- `package.json` (or modified if exists)
+- `test/api/properties/search.test.js` (skeleton)
+- `test/fixtures/properties.js`
+- `test/helpers/server.js`
+- `.gitignore` (updated)
 
-### Phase 3: OpenAPI Specification Authoring
+**Time Estimate:** 30 minutes
 
-**Objective:** Create machine-readable API specification in OpenAPI 3.0 format.
+### Phase 2: Fixture Data Creation
+
+**Objective:** Create realistic but synthetic test data based on documented API response structure.
 
 **Actions:**
-1. Create `/docs/api/openapi.yaml` with structure:
-   ```yaml
-   openapi: 3.0.3
-   info:
-     title: Property Search API
-     version: 1.0.0
-     description: [Generated from analysis of backend/api/properties/search.js]
-   servers:
-     - url: http://localhost:3000
-       description: Local development server
-   paths:
-     /api/properties/search:
-       [HTTP method]:
-         summary: [Concise description]
-         parameters: [Extracted from implementation]
-         responses:
-           '200':
-             description: Successful response
-             content:
-               application/json:
-                 schema: [Exact structure from tested response]
-                 example: [Actual response JSON from curl test]
-           [Error codes if applicable]
-   ```
 
-2. Validate YAML syntax using online validator or `yamllint` if available.
+1. **Create `test/fixtures/properties.js`** with sample property data:
+```javascript
+/**
+ * Sample property data for testing
+ * Based on documented API response schema from orbit bffba690-3729-48f5-9223-6609f344063f
+ */
 
-3. Ensure every field includes `description` properties for human readability.
+const sampleProperties = [
+  {
+    id: 'prop-test-001',
+    address: '123 Test Avenue',
+    city: 'Testville',
+    state: 'TS',
+    zipCode: '12345',
+    price: 350000,
+    bedrooms: 3,
+    bathrooms: 2,
+    squareFeet: 1800,
+    propertyType: 'single-family',
+    status: 'available'
+  },
+  {
+    id: 'prop-test-002',
+    address: '456 Example Street',
+    city: 'Sampletown',
+    state: 'EX',
+    zipCode: '67890',
+    price: 525000,
+    bedrooms: 4,
+    bathrooms: 3,
+    squareFeet: 2400,
+    propertyType: 'townhouse',
+    status: 'available'
+  }
+];
+
+const emptyResult = [];
+
+const errorResponse = {
+  error: 'Invalid request',
+  message: 'Query parameters validation failed'
+};
+
+module.exports = {
+  sampleProperties,
+  emptyResult,
+  errorResponse
+};
+```
+
+**Note:** Actual fields must match the structure discovered in Phase 0 analysis.
 
 **Files Created:**
-- `/docs/api/openapi.yaml`
+- `test/fixtures/properties.js`
 
-**Validation:** Paste specification into Swagger Editor (swagger.io/tools/swagger-editor/) to confirm valid OpenAPI 3.0 syntax and preview rendered documentation.
+**Time Estimate:** 15 minutes
 
-### Phase 4: Human-Readable Endpoint Guide
+### Phase 3: Core Test Implementation
 
-**Objective:** Create `/docs/api/properties-search.md` with comprehensive usage examples.
+**Objective:** Implement primary test cases covering happy path and error scenarios.
+
+**Testing Approach** (determined by Phase 0 analysis):
+
+**Approach A: Programmatic Server Testing** (if server doesn't export testable functions)
+```javascript
+const assert = require('node:assert');
+const { describe, it, before, after } = require('node:test');
+const http = require('http');
+const { startTestServer } = require('../../helpers/server');
+const { sampleProperties } = require('../../fixtures/properties');
+
+describe('Property Search API', () => {
+  let serverPort;
+  let serverProcess;
+
+  before(async () => {
+    const server = await startTestServer();
+    serverPort = server.port;
+    serverProcess = server.process;
+  });
+
+  after(() => {
+    if (serverProcess) serverProcess.kill();
+  });
+
+  describe('GET /api/properties/search', () => {
+    it('returns array of properties for successful search', async () => {
+      const response = await makeRequest(serverPort, '/api/properties/search');
+      
+      assert.strictEqual(response.statusCode, 200);
+      assert.strictEqual(response.headers['content-type'], 'application/json');
+      
+      const body = JSON.parse(response.body);
+      assert.ok(Array.isArray(body), 'Response should be an array');
+      assert.ok(body.length > 0, 'Response should contain properties');
+      
+      // Validate structure of first property
+      const property = body[0];
+      assert.ok(property.id, 'Property should have id');
+      assert.ok(property.address, 'Property should have address');
+      assert.ok(typeof property.price === 'number', 'Price should be number');
+    });
+
+    it('returns 400 for invalid query parameters', async () => {
+      const response = await makeRequest(
+        serverPort, 
+        '/api/properties/search?invalid=param'
+      );
+      
+      assert.strictEqual(response.statusCode, 400);
+      const body = JSON.parse(response.body);
+      assert.ok(body.error, 'Error response should contain error field');
+    });
+  });
+});
+
+/**
+ * Make HTTP request to test server
+ */
+function makeRequest(port, path) {
+  return new Promise((resolve) => {
+    http.get(`http://localhost:${port}${path}`, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        resolve({
+          statusCode: res.statusCode,
+          headers: res.headers,
+          body
+        });
+      });
+    });
+  });
+}
+```
+
+**Approach B: Module-Level Testing** (if server exports handler functions)
+```javascript
+const assert = require('node:assert');
+const { describe, it } = require('node:test');
+const { handlePropertySearch } = require('../../../backend/api/properties/search');
+const { sampleProperties } = require('../../fixtures/properties');
+
+describe('Property Search Handler', () => {
+  it('returns properties for valid request', async () => {
+    const mockReq = { method: 'GET', url: '/api/properties/search' };
+    const mockRes = createMockResponse();
+    
+    await handlePropertySearch(mockReq, mockRes);
+    
+    assert.strictEqual(mockRes.statusCode, 200);
+    const body = JSON.parse(mockRes.body);
+    assert.ok(Array.isArray(body));
+  });
+});
+
+function createMockResponse() {
+  return {
+    statusCode: 200,
+    headers: null,
+    body: '',
+    setHeader(name, value) { this.headers[name] = value; },
+    end(data) { this.body = data; }
+  };
+}
+```
+
+**Implementation Decision:** Use whichever approach Phase 0 analysis determines is feasible. Approach A is more comprehensive but slower; Approach B is faster but requires exported functions.
 
 **Actions:**
-1. Create Markdown document with sections:
-   - **Overview** — What the endpoint does in plain language
-   - **Endpoint Details** — HTTP method, URL, content type
-   - **Request Parameters** — Table of all parameters with types, requirements, examples
-   - **Response Format** — JSON structure with field descriptions
-   - **Examples** — Minimum 3 curl commands:
-     - Success case with sample response
-     - Error case (if implementation supports error scenarios)
-     - Edge case (empty results, max parameters, etc.)
-   - **Common Integration Patterns** — Tips for typical use cases
-   - **Troubleshooting** — Common mistakes and solutions
 
-2. Write all curl examples in executable form:
-   ```bash
-   # Success case
-   curl -X [METHOD] http://localhost:3000/api/properties/search
-   
-   # Expected response:
-   {
-     [Actual response from testing]
-   }
-   ```
+1. **Implement `test/api/properties/search.test.js`** with structure from appropriate approach above
 
-3. Test every curl example by copy-pasting into terminal to ensure accuracy.
+2. **Add test cases covering acceptance criteria:**
+   - ✅ Happy path: Successful property search returns array
+   - ✅ Error case: Invalid request returns appropriate error
+   - ➕ Edge case: Empty result set (if API supports filtering)
+   - ➕ Edge case: Large result set handling
+   - ➕ Edge case: Special characters in parameters
 
-4. Use fictional but realistic data in examples:
-   - Property IDs: "prop-12345", "prop-67890"
-   - Addresses: "123 Example Street", "456 Demo Avenue"
-   - Avoid any data that resembles real properties
+3. **Ensure descriptive test names and assertions:**
+```javascript
+it('returns 200 status code with valid JSON array for successful search', async () => {
+  // Clear description of expected behavior
+  const response = await makeRequest(serverPort, '/api/properties/search');
+  
+  assert.strictEqual(
+    response.statusCode, 
+    200, 
+    'Successful search should return HTTP 200'
+  );
+  
+  assert.strictEqual(
+    response.headers['content-type'],
+    'application/json',
+    'Response should be JSON content type'
+  );
+});
+```
 
 **Files Created:**
-- `/docs/api/properties-search.md`
+- `test/api/properties/search.test.js` (complete implementation)
 
-**Validation:** Execute every curl example in a fresh terminal session. Verify responses match documented expectations.
+**Time Estimate:** 2 hours
 
-### Phase 5: Navigation and Discovery
+### Phase 4: Database Mocking Strategy
 
-**Objective:** Update repository entry points to reference new documentation.
+**Objective:** Implement mocking approach that satisfies zero external dependencies constraint without modifying production code.
 
-**Actions:**
-1. Update `README.md`:
-   - Replace section 4 ("nathan here") with API documentation reference
-   - Add new section after "Structure" with link to `/docs/api/`
-   - Maintain all existing content (preserve sections 1-3)
+**Strategy Selection** (based on Phase 0 analysis):
 
-   Example addition:
-   ```markdown
-   ## API Documentation
-   
-   Comprehensive API documentation is available in the `/docs/api/` directory:
-   
-   - [OpenAPI Specification](/docs/api/openapi.yaml) — Machine-readable API contract
-   - [Property Search Endpoint Guide](/docs/api/properties-search.md) — Human-readable usage examples
-   
-   For a complete index of all documented endpoints, see [/docs/api/README.md](/docs/api/README.md).
-   ```
+**Option 1: Environment-Based Fixture Injection**
+If API checks for test environment, inject fixture data through environment variable:
+```javascript
+// In test setup
+process.env.USE_TEST_FIXTURES = 'true';
+process.env.TEST_FIXTURE_DATA = JSON.stringify(sampleProperties);
+```
 
-2. Update `/docs/api/README.md` as navigation index:
-   ```markdown
-   # API Documentation
-   
-   This directory contains comprehensive documentation for all API endpoints.
-   
-   ## Available Endpoints
-   
-   - [Property Search](/docs/api/properties-search.md) — `/api/properties/search`
-   
-   ## Machine-Readable Specification
-   
-   - [OpenAPI 3.0 Specification](/docs/api/openapi.yaml) — Complete API contract in YAML format
-   
-   ## Getting Started
-   
-   1. Ensure Node.js is installed
-   2. Start the local server: `node backend/api/properties/search.js`
-   3. The API will be available at http://localhost:3000
-   4. Try the examples in the endpoint guides
-   ```
+**Option 2: Module Mock/Stub**
+If API imports database module, use test framework mocking:
+```javascript
+// Using Node.js mock (Node 18+)
+const { mock } = require('node:test');
+const dbModule = require('../../../backend/database/client');
+
+mock.method(dbModule, 'query', () => {
+  return Promise.resolve(sampleProperties);
+});
+```
+
+**Option 3: No Mocking Required**
+If API already returns hardcoded sample data (suggested by README), tests validate actual responses without mocking.
+
+**Implementation:**
+
+1. **Analyze database interaction pattern** from Phase 0 findings
+
+2. **Implement appropriate mocking strategy** in test setup
+
+3. **Verify mock isolation:** Each test should get fresh mock state
+
+4. **Document mocking approach** in test file comments for future maintainers
 
 **Files Modified:**
-- `README.md`
-- `/docs/api/README.md` (expanded from initial creation)
+- `test/api/properties/search.test.js` (add mocking setup)
+- `test/helpers/server.js` (if mocking requires helper utilities)
 
-### Phase 6: Final Validation Pass
+**Time Estimate:** 1 hour
 
-**Objective:** Verify all acceptance criteria met before commit.
+### Phase 5: Coverage Analysis and Gap Filling
+
+**Objective:** Measure code coverage and add tests to reach target acceptance criteria.
 
 **Actions:**
-1. Fresh checkout test: Clone repository in temporary location, follow README instructions, verify documentation alone enables successful API call within 15 minutes.
 
-2. Accuracy audit: Compare every documented field in OpenAPI spec and Markdown guide against actual API responses from testing.
-
-3. Security review: Confirm no references to:
-   - `backend/database/queries/property-search.sql`
-   - SQL table names or query structure
-   - Internal error codes or stack traces
-   - Real property data
-
-4. Link validation: Verify all internal documentation links resolve correctly.
-
-5. Example execution: Re-run all curl examples to confirm 100% success rate.
-
-**Deliverable:** Confidence that documentation meets "Accuracy Guarantee" constraint and all acceptance criteria.
-
-### Execution Order
-
-```
-Phase 1 (Analysis) → Phase 2 (Directory) → Phase 3 (OpenAPI) → Phase 4 (Markdown) → Phase 5 (Navigation) → Phase 6 (Validation)
+1. **Run coverage analysis:**
+```bash
+npm run test:coverage
 ```
 
-**Critical Path:** Phase 1 must complete before Phase 3 and Phase 4, as both documentation formats depend on verified API behavior. Phase 2 can occur in parallel with Phase 1. Phase 5 depends on Phase 3 and Phase 4 completion. Phase 6 is the final gate.
+2. **Review coverage report** identifying uncovered branches:
+   - Error handling paths
+   - Edge case validation
+   - Response formatting logic
+
+3. **Add tests for uncovered paths** prioritizing:
+   - Critical error handling (should reach 100%)
+   - Input validation logic
+   - Response transformation code
+
+4. **Example gap-filling test:**
+```javascript
+it('handles server errors gracefully with 500 status', async () => {
+  // Force error condition by mocking database failure
+  mock.method(dbModule, 'query', () => {
+    throw new Error('Database connection failed');
+  });
+  
+  const response = await makeRequest(serverPort, '/api/properties/search');
+  
+  assert.strictEqual(response.statusCode, 500);
+  const body = JSON.parse(response.body);
+  assert.ok(body.error, 'Server error should return error object');
+  assert.ok(
+    !body.error.includes('Database'), 
+    'Error message should not expose internal details'
+  );
+});
+```
+
+5. **Stop when target coverage reached** (80% target, 60% minimum acceptable)
+
+**Files Modified:**
+- `test/api/properties/search.test.js` (additional test cases)
+
+**Time Estimate:** 1.5 hours
+
+### Phase 6: Performance Optimization
+
+**Objective:** Ensure test suite completes within 10 second constraint.
+
+**Actions:**
+
+1. **Measure baseline execution time:**
+```bash
+time npm test
+```
+
+2. **If exceeding 10 seconds, optimize:**
+
+**Optimization A: Parallel Execution**
+```json
+// package.json
+{
+  "scripts": {
+    "test": "node --test --test-concurrency=4 test/**/*.test.js"
+  }
+}
+```
+
+**Optimization B: Shared Server Instance**
+```javascript
+// Move server startup to outer describe block
+describe('Property Search API', () => {
+  let server;
+  
+  before(async () => {
+    server = await startTestServer();
+  });
+  
+  after(() => {
+    server.process.kill();
+  });
+  
+  // All tests share single server instance
+});
+```
+
+**Optimization C: Reduce Server Startup Overhead**
+- Use module-level testing instead of programmatic server if possible
+- Mock HTTP layer instead of actual server
+- Cache server instance across test files
+
+3. **Re-measure after optimizations** to confirm < 10 second target
+
+4. **Document performance characteristics** in README
+
+**Files Modified:**
+- `package.json` (if adding parallelization flags)
+- `test/api/properties/search.test.js` (if restructuring for shared resources)
+- `test/helpers/server.js` (if optimizing server startup)
+
+**Time Estimate:** 45 minutes
+
+### Phase 7: README Documentation Update
+
+**Objective:** Document test execution instructions for developers.
+
+**Actions:**
+
+1. **Add "Running Tests" section to `README.md`:**
+
+```markdown
+## Running Tests
+
+This repository includes an automated test suite for the property search API.
+
+### Prerequisites
+
+- Node.js 18.0.0 or higher
+
+### Quick Start
+
+1. Install dependencies (if not already installed):
+   ```bash
+   npm install
+   ```
+
+2. Run the test suite:
+   ```bash
+   npm test
+   ```
+
+3. Run tests with coverage report:
+   ```bash
+   npm run test:coverage
+   ```
+
+### Test Structure
+
+Tests are organized in the `test/` directory mirroring the source code structure:
+
+- `test/api/properties/search.test.js` - Property search endpoint tests
+- `test/fixtures/` - Sample test data
+- `test/helpers/` - Testing utilities
+
+### Expected Output
+
+All tests should pass with output similar to:
+
+```
+✔ Property Search API > GET /api/properties/search > returns array of properties (45ms)
+✔ Property Search API > GET /api/properties/search > returns 400 for invalid parameters (12ms)
+
+Tests: 2 passed, 2 total
+Time: 1.23s
+```
+
+### Troubleshooting
+
+**Tests fail with "EADDRINUSE" error:**
+- Another process is using port 3000
+- Tests use dynamic port allocation and should avoid this issue
+- If persists, check for zombie processes: `lsof -i :3000`
+
+**Coverage reports not generating:**
+- Ensure Node.js version >= 18.0.0
+- Check that `c8` is installed in devDependencies
+```
+
+2. **Update existing "Running the sample API" section** if needed to clarify difference between running API for development vs. testing
+
+3. **Add test command to "Structure" section** if appropriate
+
+**Files Modified:**
+- `README.md` (add testing documentation)
+
+**Time Estimate:** 20 minutes
+
+### Phase 8: Final Validation
+
+**Objective:** Verify all acceptance criteria met through fresh checkout simulation.
+
+**Actions:**
+
+1. **Simulate fresh developer checkout:**
+```bash
+# In temporary directory
+git clone [repository-url] fresh-test
+cd fresh-test
+npm install
+npm test
+```
+
+2. **Verify acceptance criteria checklist:**
+   - ✅ Test suite executes via single command without manual setup
+   - ✅ At least one test validates successful property search response structure
+   - ✅ At least one test validates error handling for invalid requests
+   - ✅ Test output clearly identifies passed/failed tests with actionable messages
+   - ✅ README includes test execution instructions
+   - ✅ All tests pass on current implementation without code changes
+   - ✅ Execution completes in < 10 seconds
+   - ✅ Coverage reaches minimum 60% (target 80%)
+
+3. **Test output quality review:**
+```javascript
+// Good: Descriptive failure message
+assert.strictEqual(
+  response.statusCode, 
+  200, 
+  'Expected HTTP 200 for successful search, got ${response.statusCode}. Response: ${response.body}'
+);
+
+// Bad: Generic failure message
+assert.strictEqual(response.statusCode, 200);
+```
+
+4. **Security scan of test fixtures:**
+- Confirm no real addresses, names, or data patterns
+- Verify test IDs use obvious prefixes: "prop-test-001"
+- Check for accidental PII in comments or variable names
+
+5. **Create validation checklist document** for human reviewer
+
+**Deliverable:** Confidence that all acceptance criteria met and tests ready for review.
+
+**Time Estimate:** 30 minutes
+
+### Execution Order and Dependencies
+
+```
+Phase 0 (Analysis) → Phase 1 (Infrastructure) → Phase 2 (Fixtures)
+                                                      ↓
+Phase 7 (README) ← Phase 6 (Performance) ← Phase 5 (Coverage) ← Phase 4 (Mocking) ← Phase 3 (Core Tests)
+                                                                                             ↓
+                                                                                      Phase 8 (Validation)
+```
+
+**Critical Path:** Phase 0 → Phase 1 → Phase 3 → Phase 5 → Phase 8
+
+Phases 2, 4, 6, 7 can be parallelized or reordered based on findings from critical path phases.
 
 ### Files Summary
 
 | File | Operation | Purpose |
 |------|-----------|---------|
-| `/docs/api/README.md` | CREATE | Navigation index for all API documentation |
-| `/docs/api/openapi.yaml` | CREATE | OpenAPI 3.0 specification (machine-readable) |
-| `/docs/api/properties-search.md` | CREATE | Property search endpoint guide (human-readable) |
-| `README.md` | MODIFY | Add API documentation reference, replace "nathan here" placeholder |
+| `package.json` | CREATE/MODIFY | Define test scripts and dev dependencies |
+| `test/api/properties/search.test.js` | CREATE | Main test suite for property search endpoint |
+| `test/fixtures/properties.js` | CREATE | Sample test data for API responses |
+| `test/helpers/server.js` | CREATE | Utility for programmatic server control |
+| `.gitignore` | MODIFY | Exclude test artifacts from version control |
+| `README.md` | MODIFY | Document test execution instructions |
 
-**Total: 3 files created, 1 file modified**
+**Total: 4-5 files created, 2 files modified**
 
 ## Risk Surface
 
-### Risk: Documentation Accuracy Failure
+### Risk: Test Framework Selection Misalignment
 
-**Scenario:** Documented response schema differs from actual API behavior due to incorrect analysis of `backend/api/properties/search.js` or failure to test against running instance.
+**Scenario:** Chosen test framework (Node.js native test runner) incompatible with team's existing tooling or CI/CD pipeline expectations.
 
-**Impact:** High — Developers build integrations against incorrect contract, leading to runtime failures and support escalations that negate the intent's goal of reducing support burden.
-
-**Mitigation:**
-- Execute API locally and capture actual responses using curl with `-v` flag to see full HTTP exchange
-- Include verbatim response JSON in documentation examples
-- Implement Phase 6 validation step with fresh checkout test simulating new developer experience
-- Document "Last Validated" timestamp in each artifact to signal when re-validation is needed
-
-**Detection:** Developers reporting that documented examples don't work or return different responses than documented.
-
-### Risk: Security Information Disclosure
-
-**Scenario:** Documentation inadvertently exposes internal implementation details such as SQL query structure from `property-search.sql`, table names, or internal error codes.
-
-**Impact:** Medium — Provides attackers with reconnaissance information about database schema and query patterns, slightly reducing security through obscurity.
+**Impact:** Medium — Tests work locally but fail in automated pipeline, or team cannot run tests due to unfamiliarity with framework.
 
 **Mitigation:**
-- Explicit security review checkpoint in Phase 6 validation
-- Document only HTTP interface observable from outside the application
-- Use generic descriptions like "searches properties based on criteria" rather than "executes SELECT query on properties table"
-- Sanitize error examples to show only HTTP status codes, not internal stack traces
+- Phase 0 analysis includes checking for existing test framework hints in repository
+- Proposal recommends Node.js native (zero dependency) as default but provides Jest/Mocha alternatives
+- Human reviewer (Tier 2 Supervised) validates framework choice before implementation
+- Framework selection isolated to Phase 1; changing it later requires minimal rework
 
-**Detection:** Security audit finding references to internal implementation in committed documentation.
+**Detection:** Human review flags framework choice as inappropriate for project context.
 
-### Risk: Incomplete Error Documentation
+### Risk: Incorrect API Behavior Assumptions
 
-**Scenario:** Documentation only covers happy path success cases without documenting error responses, leaving developers unprepared for failure scenarios.
+**Scenario:** Phase 0 analysis misinterprets API implementation, leading to tests that validate incorrect behavior.
 
-**Impact:** Low-Medium — Developers don't implement proper error handling in their integrations, leading to poor user experiences when API calls fail.
-
-**Mitigation:**
-- Acceptance criteria explicitly requires "at least one error scenario with expected response format"
-- Phase 4 implementation plan mandates minimum 3 examples including error case
-- If API implementation has minimal error handling (returns generic errors), document this limitation explicitly rather than inventing detailed error responses
-
-**Detection:** Developers asking support team how to handle error responses that aren't documented.
-
-### Risk: Example Syntax Errors
-
-**Scenario:** Curl examples contain typos, incorrect flags, or malformed JSON that prevent copy-paste execution.
-
-**Impact:** Medium — Developers lose trust in documentation after first failed example, revert to reading source code or contacting team.
+**Impact:** High — Tests pass but don't actually verify correct API functionality; false confidence in broken code.
 
 **Mitigation:**
-- Phase 4 includes explicit step: "Test every curl example by copy-pasting into terminal"
-- Phase 6 validation re-runs all examples in fresh shell
-- Use curl's `-X` flag explicitly even for GET requests to reduce ambiguity
-- Include expected output immediately after each example for quick verification
+- Phase 0 explicitly requires reading actual implementation code, not assumptions
+- Tests must execute against running API and compare actual responses to documented expectations
+- Phase 8 validation includes manual API testing to confirm test assertions match reality
+- Cross-reference with documentation orbit artifacts (bffba690-3729-48f5-9223-6609f344063f) for expected behavior
 
-**Detection:** Developer feedback that examples don't execute successfully.
+**Detection:** 
+- Human review identifies mismatch between test assertions and documented API contract
+- Phase 8 fresh checkout test fails because tests don't match actual API behavior
 
-### Risk: Documentation Drift Over Time
+### Risk: Database Mocking Bypasses Production Logic
 
-**Scenario:** Future code changes to `backend/api/properties/search.js` modify API behavior without updating documentation, causing divergence.
+**Scenario:** Mocking strategy replaces so much of the API stack that tests validate mock behavior instead of real code paths.
 
-**Impact:** High (long-term) — Documentation becomes unreliable over time, eventually becoming more harmful than helpful as it misleads developers.
-
-**Mitigation:**
-- Co-location of documentation in `/docs/api/` within repository makes updates visible during code review
-- Include "Last Updated" timestamp in documentation to signal staleness
-- Future orbit consideration: Establish policy that API changes require documentation updates in same PR
-- This orbit establishes pattern that future documentation should follow, making updates easier
-
-**Detection:** Scheduled quarterly documentation audit comparing specs against actual API behavior.
-
-### Risk: Scope Creep to Multiple Endpoints
-
-**Scenario:** During implementation, discover other undocumented endpoints in `backend/api/` directory, attempt to document all endpoints beyond property search.
-
-**Impact:** Low — Delays delivery of primary intent while pursuing stretch goals that aren't required for acceptance criteria.
+**Impact:** Critical — Tests become meaningless; production bugs slip through because tests never exercise actual logic.
 
 **Mitigation:**
-- Acceptance criteria sets minimum as "property search fully documented" and target as "all existing endpoints"
-- Implementation plan scopes Phase 1 analysis exclusively to `backend/api/properties/search.js`
-- If other endpoints discovered, document their existence in `/docs/api/README.md` with "Documentation pending" note for future orbits
-- Resist temptation to achieve stretch goals in first iteration
+- Mocking constrained to data layer only (database queries), not business logic
+- Prefer testing at HTTP boundary (Approach A) over deep module mocking
+- Phase 3 includes validation that mocked paths still execute core API logic
+- If API returns hardcoded data (Option 3), no mocking required - test actual responses
+- Human reviewer validates mocking strategy doesn't over-isolate system under test
 
-**Detection:** Implementation timeline exceeding 1 day (expected duration for single-endpoint documentation).
+**Detection:**
+- Coverage report shows large sections of production code never executed during tests
+- Tests pass even when obvious bugs introduced in unmocked code paths
+
+### Risk: Port Conflicts in CI/CD Environment
+
+**Scenario:** Multiple test suites run in parallel on CI server attempting to bind to same port, causing "EADDRINUSE" failures.
+
+**Impact:** Medium — Tests fail intermittently in CI despite passing locally; unreliable pipeline.
+
+**Mitigation:**
+- `test/helpers/server.js` implements dynamic port allocation using port 0
+- Each test run gets unique ephemeral port from OS
+- Alternative: Use module-level testing (Approach B) avoiding server startup entirely
+- Document port conflict troubleshooting in README
+
+**Detection:** CI logs show "EADDRINUSE" or port binding errors; tests pass when run individually but fail in parallel.
+
+### Risk: Test Execution Time Exceeds Constraint
+
+**Scenario:** Programmatic server startup overhead causes test suite to exceed 10 second execution constraint.
+
+**Impact:** Medium — Violates acceptance criteria; developers skip running tests locally due to slowness.
+
+**Mitigation:**
+- Phase 6 explicitly focuses on performance optimization
+- Shared server instance across tests reduces startup overhead
+- Parallel test execution (`--test-concurrency`) speeds up suite
+- Module-level testing (if available) eliminates server startup entirely
+- Continuous monitoring: Phase 8 validation measures actual execution time
+
+**Detection:** `time npm test` shows execution > 10 seconds during Phase 6 or Phase 8.
+
+### Risk: Fixture Data Diverges from Production Schema
+
+**Scenario:** API response structure changes but test fixtures not updated, causing tests to validate outdated contract.
+
+**Impact:** Medium — Tests pass but validate wrong schema; integration issues not caught.
+
+**Mitigation:**
+- Fixtures based on actual documented schema from orbit bffba690-3729-48f5-9223-6609f344063f
+- Tests validate structure not just values (e.g., `assert.ok(property.id)` checks field exists)
+- Phase 8 includes cross-reference with latest documentation
+- Future: JSON schema validation (stretch goal) provides automated schema drift detection
+
+**Detection:** API changes merged without corresponding fixture updates; integration tests or production issues reveal schema mismatch.
+
+### Risk: Tests Pass with Backward Compatibility Violation
+
+**Scenario:** Tests accidentally modify production code (violating constraint) and pass only because of those modifications.
+
+**Impact:** High — Constraint violation; tests don't validate actual production behavior.
+
+**Mitigation:**
+- Phase 8 validation explicitly checks no changes to `backend/api/properties/search.js`
+- Git diff review confirms only test files and README modified
+- Human reviewer (Tier 2 Supervised) validates backward compatibility maintained
+- Test implementation documented to never require production code changes
+
+**Detection:** 
+- Git diff shows modifications to files outside test directory
+- Proposal violation identified during human review
+
+### Risk: Inadequate Error Scenario Coverage
+
+**Scenario:** Tests only cover happy path, missing critical error handling paths needed for 80% coverage target.
+
+**Impact:** Medium — Acceptance criteria not met; error handling bugs slip through.
+
+**Mitigation:**
+- Phase 5 explicitly focuses on gap filling after coverage analysis
+- Minimum acceptance requires at least one error case test
+- Target acceptance requires 3 error cases + 2 edge cases
+- Coverage report guides additional test creation prioritization
+
+**Detection:** Coverage report in Phase 5 shows < 60% coverage or large uncovered error handling branches.
+
+### Risk: Test Output Not Actionable for Developers
+
+**Scenario:** Tests fail with generic error messages that don't help developers understand what went wrong.
+
+**Impact:** Low-Medium — Increased debugging time; frustrated developers.
+
+**Mitigation:**
+- All assertions include descriptive failure messages with context
+- Example in Phase 3: `assert.strictEqual(actual, expected, 'Reason why this matters')`
+- Test names describe expected behavior: "returns 200 status for successful search"
+- Phase 8 validation includes manual review of failure message quality
+
+**Detection:** Developers report difficulty understanding test failures; support questions about test output.
+
+### Risk: Security Information Exposure in Test Fixtures
+
+**Scenario:** Test fixtures accidentally include real property addresses, names, or sensitive data patterns.
+
+**Impact:** Low-Medium — Privacy concern; potential data exposure if tests committed to public repository.
+
+**Mitigation:**
+- Phase 2 explicitly uses obviously fictional data with "test" prefixes
+- Phase 8 security scan checks for PII patterns (SSN, email, phone)
+- Fixtures use synthetic data: "123 Test Avenue", "prop-test-001"
+- Human reviewer validates no real data in test artifacts
+
+**Detection:** Automated pattern scanning or human review identifies realistic-looking data in fixtures.
 
 ## Scope Estimate
 
-### Complexity Assessment: Low
+### Complexity Assessment: Medium
 
 **Justification:**
-- No executable code changes — documentation artifact creation only
-- Single endpoint to document with straightforward analysis requirements
-- No external dependencies or integrations to coordinate
-- Clear acceptance criteria with objective validation steps
-- Zero production deployment risk enabling autonomous execution
+- **Moderate Technical Challenge:** Requires understanding existing API implementation, designing mocking strategy, and selecting appropriate testing approach without modifying production code
+- **Architectural Decision:** Framework selection and mocking strategy have long-term maintenance implications requiring human validation (Tier 2 Supervised)
+- **Multiple Unknowns:** Phase 0 analysis required before concrete implementation decisions; API structure discovery may reveal unexpected complexity
+- **Clear Boundaries:** Scope well-defined (single endpoint, no integration tests); constraints eliminate ambiguity
+- **Low Production Risk:** Tests don't affect running systems; errors impact only development workflow
 
-### Estimated Duration: 4-6 hours
+**Complexity Drivers:**
+- Understanding undocumented API implementation
+- Database mocking without code modification
+- Performance optimization to meet 10-second constraint
+- Coverage target achievement (80%) may require extensive edge case testing
+
+### Estimated Duration: 6.5-8 hours
 
 **Time Breakdown:**
 
-| Phase | Estimated Time | Notes |
-|-------|---------------|-------|
-| Phase 1: API Behavior Discovery | 1 hour | Includes code analysis, local testing, response capture |
-| Phase 2: Directory Structure | 15 minutes | Simple directory and README creation |
-| Phase 3: OpenAPI Specification | 1.5 hours | YAML authoring, schema definition, validation |
-| Phase 4: Markdown Endpoint Guide | 1.5 hours | Writing examples, testing curl commands, formatting |
-| Phase 5: Navigation Updates | 30 minutes | README modifications, link validation |
-| Phase 6: Final Validation | 45 minutes | Fresh checkout test, accuracy audit, security review |
-| **Total** | **5.25 hours** | Mid-range of estimate |
+| Phase | Estimated Time | Confidence | Notes |
+|-------|---------------|-----------|-------|
+| Phase 0: API Analysis | 45 min | High | Reading code and prior orbit artifacts |
+| Phase 1: Infrastructure Setup | 30 min | High | Straightforward package.json and directory creation |
+| Phase 2: Fixture Creation | 15 min | High | Simple data structures |
+| Phase 3: Core Tests | 2 hours | Medium | Main implementation work; may extend if API complex |
+| Phase 4: Database Mocking | 1 hour | Low | Depends heavily on Phase 0 findings |
+| Phase 5: Coverage Analysis | 1.5 hours | Medium | Iterative gap-filling; time varies with coverage gaps |
+| Phase 6: Performance Optimization | 45 min | Medium | May not be needed if tests already fast |
+| Phase 7: README Updates | 20 min | High | Straightforward documentation |
+| Phase 8: Final Validation | 30 min | High | Checklist-driven verification |
+| **Total** | **7.25 hours** | **Medium** | Mid-range estimate |
+
+**Variability Factors:**
+- **+1-2 hours:** Complex API implementation requiring extensive mocking
+- **+1 hour:** Low initial coverage requiring many additional tests
+- **-1 hour:** Simple API with exported functions enabling fast module-level testing
+- **-30 min:** Performance already meets constraint without optimization
 
 ### Work Phases: Single Orbit
 
-**This proposal represents a complete orbit** — all phases execute within one continuous work session. No natural break points for multi-orbit decomposition exist since:
-- Documentation artifacts interdepend (OpenAPI and Markdown must describe same API behavior)
-- Partial documentation creates confusion rather than incremental value
-- Validation requires complete documentation set to test 15-minute integration scenario
+**This proposal represents a complete orbit** — all phases execute in one continuous session. No natural breakpoints for multi-orbit decomposition exist because:
+
+- Test suite value realized only when complete and passing
+- Partial test coverage creates false impression of validation
+- Mocking strategy must be consistent across all tests
+- Infrastructure setup (Phase 1) enables all subsequent phases
+
+**Milestone Checkpoints Within Orbit:**
+1. **Phase 0 Complete:** API analysis finalized; implementation approach selected
+2. **Phase 3 Complete:** Minimum acceptance criteria met (happy path + 1 error test)
+3. **Phase 5 Complete:** Target acceptance criteria met (80% coverage)
+4. **Phase 8 Complete:** All done criteria validated; ready for human review
 
 ### Acceptance Criteria Targeting
 
 **Minimum Acceptable (Guaranteed):**
-- ✓ Property search endpoint fully documented
-- ✓ 1 curl example (success case)
-- ✓ Top-level response fields documented
-- ✓ HTTP status codes listed
-- ✓ Dedicated `/docs/api/` directory
+- ✓ 60% code coverage of API handlers
+- ✓ Happy path + 1 error case
+- ✓ < 10 seconds full suite execution
+- ✓ Single test file
+- ✓ Basic equality checks with failure messages
 
 **Target (Planned):**
-- ✓ 3 examples per endpoint (success, error, edge case)
-- ✓ Nested objects and arrays fully specified
-- ✓ Error codes with descriptions and resolution steps
-- ✓ All existing endpoints documented (if only property search exists)
+- ✓ 80% code coverage including error paths
+- ✓ Happy path + 3 error cases + 2 edge cases
+- ✓ < 5 seconds full suite execution
+- ✓ Organized test structure with clear naming
+- ✓ Descriptive assertions with meaningful failure messages
 
 **Stretch (Opportunistic):**
-- ? Interactive Postman collection — Deferred to future orbit (out of scope per Non-Goals constraint)
-- ? JSON Schema validation — Can include in OpenAPI spec if time permits
-- ? Future endpoint template — Will create if time remains after primary work complete
+- ? 90% coverage with edge cases and validation logic — Time permitting after target achieved
+- ? Comprehensive parameter combination matrix — Deferred; diminishing returns
+- ? < 2 seconds with parallel execution — Implemented if Phase 6 optimization needed
+- ? Test utilities and fixtures in reusable modules — Created if code duplication emerges
+- ? Custom matchers for API patterns — Lower priority; standard assertions sufficient
 
 ### Deliverable Artifacts
 
-1. `/docs/api/openapi.yaml` — 100-150 lines of YAML
-2. `/docs/api/properties-search.md` — 300-400 lines of Markdown with examples
-3. `/docs/api/README.md` — 50-75 lines navigation index
-4. `README.md` updates — 10-15 lines added
+**Test Implementation:**
+- `test/api/properties/search.test.js` — 200-300 lines with 5-8 test cases
+- `test/fixtures/properties.js` — 50-75 lines of sample data
+- `test/helpers/server.js` — 75-100 lines of test utilities
 
-**Total Documentation Volume:** ~500 lines across 4 files
+**Configuration:**
+- `package.json` — Test scripts and dependencies
+- `.gitignore` — Coverage exclusions
+
+**Documentation:**
+- `README.md` — Testing section (50-75 lines added)
+
+**Total Implementation Volume:** ~450-550 lines across 6 files
+
+**Validation Evidence:**
+- Test execution output showing all tests pass
+- Coverage report showing 60-80% coverage achieved
+- Performance measurement confirming < 10 second execution
+- Fresh checkout validation log
 
 ## Human Modifications
 
