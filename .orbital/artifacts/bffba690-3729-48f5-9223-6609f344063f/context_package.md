@@ -1,240 +1,354 @@
-# Context Package: Implement Automated Testing Suite for Property Search API
+# Context Package: Implement CI/CD Pipeline with Automated Testing and Deployment
 
 ## Codebase References
 
-### Primary Implementation File (Test Target)
-- **`backend/api/properties/search.js`** — The Node.js HTTP server providing `/api/properties/search` endpoint; this is the system under test that must be validated without modification per backward compatibility constraint
+### Primary Application Files (No Modification)
+- **`backend/api/properties/search.js`** — Main Node.js HTTP server providing property search endpoint; this is the deployment artifact that CI/CD pipeline will ship to staging/production environments
+- **`backend/database/queries/property-search.sql`** — SQL query definition used by API; must be deployable alongside application code but not executed as migration
 
-### Database Layer (Analysis Only - Do Not Mock Directly)
-- **`backend/database/queries/property-search.sql`** — SQL query definition that should NOT be exposed or directly mocked in tests; tests must operate at HTTP API layer above the database interaction
+### Configuration and Documentation (Modification Required)
+- **`README.md`** — Must be updated with CI/CD setup instructions, pipeline status badges, and deployment process documentation per acceptance criteria
+- **`package.json`** — Contains test scripts (`npm test`) that pipeline will execute; may need engines field to specify Node.js version for CI environment; likely already exists from test suite orbit
+- **`package-lock.json`** — Required for reproducible dependency installation in CI environment; must be committed to repository if not already present
 
-### Documentation References (Validation Source)
-- **`.orbital/artifacts/bffba690-3729-48f5-9223-6609f344063f/proposal_record.md`** — Contains detailed API behavior analysis from documentation orbit including expected response structures, parameters, and error cases that tests must validate
-- **`.orbital/artifacts/bffba690-3729-48f5-9223-6609f344063f/context_package.md`** — Describes current API implementation patterns and observable behavior that tests should verify
+### CI/CD Configuration Files (To Be Created)
+- **`.github/workflows/ci.yml`** — GitHub Actions pipeline configuration (if GitHub selected)
+- **`.gitlab-ci.yml`** — GitLab CI pipeline configuration (if GitLab selected)
+- **`.circleci/config.yml`** — CircleCI pipeline configuration (if CircleCI selected)
+- **`.github/workflows/deploy.yml`** — Separate deployment workflow (optional; may be integrated into main workflow)
 
-### Repository Configuration
-- **`README.md`** — Must be updated with test execution instructions per acceptance criteria; currently documents API startup via `node backend/api/properties/search.js`
-- **`package.json`** — Likely does not exist yet; may need creation to define `npm test` command and testing framework dependencies
+### Test Suite Integration (Dependency from Prior Orbit)
+- **`test/api/properties/search.test.js`** — Test suite that pipeline will execute; created in prior testing orbit
+- **`test/fixtures/properties.js`** — Test fixtures required for test execution in CI
+- **`test/helpers/server.js`** — Test utilities needed in CI environment
 
-### Test Artifact Target Locations
-- **`test/`** or **`tests/`** — Standard Node.js convention for test directory (does not currently exist)
-- **`test/api/properties/search.test.js`** — Proposed location for property search endpoint tests following codebase structure mirroring
-- **`test/fixtures/`** — Proposed location for test data fixtures if needed
-- **`test/helpers/`** — Proposed location for shared test utilities if complexity justifies extraction
+### Deployment Artifacts (To Be Created)
+- **`scripts/deploy.sh`** or **`deploy.js`** — Deployment script if custom deployment logic required beyond platform defaults
+- **`.deployignore`** or **`.dockerignore`** — Files to exclude from deployment if size optimization needed
 
-### Prior Orbit Analysis Required
-- **`.orbital/artifacts/ffce316e-4d4e-46c6-bb4f-c5310e36a19f/*`** — Must review to understand what API modifications (if any) were made that tests need to reflect
+### Documentation Artifacts (To Be Created)
+- **`docs/deployment/README.md`** — Comprehensive deployment guide including setup, troubleshooting, and rollback procedures
+- **`docs/deployment/secrets.md`** — Template documenting required secrets/credentials without exposing actual values
+
+### Files NOT to Modify
+- **`backend/api/properties/search.js`** — Pipeline wraps existing code; no modifications allowed per backward compatibility constraint
+- **`backend/database/queries/property-search.sql`** — Database queries remain unchanged
+- All test files — Tests execute as-is; no test modifications for CI/CD compatibility
 
 ## Architecture Context
 
-### Current System Design
-**Standalone Node.js HTTP Server:** The implementation uses Node.js built-in `http` module (confirmed by README instructions showing direct `node` execution without framework). No Express, Fastify, or other web framework detected in repository structure, suggesting vanilla HTTP server implementation.
+### Current System Architecture
 
-**Server Architecture Pattern:**
+**Single-Tier Node.js Application:**
 ```
-HTTP Request → backend/api/properties/search.js → backend/database/queries/property-search.sql → JSON Response
-```
-
-Tests must intercept at the HTTP layer without requiring actual database connectivity per zero external dependencies constraint.
-
-### Testing Strategy Implications
-
-**Option 1: Programmatic Server Testing** — Start the HTTP server in test process, make actual HTTP requests using Node.js `http` or `fetch`, validate responses. Pros: High fidelity to production behavior. Cons: Requires port management, slower execution.
-
-**Option 2: Module-Level Testing** — If `backend/api/properties/search.js` exports handler functions, test them directly without HTTP layer. Pros: Fast execution, easier mocking. Cons: May not exist if file only contains server startup code.
-
-**Option 3: HTTP Mocking** — Use libraries like `nock` or `supertest` to intercept HTTP without actual server. Pros: Fast, no port conflicts. Cons: Adds dependency, may not match actual server behavior perfectly.
-
-**Recommended Approach:** Analyze `backend/api/properties/search.js` structure to determine if handler functions are exported. If yes, use Option 2 for speed. If no, use Option 1 with dynamic port allocation to avoid conflicts.
-
-### Database Mocking Strategy
-
-The Intent's "Zero External Dependencies" constraint prohibits tests requiring actual database connections. Three mocking approaches:
-
-1. **Module-Level Mock:** If API code imports/requires database query executor, replace that import with mock implementation returning fixture data
-2. **Fixture Responses:** If API returns hardcoded sample data (suggested by README "sample JSON response"), tests validate this actual behavior without mocking
-3. **Conditional Logic:** Wrap database calls in environment-aware logic (e.g., `if (process.env.NODE_ENV === 'test')`) — violates backward compatibility constraint, NOT ALLOWED
-
-**Decision Required:** Must analyze `backend/api/properties/search.js` to determine current data sourcing approach before selecting mocking strategy.
-
-### CI/CD Integration Model
-
-Tests must support headless automated execution via single command. Standard Node.js patterns:
-
-```json
-// package.json
-{
-  "scripts": {
-    "test": "node --test test/**/*.test.js"  // Node.js native test runner
-    // OR
-    "test": "jest"  // Jest framework
-    // OR  
-    "test": "mocha test/**/*.test.js"  // Mocha framework
-  }
-}
+Repository → Node.js Runtime → HTTP Server (port 3000) → Property Search Endpoint
+                                         ↓
+                                   SQL Query Execution
 ```
 
-Pipeline execution: `npm install && npm test` must succeed with exit code 0 if all tests pass, non-zero if any fail.
+Current deployment model: Manual execution via `node backend/api/properties/search.js` on target server. No existing automation, containerization, or orchestration.
+
+### Target CI/CD Architecture
+
+**Proposed Pipeline Flow:**
+```
+Code Push → CI Platform → Build Stage → Test Stage → Deploy Stage
+                              ↓            ↓              ↓
+                         Install deps  Run npm test   Ship to env
+                         Check syntax  Coverage report Update server
+```
+
+**Branch Strategy Implications:**
+
+| Branch Pattern | Pipeline Behavior | Deployment Target |
+|---------------|-------------------|-------------------|
+| `main` or `master` | Full pipeline: build + test + deploy | Production (stretch) or Staging (target) |
+| `develop` or `staging` | Full pipeline: build + test + deploy | Staging environment |
+| Feature branches (`feature/*`) | Build + test only | No deployment (validation gate) |
+| Pull requests | Build + test only | No deployment (review gate) |
+
+### Deployment Target Architecture Patterns
+
+**Pattern A: Platform-as-a-Service (Heroku, Render, Railway)**
+- Pipeline pushes code to platform via Git or API
+- Platform handles Node.js runtime provisioning
+- Environment variables configured through platform UI/CLI
+- Automatic process management and restarts
+
+**Pattern B: Infrastructure-as-a-Service (AWS EC2, DigitalOcean Droplet)**
+- Pipeline SSHs into server and executes deployment script
+- Manual Node.js setup required (PM2, systemd service)
+- Environment variables in `.env` file or system environment
+- Pipeline responsible for process restart
+
+**Pattern C: Serverless/Functions (AWS Lambda, Vercel, Netlify Functions)**
+- Pipeline packages code and uploads to function platform
+- Cold start considerations for HTTP endpoints
+- Platform manages scaling and availability
+- API Gateway or platform routing required
+
+**Recommendation:** Pattern A (PaaS) offers best balance of simplicity and free tier availability. Heroku free tier deprecated; recommend Render or Railway for modern PaaS.
+
+### Infrastructure Constraints
+
+**No Existing Infrastructure Visibility:**
+- Repository structure provides no hints about current hosting
+- No Dockerfile, kubernetes configs, or deployment scripts present
+- No environment variable references in visible code
+- Proposal must be infrastructure-agnostic or document multiple options
+
+**Database Deployment Consideration:**
+- `backend/database/queries/property-search.sql` presence suggests external database
+- Pipeline does NOT handle database provisioning or migration per non-goals constraint
+- Deployment assumes database already exists and accessible from target environment
+- Connection string/credentials must be provided via secrets management
+
+### Secret Management Architecture
+
+**CI/CD Platform Secret Storage:**
+```
+GitHub Actions: Repository Settings → Secrets and variables → Actions
+GitLab CI: Project Settings → CI/CD → Variables
+CircleCI: Project Settings → Environment Variables
+```
+
+**Required Secrets (Minimum):**
+- `DEPLOY_KEY` or `SSH_PRIVATE_KEY` — Authentication for deployment target
+- `DATABASE_URL` or `DB_CONNECTION_STRING` — Database connection (if not hardcoded)
+- `API_BASE_URL` — Deployment target URL for verification
+- Platform-specific: `HEROKU_API_KEY`, `AWS_ACCESS_KEY_ID`, etc.
+
+**Secret Injection Pattern:**
+```yaml
+# CI configuration
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  NODE_ENV: production
+```
+
+### Performance and Cost Considerations
+
+**CI Platform Free Tier Limits:**
+
+| Platform | Free Tier Minutes/Month | Concurrent Jobs | Storage |
+|----------|------------------------|-----------------|---------|
+| GitHub Actions | 2,000 min (public repos unlimited) | 20 concurrent | 500 MB |
+| GitLab CI | 400 min | 1 concurrent | 10 GB |
+| CircleCI | 6,000 min | 1 concurrent | Unlimited |
+
+**Pipeline Optimization Requirements:**
+- Dependency caching to avoid npm install on every run (saves 1-3 minutes)
+- Parallel job execution if multiple test suites exist
+- Artifact persistence between stages to avoid rebuilding
+- Target: < 5 minutes total pipeline time per acceptance criteria
 
 ## Pattern Library
 
-### Code Organization Patterns (Inferred)
+### CI/CD Configuration Patterns (To Be Established)
 
-**Directory Structure Convention:**
-- Backend code in `backend/` directory with subdirectories by layer (`api/`, `database/`)
-- Mirrored structure suggests tests should follow: `test/backend/api/properties/search.test.js` OR simplified `test/api/properties/search.test.js`
+**No existing CI/CD patterns** — this orbit creates the baseline. Industry standard patterns:
 
-**File Naming:**
-- Kebab-case: `property-search.sql` pattern observed
-- Tests should follow: `{feature}.test.js` or `{feature}.spec.js` convention
+**GitHub Actions Structure:**
+```yaml
+name: CI/CD Pipeline
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
 
-**Module Pattern:**
-Since repository shows direct Node.js execution without build tooling, assume CommonJS (`require`/`module.exports`) rather than ES modules unless `package.json` specifies `"type": "module"`.
-
-### Testing Patterns (To Be Established)
-
-**No existing test patterns identified** — this orbit creates the baseline. Recommended patterns:
-
-**Test Structure:**
-```javascript
-// Arrange-Act-Assert pattern
-describe('Property Search API', () => {
-  describe('GET /api/properties/search', () => {
-    it('returns array of properties for valid request', async () => {
-      // Arrange: Set up test conditions
-      // Act: Execute the operation
-      // Assert: Verify expected outcome
-    });
-  });
-});
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
 ```
 
-**Naming Conventions:**
-- Test files: `*.test.js` suffix
-- Test descriptions: Start with verb ("returns", "throws", "validates")
-- Grouped by HTTP method and endpoint path
+**GitLab CI Structure:**
+```yaml
+stages:
+  - build
+  - test
+  - deploy
 
-**Assertion Style:**
-- Prefer strict equality (`strictEqual`, `===`) over loose equality
-- Use deep equality for object/array comparisons
-- Include descriptive failure messages: `assert.equal(actual, expected, 'Response should contain property array')`
+test:
+  stage: test
+  image: node:18
+  script:
+    - npm ci
+    - npm test
+  cache:
+    paths:
+      - node_modules/
+```
+
+### Naming Conventions
+
+**Workflow/Pipeline Names:**
+- Use descriptive names: "CI/CD Pipeline", "Test and Deploy", "Build and Test"
+- Avoid abbreviations: "CICD" → "CI/CD Pipeline"
+- Job names describe action: "run-tests", "deploy-staging", "build-application"
+
+**Branch Naming (Recommended for Documentation):**
+- `main` or `master` — Production-ready code
+- `develop` or `staging` — Pre-production integration
+- `feature/*` — Feature development branches
+- `hotfix/*` — Emergency production fixes
+
+**Secret Naming:**
+- Uppercase with underscores: `DATABASE_URL`, `DEPLOY_KEY`
+- Prefix by purpose: `STAGING_DATABASE_URL`, `PROD_API_KEY`
+- Avoid generic names: `KEY`, `PASSWORD` → `HEROKU_API_KEY`, `SSH_PRIVATE_KEY`
+
+### Code Organization Patterns
+
+**Deployment Scripts Location:**
+- Root-level scripts directory: `/scripts/deploy.sh`
+- OR npm scripts in package.json: `"deploy": "node scripts/deploy.js"`
+- Keep deployment logic separate from application code
+
+**Documentation Structure:**
+- CI/CD setup: `/docs/deployment/README.md`
+- Secrets template: `/docs/deployment/secrets.md`
+- Troubleshooting: `/docs/deployment/troubleshooting.md`
+- Maintain existing `/docs/api/` structure from documentation orbit
 
 ### Error Handling Patterns
 
-Based on simple repository structure, API likely uses basic error handling:
-- HTTP 200 for success
-- HTTP 400/404/500 for errors
-- JSON error responses with `{ error: "message" }` structure (common pattern)
+**Pipeline Failure Behavior:**
+- Tests fail → Block deployment, exit code 1
+- Build fails → Stop pipeline immediately
+- Deployment fails → Rollback if possible, clear notification
+- Always provide actionable error messages with context
 
-Tests should validate both happy path and error responses with appropriate HTTP status codes.
+**Notification Patterns:**
+- Pipeline status via email/Slack/Discord webhook
+- GitHub commit status checks for PR integration
+- Deployment success confirmation before marking pipeline complete
 
 ## Prior Orbit References
 
 ### Orbit bffba690-3729-48f5-9223-6609f344063f (API Documentation)
 
-**Relevance:** HIGH — This orbit produced comprehensive API documentation including exact request/response formats, error cases, and curl examples.
+**Relevance:** Medium — Documentation orbit established API contract that deployed application must fulfill.
 
-**Key Artifacts to Review:**
-- **`proposal_record.md`** — Phase 1 "API Behavior Discovery" section contains actual tested API responses that tests must validate
-- **`context_package.md`** — "Architecture Context" section describes current API implementation patterns
-- Likely created `/docs/api/properties-search.md` with documented behavior that tests should verify matches reality
+**Key Artifacts:**
+- **`proposal_record.md`** — Contains documented API endpoints, response formats, and behavior
+- Likely created `/docs/api/` directory with OpenAPI spec and endpoint guides
 
-**Testing Implications:**
-- Tests should validate that actual API behavior matches documented behavior (regression detection)
-- Documented error cases provide test scenarios to implement
-- Documented response schema provides assertion structure
+**CI/CD Implications:**
+- Deployment verification should confirm deployed API returns documented responses
+- Pipeline could include smoke tests hitting deployed endpoint to verify basic functionality
+- Documentation serves as acceptance test specification
 
-**Action Required:** Parse documentation orbit artifacts to extract:
-1. Expected successful response structure
-2. All documented error scenarios
-3. Query parameter handling (if any)
-4. HTTP status codes for each scenario
+**Action Required:** Reference documented API contract for post-deployment verification steps.
+
+### Test Suite Orbit (Referenced in Dependencies)
+
+**Relevance:** CRITICAL — CI/CD pipeline depends entirely on test suite existence and reliability.
+
+**Required Artifacts:**
+- `package.json` with `"test"` script
+- Test files in `test/` directory
+- Tests passing reliably in local environment
+
+**CI/CD Implications:**
+- Pipeline executes `npm test` exactly as documented in test suite orbit
+- Test coverage reports feed into quality gates
+- Test failures must provide clear feedback for developers
+
+**Action Required:** 
+- Verify test suite exists and `npm test` command works
+- Confirm tests run without external dependencies (database, network)
+- Review test execution time to ensure < 5 minute pipeline target achievable
+
+**Critical Assumption:** This proposal assumes test suite orbit has been completed successfully. If tests don't exist, this orbit cannot proceed.
 
 ### Orbit ffce316e-4d4e-46c6-bb4f-c5310e36a19f (Unknown Scope)
 
-**Artifacts Present:**
-- `intent_document.md`
-- `context_package.md` 
-- `proposal_record.md`
+**Relevance:** Low-Medium — May have modified API implementation that affects deployment.
 
-**Status:** Complete (all core artifacts present)
+**Action Required:** Review artifacts to determine:
+- Did this orbit change API startup process or dependencies?
+- Are there new environment variables or configuration requirements?
+- Does deployment need additional steps beyond simple code deployment?
 
-**Action Required:** Review these artifacts to determine:
-- Did this orbit modify `backend/api/properties/search.js` behavior?
-- What is the current expected API contract?
-- Were new features or parameters added?
-
-**Testing Impact:** If API behavior was modified, tests must reflect post-modification behavior, not original implementation.
+**CI/CD Implications:** Any implementation changes affecting deployment process must be reflected in pipeline configuration.
 
 ### Orbit 93d08324-efe3-4d8d-bbfd-abe2bed1568c (Incomplete)
 
-**Artifacts Present:**
-- `intent_document.md`
-- `orbit_log.md`
+**Relevance:** Low — Incomplete orbit with only intent and log; no completed work to reference.
 
-**Status:** Incomplete/Failed (missing context, proposal, verification)
-
-**Relevance:** LOW — No completed work to reference, but orbit log may contain useful failure context to avoid repeating.
-
-### README "nathan here" Placeholder
-
-Section 4 anomaly suggests prior incomplete documentation effort. The documentation orbit (bffba690-3729-48f5-9223-6609f344063f) likely addressed this. Tests should not reference or depend on this placeholder.
+**Action:** Review orbit log for failure context; avoid repeating unsuccessful approaches if related to deployment or automation.
 
 ## Risk Assessment
-
-### Test Design Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Tests validate mock behavior instead of actual API logic | High | Critical — False confidence; tests pass but real API broken | Ensure mocks only replace external dependencies (database), not API logic; validate against actual HTTP responses where possible |
-| Test fixtures diverge from production data formats | Medium | High — Tests pass in dev, fail in production with real data | Base fixtures on actual production response samples from documentation orbit; include edge cases like null fields, empty arrays |
-| Flaky tests due to timing issues or port conflicts | Medium | Medium — Unreliable CI/CD pipeline, developer frustration | Use dynamic port allocation; await async operations properly; avoid `setTimeout` for synchronization |
-| Over-mocking creates brittle tests requiring frequent updates | Medium | Medium — Tests break on refactoring even when behavior unchanged | Mock at architectural boundaries (database layer), not internal implementation details |
-
-### Framework Selection Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Chosen framework becomes unmaintained or has security issues | Low | High — Long-term maintenance burden | Prefer Node.js native test runner (no external dependency) or battle-tested frameworks (Jest, Mocha) with large communities |
-| Framework adds significant dependencies bloating node_modules | Medium | Low — Slower installs, larger disk usage | Use `--save-dev` for test dependencies; prefer lightweight frameworks; Node.js native test runner has zero dependencies |
-| Team unfamiliar with chosen framework requires training | Low | Medium — Slowed initial adoption | Select framework with extensive documentation; include test examples in PR; prefer common patterns over framework-specific magic |
-
-### Coverage Metric Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| High coverage percentage masks untested critical paths | Medium | High — False security; bugs in uncovered edge cases | Focus on branch coverage, not just line coverage; manually identify critical error paths and ensure explicit tests |
-| Coverage tools report inflated numbers due to test setup code | Low | Low — Metrics slightly misleading | Configure coverage tools to exclude test files and setup utilities from coverage calculations |
-| Chasing 100% coverage leads to testing implementation details | Medium | Medium — Brittle tests; wasted effort | Stop at 80-90% coverage per target acceptance; remaining gaps likely trivial (error messages, logging) |
-
-### Execution Speed Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Test suite exceeds 10 second constraint as more tests added | High | Medium — Developers skip running tests locally | Implement parallel test execution; avoid actual network I/O; use fast assertion libraries; monitor suite duration in CI |
-| Programmatic server startup adds 2-3 seconds per test file | Medium | Medium — Violates individual test <100ms constraint | Share single server instance across all tests in file; use `before`/`after` hooks for setup/teardown |
-| Database mocking overhead slows test execution | Low | Low — Tests run in 1-2 seconds instead of milliseconds | Use in-memory fixtures instead of mock libraries; cache fixture data between tests |
-
-### Maintenance Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Tests break when API behavior legitimately changes | High | Low — Expected outcome requiring test updates | Co-locate tests with code; include test updates in same PR as API changes; clear test descriptions make updates obvious |
-| Test code duplicates production code logic | Medium | Medium — Bugs replicated in both, reducing test effectiveness | Tests should validate outputs for given inputs, not reimplement the logic; focus on black-box testing at HTTP boundary |
-| Fixture data becomes stale as schema evolves | Medium | Medium — Tests validate outdated contracts | Reference documentation orbit artifacts as source of truth; automated schema validation if stretch goals allow |
 
 ### Security Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
-| Test fixtures accidentally contain real user data or PII | Low | High — Privacy violation, potential data breach | Use obviously synthetic data; automated scan for patterns (SSN, email, phone) in test files; code review checkpoint |
-| Tests expose security vulnerabilities by documenting attack vectors | Low | Medium — Test code becomes attack playbook | Balance security testing with responsible disclosure; avoid documenting SQL injection or XSS patterns in test names |
-| Mocking disables security checks making tests pass incorrectly | Medium | Medium — Security regressions undetected | Ensure authentication/authorization checks (if any) remain active in tests; mock data layer, not security layer |
+| Secrets committed to repository | Medium | Critical — Full credential exposure, immediate security breach | Pre-commit hooks scanning for secrets; clear documentation on secret management; `.gitignore` for `.env` files; code review checkpoint |
+| Overly permissive deployment credentials | High | High — Compromised pipeline gains broad infrastructure access | Principle of least privilege: deploy keys with minimal permissions; separate staging/production credentials; credential rotation policy |
+| Deployment script arbitrary code execution | Medium | High — Malicious PR could execute commands on deployment server | Separate deployment workflows requiring manual approval; restrict who can modify workflow files; signed commits |
+| Unencrypted secrets in CI logs | Medium | High — Secrets visible in build logs | CI platform auto-masking of secrets; avoid echoing environment variables; sanitize error messages |
+| Man-in-the-middle during deployment | Low | Medium — Code tampering during transfer | Use HTTPS/SSH for all connections; verify checksums/signatures; TLS for API endpoints |
+
+### Operational Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| Broken deployment pushes to production | High | Critical — Service outage affecting all users | Staging environment deployment first; smoke tests post-deployment; manual approval gate for production; easy rollback mechanism |
+| Pipeline fails in CI but works locally | High | Medium — Blocked deployments, developer frustration | Match CI Node.js version to local; explicit dependency versions; document environment differences; test pipeline on feature branch first |
+| Deployment overwrites manual hotfixes | Medium | High — Emergency fixes lost, issue recurs | Clear deployment process documentation; discourage manual changes; deployment includes version tagging; audit logs |
+| Database connection failure breaks deployment | Medium | High — Application deployed but non-functional | Pre-deployment connectivity check; health check endpoint; deployment verification step; automatic rollback on health check failure |
+| Concurrent deployments cause race conditions | Low | Medium — Inconsistent deployment state | Deployment locking mechanism; queue concurrent pipelines; one deployment at a time per environment |
+
+### Cost and Performance Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| Pipeline exceeds free tier minutes | Medium | Medium — Unexpected costs or throttled builds | Optimize caching; avoid redundant runs; monitor usage; document cost thresholds |
+| Slow pipeline discourages frequent deploys | High | Medium — Defeats purpose of CI/CD automation | Parallel job execution; aggressive caching; separate test/deploy workflows; target < 5 minutes |
+| Large `node_modules` slows builds | High | Low — Wastes CI minutes, delays feedback | npm ci instead of npm install; cache dependencies; prune dev dependencies for deployment |
+| Deployment downtime during updates | Medium | Medium — Brief service interruption | Zero-downtime deployment strategies (blue-green if infrastructure supports); graceful process restarts |
+
+### Compliance and Audit Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| No deployment approval trail | High | Medium — Compliance violations, unclear accountability | Git history provides audit trail; tag releases; deployment logs with timestamps and authors; manual approval workflow for production |
+| Untested code reaches production | Medium | High — Quality issues, user-facing bugs | Test stage must pass before deployment; coverage thresholds; no bypass mechanisms without explicit approval |
+| Rollback capability missing | High | High — Cannot recover from bad deployment | Git tags for releases; ability to redeploy previous version; document rollback process; test rollback in staging |
+| Insufficient deployment documentation | High | Medium — Team cannot maintain or troubleshoot pipeline | Comprehensive setup guide; inline comments in workflow files; troubleshooting runbook; secrets documentation template |
 
 ### Integration Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
-| Tests require npm but repository doesn't use package.json | Medium | High — Cannot execute tests via `npm test` | Create minimal `package.json` if needed; ensure backward compatible with direct Node.js execution for API |
-| CI/CD pipeline lacks Node.js or incompatible version | Low | High — Tests cannot run in pipeline | Document required Node.js version; tests should work on LTS versions; add version check to test runner |
-| Tests pass locally but fail in CI due to environment differences | Medium | Medium — Blocked deployments, debugging burden | Avoid file system or OS-specific operations; use same Node.js version locally and CI; explicit dependency versions |
+| CI platform unavailable during critical fix | Low | High — Cannot deploy emergency hotfix | Document manual deployment fallback; multiple team members with deployment access; alternative CI platform configuration (backup) |
+| Platform-specific lock-in limits portability | Medium | Medium — Difficult to migrate CI/CD to different platform | Use standard deployment scripts (bash/node) not platform-specific DSL where possible; document platform dependencies clearly |
+| Webhook failures prevent pipeline triggers | Low | Medium — Deployments don't trigger automatically | Monitor webhook health; manual trigger capability; platform status page monitoring |
+| Test suite flakiness causes false failures | Medium | High — Blocks legitimate deployments, erodes trust | Fix flaky tests before implementing CI/CD; retry logic for transient failures; clear distinction between test failures and infrastructure issues |
+
+### Technical Debt Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| Pipeline configuration becomes unmaintainable | High | Medium — Difficult to modify, risky changes | Keep workflows simple; avoid clever abstractions; comprehensive comments; regular reviews |
+| Deployment scripts diverge from documentation | High | Medium — Documentation becomes unreliable | Co-locate documentation with pipeline files; version documentation with code; test documentation accuracy during reviews |
+| Accumulation of environment-specific workarounds | Medium | Medium — Brittle pipeline, unclear requirements | Document all workarounds with explanations; consolidate environment configurations; regular cleanup of obsolete code |
+| No ownership or expertise retention | Medium | High — Team cannot maintain pipeline after creator leaves | Knowledge transfer documentation; pair on initial implementation; multiple team members review proposal |
+
+### Deployment Strategy Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|-----------|
+| Blue-green deployment requires infrastructure not available | High | Low — Must use simpler strategy | Start with simple process restart deployment; document blue-green as future enhancement; ensure graceful shutdown |
+| Database schema changes break deployment | Low | Critical — Application-database version mismatch | Coordinate schema changes separately per non-goals constraint; backward-compatible schema changes only; document database deployment separately |
+| Static file deployment separated from code | Low | Low — Incomplete deployments | Bundle static assets with application; single deployment artifact; verify all required files present |
