@@ -7,17 +7,38 @@ namespace Calculator.Tests
     public class AdditionTests
     {
         [TestMethod]
-        public void Add_PositiveNumbers_ReturnsCorrectSum()
+        public void Add_TwoPositiveIntegers_ReturnsCorrectSum()
         {
-            double result = Calculator.Add(5.0, 3.0);
+            double result = Calculator.Add(5, 3);
             Assert.AreEqual(8.0, result, 0.0001);
         }
 
         [TestMethod]
-        public void Add_NegativeNumbers_ReturnsCorrectSum()
+        [DataRow(5.0, 3.0, 8.0)]           // positive + positive
+        [DataRow(-5.0, -3.0, -8.0)]        // negative + negative
+        [DataRow(5.0, -3.0, 2.0)]          // positive + negative
+        [DataRow(-5.0, 3.0, -2.0)]         // negative + positive
+        [DataRow(0.0, 5.0, 5.0)]           // zero + positive
+        [DataRow(5.0, 0.0, 5.0)]           // positive + zero
+        [DataRow(0.0, 0.0, 0.0)]           // zero + zero
+        public void Add_VariousInputs_ReturnsCorrectSum(double a, double b, double expected)
         {
-            double result = Calculator.Add(-5.0, -3.0);
-            Assert.AreEqual(-8.0, result, 0.0001);
+            double result = Calculator.Add(a, b);
+            Assert.AreEqual(expected, result, 0.0001);
+        }
+
+        [TestMethod]
+        public void Add_DecimalOperands_ReturnsCorrectSum()
+        {
+            double result = Calculator.Add(2.5, 3.7);
+            Assert.AreEqual(6.2, result, 0.0001);
+        }
+
+        [TestMethod]
+        public void Add_NegativeDecimals_ReturnsCorrectSum()
+        {
+            double result = Calculator.Add(-2.5, -1.5);
+            Assert.AreEqual(-4.0, result, 0.0001);
         }
     }
 
@@ -25,16 +46,37 @@ namespace Calculator.Tests
     public class SubtractionTests
     {
         [TestMethod]
-        public void Subtract_PositiveNumbers_ReturnsCorrectDifference()
+        public void Subtract_TwoPositiveIntegers_ReturnsCorrectDifference()
         {
-            double result = Calculator.Subtract(10.0, 3.0);
-            Assert.AreEqual(7.0, result, 0.0001);
+            double result = Calculator.Subtract(10, 4);
+            Assert.AreEqual(6.0, result, 0.0001);
         }
 
         [TestMethod]
-        public void Subtract_NegativeResult_ReturnsCorrectDifference()
+        [DataRow(10.0, 4.0, 6.0)]          // positive - positive
+        [DataRow(-10.0, -4.0, -6.0)]       // negative - negative
+        [DataRow(10.0, -4.0, 14.0)]        // positive - negative (becomes addition)
+        [DataRow(-10.0, 4.0, -14.0)]       // negative - positive
+        [DataRow(0.0, 5.0, -5.0)]          // zero - positive
+        [DataRow(5.0, 0.0, 5.0)]           // positive - zero
+        [DataRow(0.0, 0.0, 0.0)]           // zero - zero
+        public void Subtract_VariousInputs_ReturnsCorrectDifference(double a, double b, double expected)
         {
-            double result = Calculator.Subtract(3.0, 10.0);
+            double result = Calculator.Subtract(a, b);
+            Assert.AreEqual(expected, result, 0.0001);
+        }
+
+        [TestMethod]
+        public void Subtract_DecimalOperands_ReturnsCorrectDifference()
+        {
+            double result = Calculator.Subtract(7.5, 2.3);
+            Assert.AreEqual(5.2, result, 0.0001);
+        }
+
+        [TestMethod]
+        public void Subtract_SmallerFromLarger_ReturnsNegative()
+        {
+            double result = Calculator.Subtract(3, 10);
             Assert.AreEqual(-7.0, result, 0.0001);
         }
     }
