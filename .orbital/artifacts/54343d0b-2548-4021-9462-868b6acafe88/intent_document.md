@@ -1,81 +1,86 @@
-# Division Operation
+# Addition and Subtraction Operations
 
 ## Desired Outcome
 
-Users of the Calculator console application can select a division operation, input two numbers, and receive an accurate quotient. When the divisor is zero, the calculator provides a clear, user-friendly error message instead of crashing or producing undefined results. The division operation integrates seamlessly with the existing calculator interface, following the same interaction patterns established by addition, subtraction, and multiplication operations.
+Users of the Calculator console application can select addition or subtraction operations from the menu, input two numbers for each operation, and receive accurate results. The calculator performs standard arithmetic addition (combining two numbers) and subtraction (finding the difference between two numbers) with full support for positive, negative, and decimal operands. Both operations integrate seamlessly into the existing calculator interface, following the same interaction patterns established by the multiplication operation.
 
 ## Constraints
 
 ### User Experience
-- Division must appear as option "4" in the operation menu, maintaining consistency with the existing numeric ordering
+- Addition must appear as option "1" in the operation menu
+- Subtraction must appear as option "2" in the operation menu
 - Input prompts must match the language and formatting of existing operations ("Enter first number:", "Enter second number:")
-- Result display must follow the established format: "Result of division: [value]"
-- Error messages for division by zero must be clear, non-technical, and actionable (e.g., "Error: Cannot divide by zero. Please try again.")
+- Result display must follow the established format: "Result of addition: [value]" and "Result of subtraction: [value]"
+- Error messages for invalid input must be clear, non-technical, and actionable
 
 ### Technical Boundaries
 - Implementation must be in C# using .NET 6.0 or later
-- Division logic must reside in the `Calculator.cs` class following the existing method signature pattern
+- Addition logic must reside in the `Calculator.cs` class as an `Add(double a, double b)` method
+- Subtraction logic must reside in the `Calculator.cs` class as a `Subtract(double a, double b)` method
 - No third-party dependencies beyond the standard .NET libraries
-- Division by zero must be handled explicitly without throwing unhandled exceptions
+- No exception handling required for addition or subtraction (all `double` operations are mathematically valid)
 - Floating-point precision is acceptable; no need for arbitrary-precision arithmetic
 
 ### Non-Goals
-- This orbit does NOT include modulo/remainder operations
-- This orbit does NOT implement integer division (truncation) — standard floating-point division is sufficient
+- This orbit does NOT include division or modulo operations
+- This orbit does NOT implement chaining of operations (e.g., "add 3 numbers")
 - This orbit does NOT require internationalization of decimal separators
 - This orbit does NOT add batch processing or expression parsing capabilities
+- This orbit does NOT include absolute value, negation, or other unary operations
 
 ## Acceptance Boundaries
 
 ### Functional Correctness
-- **Minimum:** Division of positive integers produces correct floating-point results (e.g., 10 ÷ 2 = 5, 10 ÷ 3 = 3.333...)
-- **Target:** Division handles all numeric input types supported by C# `double`: positive, negative, zero, and decimal values
-- **Stretch:** Division accurately handles edge cases like very small divisors (near-zero) and very large numbers without overflow
+- **Minimum:** Addition and subtraction of positive integers produce correct results (e.g., 5 + 3 = 8, 10 - 4 = 6)
+- **Target:** Both operations handle all numeric input types supported by C# `double`: positive, negative, zero, and decimal values
+- **Stretch:** Operations accurately handle edge cases like very large numbers without overflow and maintain precision for scientific notation inputs
 
 ### Error Handling
-- **Minimum:** Division by exact zero (0.0) is caught and returns an error message to the user without crashing
-- **Target:** Division by zero includes a specific error message distinguishing it from other input validation errors
-- **Stretch:** Near-zero divisors (e.g., 1e-300) are handled gracefully without producing infinity
+- **Minimum:** Invalid numeric input (non-numeric strings) is rejected with a clear error message
+- **Target:** Input validation provides specific feedback distinguishing between different input errors
+- **Stretch:** Near-limit numeric values (approaching `double.MaxValue` or `double.MinValue`) are handled gracefully
 
 ### Test Coverage
-- **Minimum:** Unit tests verify correct results for positive integer division and explicit zero-divisor handling
-- **Target:** Unit tests cover negative numbers, decimal operands, and boundary cases (0 ÷ n, where n ≠ 0)
-- **Stretch:** Tests include assertions for floating-point precision expectations and near-zero edge cases
+- **Minimum:** Unit tests verify correct results for positive integer addition and subtraction
+- **Target:** Unit tests cover negative numbers, decimal operands, zero operands, and mixed sign operations
+- **Stretch:** Tests include boundary cases for floating-point limits and precision expectations
 
 ### Integration Quality
-- **Minimum:** Division operation appears in the menu and executes without breaking existing operations
-- **Target:** Console output formatting matches existing operations; user can execute multiple divisions in succession
-- **Stretch:** Error recovery allows the user to retry division after a zero-divisor error without restarting the application
+- **Minimum:** Addition and subtraction operations appear in the menu and execute without breaking existing operations
+- **Target:** Console output formatting matches existing operations; users can execute multiple operations in succession
+- **Stretch:** User can seamlessly switch between all calculator operations without any UX friction
 
 ## Trust Tier Assignment
 
 **Assigned Tier:** Tier 2 (Supervised)
 
 **Rationale:**
-This orbit operates at Tier 2 because it introduces a mathematically sensitive operation (division) with well-known edge cases (division by zero) into an existing codebase. While the blast radius is limited to a console application with no external dependencies or data persistence, the correctness of the implementation directly affects user trust in the calculator's reliability.
+This orbit operates at Tier 2 because it introduces the foundational arithmetic operations into the calculator codebase. While addition and subtraction are mathematically straightforward operations with no error-prone edge cases (unlike division), this is the first time these specific operations are being implemented in this codebase, and they establish critical patterns for user interaction and code structure.
 
 **Risk Factors Supporting Tier 2:**
-- Division by zero is a classic source of runtime errors that must be explicitly handled
-- Floating-point arithmetic introduces precision considerations that could manifest as subtle bugs
-- The operation integrates into an existing user interface with established patterns that must be preserved
+- These are the first arithmetic operations being added to the calculator (multiplication already exists per orbit 634a82e2)
+- The operations set the precedent for method signatures, naming conventions, and UI patterns that future operations will follow
+- Menu numbering as options "1" and "2" affects the overall menu structure and user flow
+- Integration into `Program.cs` establishes the operation dispatch pattern
 
 **Mitigations Enabling Tier 2 (vs. Tier 3):**
+- Addition and subtraction have no mathematical edge cases requiring complex error handling (all `double + double` and `double - double` operations are valid)
 - The codebase is small and testable with clear unit test coverage expectations
-- Error handling patterns are already established in the existing codebase (visible in the README's error handling section)
-- The console application has no external dependencies, simplifying verification
-- The operation is well-defined with no ambiguous requirements
+- The console application has no external dependencies or data persistence
+- Multiplication operation (orbit 634a82e2) already exists as a reference pattern
+- Operations are well-defined with no ambiguous requirements
 
-Autonomous execution (Tier 1) is not appropriate because this is the first division implementation in this codebase, requiring human verification that error handling meets user expectations and that floating-point behavior is acceptable for the intended use case.
+Autonomous execution (Tier 1) is not appropriate because this is establishing foundational patterns in the codebase. Human verification ensures the menu structure, output formatting, and interaction flow meet user expectations and align with the existing multiplication implementation.
 
 ## Dependencies
 
 ### Prior Orbits
-- **Orbit 634a82e2** (Multiplication): This orbit establishes the pattern for implementing arithmetic operations in `Calculator.cs` and the test structure in `CalculatorTests.cs`. Division should follow the same architectural and testing patterns.
+- **Orbit 634a82e2** (Multiplication): This orbit established the pattern for implementing arithmetic operations in `Calculator.cs` and the test structure in `CalculatorTests.cs`. Addition and subtraction should follow the same architectural and testing patterns for consistency.
 
 ### Existing Codebase Elements
-- **Calculator.cs**: Must contain or be extended with a `Divide(double a, double b)` method
-- **Program.cs**: Menu system must be updated to include option "4. Divide" and handle the division operation flow
-- **CalculatorTests.cs**: Test suite must be extended with division test cases
+- **Calculator.cs**: Must be extended with `Add(double a, double b)` and `Subtract(double a, double b)` methods
+- **Program.cs**: Menu system must include options "1. Add" and "2. Subtract" and handle the operation dispatch flow for both
+- **CalculatorTests.cs**: Test suite must be extended with addition and subtraction test cases
 
 ### External Dependencies
 - .NET 6.0 SDK or later runtime environment (already established by project configuration)
@@ -83,4 +88,10 @@ Autonomous execution (Tier 1) is not appropriate because this is the first divis
 
 ### Knowledge Dependencies
 - Understanding of IEEE 754 floating-point arithmetic behavior in C# `double` type
-- Familiarity with existing error handling patterns in the Calculator console interface
+- Familiarity with the existing console UI patterns established in `Program.cs`
+- Awareness of the xUnit testing framework conventions used in `CalculatorTests.cs`
+
+### Menu Structure Dependency
+- The existing menu structure must have slots available for options "1" and "2"
+- Per README.md, multiplication is option "3", division is option "4", and exit is option "5"
+- This suggests options "1" and "2" are currently either unassigned or need to be replaced
