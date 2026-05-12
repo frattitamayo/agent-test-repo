@@ -1,0 +1,75 @@
+{
+  "name": "property-search-api",
+  "version": "1.0.0",
+  "description": "Enhanced property search API with performance optimization and robust error handling",
+  "main": "backend/api/properties/search.js",
+  "scripts": {
+    "start": "node backend/api/properties/search.js",
+    "dev": "NODE_ENV=development node backend/api/properties/search.js",
+    "test": "NODE_ENV=test jest",
+    "test:watch": "NODE_ENV=test jest --watch",
+    "test:coverage": "NODE_ENV=test jest --coverage",
+    "lint": "eslint backend/",
+    "lint:fix": "eslint backend/ --fix"
+  },
+  "keywords": [
+    "property",
+    "search",
+    "api",
+    "real-estate",
+    "nodejs"
+  ],
+  "author": "Property Search Team",
+  "license": "MIT",
+  "dependencies": {
+    "mysql2": "^3.6.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "eslint": "^8.55.0",
+    "eslint-plugin-security": "^1.7.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "backend/**/*.js",
+      "!backend/tests/**",
+      "!backend/logs/**"
+    ],
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ]
+  },
+  "eslintConfig": {
+    "env": {
+      "node": true,
+      "es2021": true,
+      "jest": true
+    },
+    "extends": [
+      "eslint:recommended"
+    ],
+    "plugins": [
+      "security"
+    ],
+    "rules": {
+      "security/detect-sql-injection": "error",
+      "security/detect-object-injection": "error",
+      "no-eval": "error",
+      "no-implied-eval": "error",
+      "no-console": "off"
+    },
+    "parserOptions": {
+      "ecmaVersion": 2021
+    }
+  }
+}
