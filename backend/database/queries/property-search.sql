@@ -1,17 +1,23 @@
--- Sample property search query
--- This is just an example and not tied to a specific database.
+-- Property search query with parameterization
+-- Supports location, price range, and property type filtering with pagination
 
 SELECT
   id,
   title,
+  location,
   city,
-  price
+  price,
+  property_type,
+  description,
+  created_at
 FROM
   properties
 WHERE
-  (@city IS NULL OR city = @city)
-  AND (@min_price IS NULL OR price >= @min_price)
-  AND (@max_price IS NULL OR price <= @max_price)
+  (? IS NULL OR location LIKE '%' || ? || '%' OR city LIKE '%' || ? || '%')
+  AND (? IS NULL OR price >= ?)
+  AND (? IS NULL OR price <= ?)
+  AND (? IS NULL OR property_type = ?)
 ORDER BY
-  price ASC
-LIMIT 50;
+  price ASC,
+  created_at DESC
+LIMIT ? OFFSET ?;

@@ -1,0 +1,28 @@
+{
+  "name": "property-search-api",
+  "version": "1.0.0",
+  "description": "Property search API backend service",
+  "main": "backend/api/properties/search.js",
+  "scripts": {
+    "start": "node backend/api/properties/search.js",
+    "dev": "node backend/api/properties/search.js",
+    "test": "node test-api.js",
+    "check": "node startup-check.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "cors": "^2.8.5"
+  },
+  "keywords": [
+    "property",
+    "search",
+    "api",
+    "real-estate"
+  ],
+  "author": "",
+  "license": "MIT"
+}
