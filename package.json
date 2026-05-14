@@ -1,0 +1,35 @@
+{
+  "name": "property-search-api",
+  "version": "1.0.0",
+  "description": "A robust property search API with comprehensive filtering, pagination, and validation capabilities",
+  "main": "backend/api/properties/search.js",
+  "scripts": {
+    "start": "node backend/api/properties/search.js",
+    "test": "node test-api.js",
+    "dev": "node backend/api/properties/search.js",
+    "docs": "curl http://localhost:3000/api/properties/search/docs"
+  },
+  "keywords": [
+    "api",
+    "property",
+    "search",
+    "real-estate",
+    "nodejs",
+    "rest"
+  ],
+  "author": "Property Search API Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "sample-property-search-repo"
+  },
+  "dependencies": {
+    "Note": "This API uses only Node.js built-in modules for maximum compatibility"
+  },
+  "devDependencies": {
+    "Note": "Test script also uses only built-in modules"
+  }
+}
